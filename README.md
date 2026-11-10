@@ -42,10 +42,11 @@ deploy/
 不得只安装菜单或只授予moderator来代替密钥轮换与撤权链路。
 
 2026-11-10 jks 主持人修复客户端候选：
-[`clients/jks-whclaw-top-android-1.0.12/`](clients/jks-whclaw-top-android-1.0.12/README.md)，
-APK SHA256 `751dfd3127ccae5f815549f7efc7ef0fdbbd01737bbe3ec9b4dd574c83caf0d8`。
-保留数据安装、双向产品转让与创建者收回已验；pending进程死亡恢复、旧JWT重放、
-完整媒体仍未验，不标为完整交付/生产安全放行。现有Electron1.0.9兼容。
+[`clients/jks-whclaw-top-android-1.0.17/`](clients/jks-whclaw-top-android-1.0.17/README.md)，
+APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
+保留数据安装、双向产品转让、 persisted-pending recover/rebind、active-host
+进程死亡重进与创建者产品收回已验；未收到私有回执前死亡的会话仍需创建者
+收回。完整媒体与生产安全仍未验，不标为全产品发布放行。现有Electron1.0.9兼容。
 
 | 文件 | 用途 |
 |---|---|

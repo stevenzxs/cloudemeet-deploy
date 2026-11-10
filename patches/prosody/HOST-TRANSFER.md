@@ -31,13 +31,16 @@ updates do not accidentally discard host-control TLS or the published Web artifa
 credentials or session bindings. Actual Prosody Lua TLS can be checked with
 `tests/prosody-host-control-tls.lua` inside the running image (strict CA/hostname).
 
-2026-11-10 jks instance: installed Electron1.0.9/Android1.0.11 completed three
-product-confirmed transfers and creator reclaim in dedicated room330416681;
-each operation returned API authority ACTIVE. Old Electron host key rejected with
-business40304/no token; creator Electron refresh retained host. Meeting ended,
-idle0/0/operational bridge1 verified. This is not pending-disconnect fault or media
-acceptance. Android claim-probe warning fix is a newer candidate, not covered by
-that installed1.0.11 result. Sanitized batch evidence remains in
+2026-11-10 jks instance: installed Electron1.0.9/Android1.0.17 closed the
+host-control abnormal-recovery acceptance in dedicated room789745736. Product
+transfer and native return passed; a persisted pending receipt survived target
+process death and recovered through verified recover/HMAC rebind/ack; an active
+host re-entered after full process death; product creator reclaim passed. Each
+completed operation returned API authority ACTIVE. Sessions dying before receipt
+of the private credential correctly could not self-recover and required creator
+recovery. Meeting ended with conferences0/participants0/operational bridge1.
+This remains host-control evidence, not media or production-security clearance.
+Sanitized batch evidence remains in
 `history/deployments/20261110-jks-118/host-transfer/ACCEPTANCE.md` (local evidence).
 
 ## Tests
