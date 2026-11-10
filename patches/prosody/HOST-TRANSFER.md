@@ -20,6 +20,26 @@ Default templates do not enable transfer. Ordinary JWT owner mapping is not this
 7. After backend gates pass, append `config.cloudmeetHostTransferEnabled = true;` and `patches/web/host-control-custom-config.js` to persistent Jitsi `custom-config.js`, preserving existing actions. stable11248 filters External API configOverwrite; use supported persistent configuration, not bundle/Redux injection.
 8. Publish tested business Web through a recorded persistent artifact override or derived image, preserving original digest and candidate SHA256. Do not silently rebuild seven services or change checked-in `.env`; verify actual page/iframe same-origin.
 
+Tooling: `enable-host-control.py` requires idle conferences/participants and an
+existing backup, preserves the bind-source inode and leaves administrator recovery
+off. It does not restart services. `stage-host-control-web.py` verifies the input
+archive digest, refuses existing candidates and creates `host-control/web-compose.json`;
+append that overlay **after** `host-control/compose.json` and the instance's existing
+Compose files. Recreate only app-web. Keep both overlays in future operations so
+updates do not accidentally discard host-control TLS or the published Web artifact.
+`inspect-host-control-state.py` reads only authority state/operation counts, never
+credentials or session bindings. Actual Prosody Lua TLS can be checked with
+`tests/prosody-host-control-tls.lua` inside the running image (strict CA/hostname).
+
+2026-11-10 jks instance: installed Electron1.0.9/Android1.0.11 completed three
+product-confirmed transfers and creator reclaim in dedicated room330416681;
+each operation returned API authority ACTIVE. Old Electron host key rejected with
+business40304/no token; creator Electron refresh retained host. Meeting ended,
+idle0/0/operational bridge1 verified. This is not pending-disconnect fault or media
+acceptance. Android claim-probe warning fix is a newer candidate, not covered by
+that installed1.0.11 result. Sanitized batch evidence remains in
+`history/deployments/20261110-jks-118/host-transfer/ACCEPTANCE.md` (local evidence).
+
 ## Tests
 
 Deployment: `node --test tests/host-menu.test.cjs` and `python3 -B -m unittest discover -s tests -p 'test_host_control*.py'`.
