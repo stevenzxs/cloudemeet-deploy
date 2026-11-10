@@ -41,6 +41,12 @@ deploy/
 [转让部署手册](patches/prosody/HOST-TRANSFER.md)。默认模板不自动开启，
 不得只安装菜单或只授予moderator来代替密钥轮换与撤权链路。
 
+2026-11-10 jks 主持人修复客户端候选：
+[`clients/jks-whclaw-top-android-1.0.12/`](clients/jks-whclaw-top-android-1.0.12/README.md)，
+APK SHA256 `751dfd3127ccae5f815549f7efc7ef0fdbbd01737bbe3ec9b4dd574c83caf0d8`。
+保留数据安装、双向产品转让与创建者收回已验；pending进程死亡恢复、旧JWT重放、
+完整媒体仍未验，不标为完整交付/生产安全放行。现有Electron1.0.9兼容。
+
 | 文件 | 用途 |
 |---|---|
 | `docker-compose.yml` | 网关、业务 Web/API 以及 Jitsi 环境覆盖；必须与基础配置一起使用 |
