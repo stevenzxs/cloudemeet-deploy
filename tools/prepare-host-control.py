@@ -25,6 +25,11 @@ def prepare(root, prosody_container):
     if 'Include' not in template:
         raise RuntimeError('unsupported Prosody configuration template')
     out.mkdir(mode=0o750)
+    # Precreate persistent bind parent; Docker-created root-owned directories
+    # cannot be copied/managed by the uid1000 Prosody startup process.
+    conf = root/'data/jitsi/prosody/config/conf.d'
+    conf.mkdir(parents=True, exist_ok=True)
+    os.chown(conf, 1000, 1000)
     secret = secrets.token_urlsafe(48)
     private = out / 'private'
     private.mkdir(mode=0o700)
