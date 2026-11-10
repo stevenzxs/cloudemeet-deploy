@@ -1,0 +1,155 @@
+# CloudMeet 独立部署目录
+
+## 源码版本管理
+
+部署维护仓库：<https://github.com/stevenzxs/cloudemeet-deploy>。
+本仓库仅追踪模板、初始化/启动脚本、公开补丁、技能、测试及维护文档；
+`history/`、`packages/`、`clients/`、实际实例配置、数据库、密钥和构建产物保留本地，不上传Git。
+忽略规则采用根目录白名单，新增维护文件须显式审核纳入。不要使用 `git add -f` 绕过秘密或产物边界。
+本文及技能中的工作区相对路径描述多仓库布局；单独克隆本仓库不会自动获得相邻源码、构建工具或历史交付包。
+补丁修改需与测试、部署说明一起提交，发布证据记录提交ID及实际产物摘要；源码提交不代表部署或媒体验收完成。
+
+> **这是唯一交付入口。**先读 [执行约束](AGENTS.md)。可安装包在 `packages/`；构建、实例与验收证据在 `history/`；技能维护源在 `skills/`；验收后的客户端在 `clients/`。构建工具仍在 `../build-tools/`，Linux中间产物留在WSL。本页下方根级模板流程仍含在线拉取，不是离线包安装入口。
+
+```text
+deploy/
+├─ packages/   完整可安装服务器包（不可原地改包）
+├─ clients/    验收后的 MSI/APK（当前新CA客户端尚未生成）
+├─ history/    原 delivery-history，完整保留历史字节
+├─ skills/     cloudmeet-deploy 与 cloudmeet-deploy-offline 维护源
+└─ 根级配置/patches/artifacts/tools/tests：现有模板与工具，暂保留位置
+```
+
+根级 `delivery-history/` 与 `cloudmeet-deploy-offline/` 已归入本目录，不再新建。历史日志/包内旧路径保留原样，仅更新活跃工具和文档。模板进一步分层须单独验证所有调用，不在本次整理中顺带迁移。
+
+## 已验证的离线服务器包（2026-11-09）
+
+实际安装包目录：[`packages/cloudmeet-server-115-amd64-20261109T091403524280Z/`](packages/cloudmeet-server-115-amd64-20261109T091403524280Z/README.md)。完整目录复制到目标机使用，不是 MSI/EXE；安装入口是包内 `engine.py` 和 `deploy.py`，详见包内 `INSTALL.md`。
+独立留存副本保留在 [`history/`](history/offline-bundles/20261109-115-amd64/cloudmeet-server-115-amd64-20261109T091403524280Z/README.md)，不覆盖现有部署配置。
+可信渠道核对 `SHA256SUMS` 的 SHA256：`6fc01c791c21a6b39574a7c9e1eec3a3f98683a4782d82ca38de305e38f8bac3`。
+状态 `READY_FOR_INSTALL`，限 Ubuntu 22.04 amd64、固定入口 `https://115.190.243.21`。
+已在独立全系统 VM 完成无外网 Docker 首装、空缓存七镜像导入、原安装器启动和严格 TLS/API/BOSH/WebSocket/可用桥验收。
+按该包 `INSTALL.md` 执行，不使用本页下方在线 `pull` 流程；本 `deploy/` 工作树仍处于迁移中，未被覆盖。
+115旧实例的备份和精确清理确认、目标新CA专属MSI/APK、多端双向音视频仍待完成；已记录安全风险未解决，安装资格不等同生产安全放行。
+
+`deploy/` 是工作区唯一部署资料入口。部署配置、启动脚本、补丁和操作说明均在本目录，不依赖其他历史部署目录。业务及客户端源码仍位于相邻源码项目，构建依赖不是历史部署依赖。
+
+## 1. 实际文件
+
+| 文件 | 用途 |
+|---|---|
+| `docker-compose.yml` | 网关、业务 Web/API 以及 Jitsi 环境覆盖；必须与基础配置一起使用 |
+| `jitsi-base.yaml` | 官方 Jitsi Web、Prosody、Jicofo、JVB 四组件定义 |
+| `jitsi.env` | Jitsi 非秘密配置、资源参数和私有管理端口 |
+| `Caddyfile` | IP HTTPS 私有 CA、统一路由及内部接口阻断 |
+| `init.py` | 首次创建目录和随机秘密，拒绝覆盖已有 `.env` |
+| `start.sh` | 复制持久补丁、修正公开文件权限、校验并启动，不删除数据、不隐式拉镜像 |
+| `patches/` | 品牌、CSS 和主持人角色插件的部署副本 |
+| `artifacts/nginx.conf` | 业务 Web/API 路由配置 |
+| `../build-tools/clients/` | MSI/APK 构建工具已迁出；不属于服务器交付材料 |
+| `client.env.example` | 客户端专用入口模板，不携带服务端秘密 |
+| `../build-tools/clients/tests/` | 客户端构建脚本测试，已迁出 |
+| `skills/cloudmeet-deploy/` | 交互式部署技能维护源 |
+| `skills/cloudmeet-deploy-offline/` | 离线打包技能维护源，与工作区规范共同读取 |
+
+当前可执行基线是 **IP + HTTPS + Caddy 私有 CA**，业务代码由本地源码构建，Jitsi 使用官方镜像。基础镜像支持何种平台须检查 manifest；不是将本地业务 ARM 镜像当作通用包。域名公共证书、DNS-01、HTTP 测试需另行审查实例配置，不能把本基线称为已覆盖全部模式。
+
+## 2. 部署流程
+
+### 参数与授权
+
+先确认主机、SSH 端口、架构、入口/端口、部署路径、源码或镜像来源、全量或增量、服务与客户端范围。历史地址不是默认目标。
+
+全量重置必须先只读盘点、完成备份，并集中展示目标、删除/保留清单和风险，取得二次明确确认；本目录不提供自动清空脚本。增量更新保留数据库、会标、秘密、CA 和未变服务。
+
+### 准备业务产物
+
+在相邻源码项目构建：
+
+- API：`mvn -B test package`；复制本次 JAR 到 `artifacts/app.jar`。
+- Web：使用现有 `same-origin` 配置构建，执行 `npm run build`、`npm run check:webview-syntax`；复制本次输出到 `artifacts/dist/`。保留源码项目原 `.env`，核对输出的实际入口。
+- 本目录 `patches/` 是部署副本，源码变更后需主动同步并更新 SHA256，不能假定自动更新。
+
+### 服务器初始化与校验
+
+只上传本次配置、补丁及业务产物；不上传别的实例秘密、数据库、证书私钥或整个工作区。
+
+```bash
+# 在实际部署目录执行；仅首次初始化，参数为本次批准的 IP。
+python3 init.py <approved-ip>
+
+# 所有操作使用同一组参数，不省略 -f 让未知 override 自动生效。
+docker compose --env-file jitsi.env --env-file .env \
+  -f jitsi-base.yaml -f docker-compose.yml config --quiet
+docker compose --env-file jitsi.env --env-file .env \
+  -f jitsi-base.yaml -f docker-compose.yml pull
+
+# 先检查所有镜像实际架构、摘要及端口；再执行启动。
+bash start.sh
+```
+
+七个服务：`gateway`（TLS/入口）、`app-web`（业务页面）、`api`（业务/JWT/SQLite）、`web`（Jitsi 页面/信令）、`prosody`（XMPP/角色）、`jicofo`（会议协调）、`jvb`（媒体）。本配置 `web` 不是业务 Web。
+
+初始化不自动备份、删除旧资源或检查云安全组。`start.sh` 不是增量发布事务；更新前需单独准备备份、维护窗口及最小服务范围，避免无必要重启。
+
+## 3. 补丁包
+
+详见 [补丁说明](patches/README.md)。发布包必须有补丁版本/来源/适用条件、文件摘要、回滚点和验收结果，不包含数据库、秘密、CA 私钥或历史安装包。
+
+当前包含：
+
+- `web/custom-interface_config.js`：产品名、关闭水印及推广。
+- `web/custom.css`、`web/custom-head.html`、`web/nginx-custom/custom-css.conf`：成套 CSS 注入。
+- `prosody/mod_muc_jwt_owner.lua`：JWT 主持人角色，配合关闭 Jicofo 自动 owner。
+
+当前 HTTPS 基线**不挂载** HTTP external API 补丁、不启用 HTTP 专用 BOSH 降级、不默认开启主持人转移插件。
+
+## 4. 注意事项
+
+- 公开静态/补丁目录须容器用户可遍历，典型为目录 0755、文件 0644。0700 上传目录曾导致页面 403、CSS 404 和品牌漏加载。不要递归放宽整个项目、秘密或备份权限。
+- Prosody storage UID/GID 当前基线为 1000:1000；变更镜像须重新确认。运行配置位于 `/run/<service>/config`，宿主文件存在不代表已加载。
+- TCP 80/443、UDP 10000 按实例放行；9000、5222、5280、2019 和桥/协调管理端口不公开。JVB advertise 使用真实可达媒体公网地址，而非 CDN/FRP 地址。
+- `.env` 与备份权限受限。SQLite 用一致性备份或停 API 后备份，不随便复制写入中的 DB。
+- Caddy `tls internal` 自动管理叶证书，必须保留 CA 数据卷。只分发公开根 CA，客户端限定主机信任且校验链、SAN、有效期；不能 pin 会轮换的叶证书或全局绕过校验。IP 无 SNI 场景由 `default_sni` 处理并需实测。
+- 首次签发成功不代表续期实测完成；监控时间、证书到期与错误。域名还需确认 DNS、云接入备案及验证路径。
+- GHCR 慢速不能靠 Docker Hub 加速器保证解决。可使用官方同平台同摘要离线镜像，核对传输完整性；不使用不明替代镜像。
+- 禁止全局 prune、无范围 `down -v`、删除网桥、清空防火墙及删除无关 VPN/代理。已有服务空闲或批准维护后才重启。
+
+## 5. MSI / APK
+
+Windows 下从工作区根目录构建，源码仍在 `jitsi-meet-electron/` 和 `jm/`：
+
+```powershell
+Copy-Item deploy/client.env.example deploy/client.env
+# 编辑 host/scheme/port，不能保留占位值。
+node build-tools/clients/build-clients.cjs --target all --env-file deploy/client.env --check
+node build-tools/clients/build-clients.cjs --target all --env-file deploy/client.env
+node --test build-tools/clients/tests/*.test.cjs
+```
+
+先检查输出的完整 origin。默认仅读取 `deploy/client.env`，不隐式读取服务端 `.env`。构建输出到工作区 `delivery-history/client-builds/<批次>/`，包含 MSI、测试签名 APK、日志及 manifest/SHA256；旧批次也已迁入该位置。详见 [构建工具说明](../build-tools/clients/README.md)。
+
+Release 统一使用此入口：每次实际构建在锁内将 `release-version.json` 的补丁号加一（1.0.0 → 1.0.1 → 1.0.2），同一批次 Electron 和 Android 共享该版本。Android versionCode 按时间值与上次值+1取大者，保持递增。`--check` 不占版本；失败构建已占版本不回退，批次 release.json 保留分配记录。请保留此状态文件，不手动回退或在多台构建机各自维护计数。
+
+构建期间 Electron package.json 临时注入版本并恢复；Android 用 Gradle 参数注入，不改默认 appVersion。直接运行 Forge/npm make/Gradle 不经过统一计数，因此发布包不要绕过本入口。Debug 构建不递增此计数。
+
+Electron 需 WiX v3、有效 OpenVPN payload；Android 需 JDK 17、SDK/Build Tools 35、项目 NDK 及依赖。脚本临时修改源码入口配置并在正常结束时恢复；禁止并发构建或删除活动锁。强制中断后先检查配置恢复情况。
+
+新入口的私有 CA 必须先适配源码信任策略，不能认为换 `client.env` 就会自动信任。Android 默认入口为构建期配置。APK 当前 Debug 签名仅测试；MSI 是否签名应实测报告。MSI 安装/升级/VPN/卸载须在隔离 Windows 测试机验收，不自动在开发机卸载旧版。
+
+## 6. 验收与回滚
+
+分层记录通过/失败/阻塞/未验证，不把启动成功当全部通过：
+
+1. 构建及 SHA256、镜像 digest/架构；容器无重启循环。
+2. 公网严格 TLS、业务页面、API UP、新资源摘要、内部接口 404。
+3. 页面与 iframe 同 origin；WS 101 后仍须验证真实 XMPP/入会会话。
+4. 品牌/CSS、插件实际加载；主持人 OWNER、普通成员 PARTICIPANT。
+5. 三端或关闭 P2P 走 JVB，双向音视频、ICE/UDP、共享及重连。
+6. MSI/APK 签名、安装升级与实际运行，VPN 按本次范围验证。
+
+更新前保存旧配置、产物、镜像摘要及一致性数据备份。回滚仅恢复本实例批准范围，注意数据库兼容，不覆盖更新后用户数据；恢复后重新检查接口、数据及会议。证书和秘密不因代码回滚随意更换。
+
+## 7. 历史目录清理门禁
+
+旧部署目录尚未删除。清理前须迁入必要的最新安装包、manifest/验收证据和实例资料，修正工作区说明/技能对历史路径的引用，验证独立配置和脚本。不要把本目录已复制配置误认为整个迁移及删除工作已完成。

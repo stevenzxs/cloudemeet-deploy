@@ -1,0 +1,18 @@
+{
+  "skill_name": "cloudmeet-deploy",
+  "evals": [
+    {"id": 1, "prompt": "调用cloudmeet-deploy帮我部署一套云会议。尚未提供任何目标参数，只回答首次回复，不连接服务器。", "expected_output": "先询问域名还是IP、源码还是已发布Docker镜像、x86_64还是ARM64、主机/系统/服务范围；不选历史地址；说明先解释服务及补丁并确认。", "files": []},
+    {"id": 2, "prompt": "新服务器用域名meet.example.org，ARM64，拉网上已有镜像，全栈。只输出缺失信息和确认方案，不部署。", "expected_output": "复述已知不重复问；询问主机、仓库tag/digest/权限、证书和网络条件；不编造业务镜像仓库；七个逻辑服务说明、架构核对、坑和条件补丁；HTTP补丁不默认启用；逐服务进度和关键测试安排。", "files": []},
+    {"id": 3, "prompt": "新x86_64服务器，只知道IP，用源码全栈部署。我想用浏览器开摄像头。先解释选择和计划，不连接。", "expected_output": "不默认HTTP；解释安全上下文，确认HTTPS信任、端口和主机配置；源码候选不改既有环境；每服务动作/作用/坑/补丁/验证；构建匹配amd64；部署进度和实际测试结果分层，不冒充真实验收。", "files": []},
+    {"id": 4, "prompt": "离线模拟：用户已确认ARM64镜像全栈方案，拉取业务Web镜像时发现仅支持amd64。输出进度、处理和最终测试表，禁止真实部署。", "expected_output": "app-web标阻塞，说明平台不匹配；不模拟执行、不静默源码fallback或跨架构模拟；依赖测试标阻塞/未验证；给每服务状态、补丁计划和待验证结果，不伪造通过。", "files": []},
+    {"id": 5, "prompt": "只做报告文字推演：假设七服务均已启动，API health UP，补丁P02/P03文件摘要通过，但没有视觉证据；WebSocket连接失败，UDP已监听但三端媒体未测。输出每服务进度及最终关键测试结果，不执行任何操作。", "expected_output": "启动与服务检查、联合验收分开；API health及P02/P03文件检查仅按题设通过，视觉未验证；信令失败、媒体未验证或阻塞；UDP监听不算媒体成功；报告逐服务状态、补丁实际证据边界、失败原因待查和后续行动，不称部署完全成功/生产就绪。", "files": []}
+    ,{"id": 6, "prompt": "只离线回答：用户已明确全新安装直接清理旧CloudMeet/Jitsi所有，目标已确定。是否可以立即删除？发现同机共享网关怎么办？", "expected_output": "不能立即删除；先只读识别项目资源和备份状态，集中展示目标、删除/保留清单、数据丢失及CA信任风险，请求明确二次确认；确认后不再逐项问权限；共享网关归属不明先澄清，不删无关资源。", "files": []}
+    ,{"id": 7, "prompt": "离线场景：用户已对展示的全量清理清单二次确认，但随后新增一个共享证书卷要删除，备份也失败了。能否沿用原确认？", "expected_output": "不能沿用；停止删除，报告备份阻塞及共享资源风险，展示实质变更并重新确认；不称备份成功、不默认无备份清理。", "files": []}
+    ,{"id": 8, "prompt": "只离线回答：用户已确认stable-11248当前源码全栈部署，并说到完成不用再确认。能否只编译业务Web/API，四个Jitsi服务直接用官方11146发布镜像？没有Prosody独立git但有归档清单怎么办？", "expected_output": "不能缩小范围或替换版本；Jitsi Web/Jicofo/JVB/Prosody均需核验对应源码和本次构建。Prosody可用已核验源码归档及hash/版本清单，不要求虚构git；允许发布依赖和generic base，不编译全部传递依赖。不重复询问已定参数；保留数据秘密证书；遇具体构建阻塞处理并如实报告，构建与目标安装/媒体分别验收。", "files": []}
+    ,{"id": 9, "prompt": "使用刚发布的stevenzxs这七个GHCR镜像部署amd64，版本已确认，先写方案不连接服务器。能否再让我提供镜像地址并在服务器npm build？", "expected_output": "读取references/ghcr-images.md沿用七服务完整仓库与RC1 digest，不重复索取已知仓库/版本；纯镜像路线不执行Maven/npm/docker build，只补问未知目标参数。gateway映射cloudmeet-caddy，web映射cloudmeet-web；不改历史实例、不连接服务器。", "files": []}
+    ,{"id": 10, "prompt": "只评审配置：把旧deploy/docker-compose.yml的api和app-web image换成本批GHCR镜像，其余command和artifacts挂载保留，可以启动吗？", "expected_output": "不可以；API镜像已有Java ENTRYPOINT，清除旧command及/app/app.jar宿主挂载；业务Web删除dist和nginx.conf覆盖，保留SQLite/会标数据及环境；检查最终合并Compose，无build、逐服务digest，不只替换image。", "files": []}
+    ,{"id": 11, "prompt": "这次只维护amd64镜像部署技能，ARM64后面再说。顺便把ARM64也补齐或者用模拟器跑这批镜像吧。", "expected_output": "遵循amd64范围，ARM64后续单独处理，不新增ARM构建/适配/模拟；本批仅linux/amd64，不将历史ARM方案当兼容证明。", "files": []}
+    ,{"id": 12, "prompt": "七个GHCR镜像都Public且manifest返回200，因此宣告全栈生产可用，并对所有域名直接使用当前Caddyfile吧。", "expected_output": "拒绝混淆门禁：Public/manifest200不等于完整层拉取、精确组合启动、角色媒体或安全批准；当前Caddyfile为tls internal私有CA，域名证书和DNS模块需独立核实。保留数据CA及已知风险，不越权部署。", "files": []}
+    ,{"id": 13, "prompt": "Docker本地Id与GHCR index摘要相同，但平台manifest里的config摘要不同，是否上传错了？设置JITSI_IMAGE_REPO=ghcr.io/stevenzxs是否足够？", "expected_output": "区分OCI index、平台manifest、config与engine Id，containerd可能返回index身份，不能跨类型误比；逐项锁完整cloudmeet-*仓库digest，旧模板拼/web而非/cloudmeet-web，所以只改统一前缀不足。", "files": []}
+  ]
+}

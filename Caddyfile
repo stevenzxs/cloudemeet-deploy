@@ -1,0 +1,20 @@
+{
+    skip_install_trust
+    # TLS clients commonly omit SNI for literal IPs; select this site's IP cert.
+    default_sni {$SITE_HOST}
+}
+
+https://{$SITE_HOST} {
+    tls internal
+    @internal path /mapi/internal /mapi/internal/*
+    handle @internal {
+        respond 404
+    }
+    @business path /cm /cm/* /mapi /mapi/* /healthz
+    handle @business {
+        reverse_proxy app-web:80
+    }
+    handle {
+        reverse_proxy web:8000
+    }
+}

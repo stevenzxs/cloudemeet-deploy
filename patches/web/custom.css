@@ -1,0 +1,1552 @@
+/* =====================================================================
+ * Jitsi Meet 主题
+ * 说明：默认跟随深色主题；根节点带 data-theme="light" 时切换为浅色。
+ * 只调整颜色、背景色、边框色和图标色，不改布局、尺寸、圆角、间距。
+ * 部署（勿再改只读镜像）：复制为 ${CONFIG}/web/custom.css（云服务器 /root/.jitsi-meet-cfg/web/），
+ * 配合 deploy/docker-jitsi-meet/web/custom-head.html 和 nginx-custom/custom-css.conf，
+ * 重启 web 容器后由 nginx 别名注入到 index.html，容器重建不丢失。
+ * 本文件是唯一源，改样式只改这里再重新上传。
+ * ===================================================================== */
+
+:root {
+  color-scheme: light dark;
+  --lx-bg-0: #000000;
+  --lx-bg-1: #141414;
+  --lx-bg-2: #242424;
+  --lx-panel: #141414;
+  --lx-panel-soft: #2b2b2b;
+  --lx-line: rgba(255, 255, 255, 0.14);
+  --lx-line-strong: rgba(255, 255, 255, 0.24);
+  --lx-text-hi: #ffffff;
+  --lx-text-mid: #d6dde8;
+  --lx-text-low: #9aa6b6;
+  --lx-accent: #4086f4;
+  --lx-accent-strong: #2f6fd6;
+  --lx-accent-soft: rgba(64, 134, 244, 0.18);
+  --lx-ok: #34d399;
+  --lx-warn: #fbbf24;
+  --lx-danger: #ff4d5e;
+  --lx-overlay: rgba(0, 0, 0, 0.62);
+  --lx-toolbar: rgba(19, 21, 25, 0.95);
+}
+
+/*
+ * 父页面只能稳定控制 iframe 元素的 color-scheme，无法稳定改跨域 iframe 内部 DOM。
+ * light-dark() 让同一份 custom.css 跟随 iframe 的 color-scheme 取色，避免固定浅色/深色。
+ */
+@supports (color: light-dark(#ffffff, #000000)) {
+  :root {
+    --lx-bg-0: light-dark(#f3f6fb, #000000);
+    --lx-bg-1: light-dark(#ffffff, #141414);
+    --lx-bg-2: light-dark(#edf2f8, #242424);
+    --lx-panel: light-dark(#ffffff, #141414);
+    --lx-panel-soft: light-dark(#f7f9fc, #2b2b2b);
+    --lx-line: light-dark(rgba(15, 23, 42, 0.12), rgba(255, 255, 255, 0.14));
+    --lx-line-strong: light-dark(rgba(15, 23, 42, 0.2), rgba(255, 255, 255, 0.24));
+    --lx-text-hi: light-dark(#16202e, #ffffff);
+    --lx-text-mid: light-dark(#46566d, #d6dde8);
+    --lx-text-low: light-dark(#7a899d, #9aa6b6);
+    --lx-accent: light-dark(#2563eb, #4086f4);
+    --lx-accent-strong: light-dark(#1d4ed8, #2f6fd6);
+    --lx-accent-soft: light-dark(rgba(37, 99, 235, 0.12), rgba(64, 134, 244, 0.18));
+    --lx-ok: light-dark(#059669, #34d399);
+    --lx-warn: light-dark(#d97706, #fbbf24);
+    --lx-danger: light-dark(#dc2626, #ff4d5e);
+    --lx-overlay: light-dark(rgba(15, 23, 42, 0.42), rgba(0, 0, 0, 0.62));
+    --lx-toolbar: light-dark(rgba(255, 255, 255, 0.92), rgba(19, 21, 25, 0.95));
+  }
+}
+
+:root[data-theme='light'],
+html.theme--light,
+html.theme-light,
+body.theme--light,
+body.theme-light {
+  color-scheme: light;
+  --lx-bg-0: #f3f6fb;
+  --lx-bg-1: #ffffff;
+  --lx-bg-2: #edf2f8;
+  --lx-panel: #ffffff;
+  --lx-panel-soft: #f7f9fc;
+  --lx-line: rgba(15, 23, 42, 0.12);
+  --lx-line-strong: rgba(15, 23, 42, 0.2);
+  --lx-text-hi: #16202e;
+  --lx-text-mid: #46566d;
+  --lx-text-low: #7a899d;
+  --lx-accent: #2563eb;
+  --lx-accent-strong: #1d4ed8;
+  --lx-accent-soft: rgba(37, 99, 235, 0.12);
+  --lx-ok: #059669;
+  --lx-warn: #d97706;
+  --lx-danger: #dc2626;
+  --lx-overlay: rgba(15, 23, 42, 0.42);
+  --lx-toolbar: rgba(255, 255, 255, 0.92);
+}
+
+/*
+ * 只有浏览器不支持 light-dark() 时，才退回系统媒体主题。
+ * 支持 light-dark() 的运行时由 iframe color-scheme 明确控制，避免系统浅色偏好覆盖手动深色。
+ */
+@supports not (color: light-dark(#ffffff, #000000)) {
+  @media (prefers-color-scheme: light) {
+    :root {
+      color-scheme: light;
+      --lx-bg-0: #f3f6fb;
+      --lx-bg-1: #ffffff;
+      --lx-bg-2: #edf2f8;
+      --lx-panel: #ffffff;
+      --lx-panel-soft: #f7f9fc;
+      --lx-line: rgba(15, 23, 42, 0.12);
+      --lx-line-strong: rgba(15, 23, 42, 0.2);
+      --lx-text-hi: #16202e;
+      --lx-text-mid: #46566d;
+      --lx-text-low: #7a899d;
+      --lx-accent: #2563eb;
+      --lx-accent-strong: #1d4ed8;
+      --lx-accent-soft: rgba(37, 99, 235, 0.12);
+      --lx-ok: #059669;
+      --lx-warn: #d97706;
+      --lx-danger: #dc2626;
+      --lx-overlay: rgba(15, 23, 42, 0.42);
+      --lx-toolbar: rgba(255, 255, 255, 0.92);
+    }
+
+    html,
+    body {
+      color-scheme: light !important;
+    }
+  }
+}
+
+html,
+body {
+  background-color: var(--lx-bg-0) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+a {
+  color: var(--lx-accent) !important;
+}
+
+a:hover {
+  color: var(--lx-accent-strong) !important;
+}
+
+::selection {
+  background-color: var(--lx-accent-soft);
+  color: var(--lx-text-hi);
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--lx-text-low) !important;
+}
+
+.jitsi-icon svg,
+.jitsi-icon svg path,
+.jitsi-icon svg polygon,
+.jitsi-icon svg rect {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* ================= 1. 全局页面和会议舞台 ================= */
+
+#videoconference_page,
+#layout_wrapper,
+#videospace,
+#largeVideoBackgroundContainer,
+.large-video-background,
+#largeVideoWrapper,
+#largeVideoContainer,
+#sharedVideo {
+  background-color: var(--lx-bg-0) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#remoteVideos [class*='_Unknown_-containerBackground'],
+#remoteVideos [class*='_Unknown_-tintBackground'] {
+  background-color: var(--lx-bg-1) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#remoteVideos .bottom-indicators {
+  background-color: var(--lx-bg-2) !important;
+}
+#remoteVideos .bottom-indicators .displayName {
+  color: var(--lx-text-hi) !important;
+}
+
+.resizable-filmstrip {
+  background: var(--lx-bg-2) !important;
+}
+
+#largeVideoBackgroundContainer #largeVideoBackground,
+.large-video-background #largeVideoBackground {
+  color: var(--lx-text-hi) !important;
+}
+
+/* ================= 2. 输入框和基础表单 ================= */
+
+input[type='text'],
+input[type='password'],
+input[type='search'],
+input[type='email'],
+input[type='tel'],
+input[type='number'],
+textarea,
+select,
+#chat-input textarea,
+#chat-input-messagebox,
+#chat-input [class*='-input'],
+#chat-recipient,
+#select-chat-recipient,
+#participants-pane input,
+#participants-pane [class*='-input'],
+#participants-search-input {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#chat-input textarea::placeholder,
+#chat-input-messagebox::placeholder,
+#participants-search-input::placeholder {
+  color: var(--lx-text-low) !important;
+}
+
+/* ================= 3. 参与者面板和分组讨论室 ================= */
+
+#participants-pane,
+[class*='-participantsPane'],
+#breakout-rooms-list {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#participants-pane [class*='-header'],
+#breakout-rooms-list [class*='-topMargin'] {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#participants-pane [class*='-heading'],
+#breakout-rooms-list [class*='-roomName'],
+#breakout-rooms-list [class*='-name'] {
+  color: var(--lx-text-hi) !important;
+}
+
+#participants-pane [class*='-detailsContainer'],
+#breakout-rooms-list [class*='-detailsContainer'] {
+  color: var(--lx-text-mid) !important;
+}
+
+#participants-pane [class*='-name'],
+#participants-pane [class*='-name'] span,
+#breakout-rooms-list [class*='-name'],
+#breakout-rooms-list [class*='-name'] span {
+  color: inherit !important;
+}
+
+#participants-pane .list-item-container,
+#participants-pane [role='listitem'],
+#breakout-rooms-list .list-item-container,
+#breakout-rooms-list [role='listitem'],
+#breakout-rooms-list [class*='-highlighted'] {
+  background-color: transparent !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#participants-pane .list-item-container:hover,
+#participants-pane [role='listitem']:hover,
+#breakout-rooms-list .list-item-container:hover,
+#breakout-rooms-list [role='listitem']:hover {
+  background-color: var(--lx-bg-2) !important;
+}
+
+#participants-pane [class*='-moderatorLabel'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-accent-strong) !important;
+}
+
+#participants-pane [class*='-indicators'] svg,
+#participants-pane .indicators svg,
+#breakout-rooms-list [class*='-arrowContainer'] svg {
+  color: var(--lx-text-low) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#participants-pane [class*='-footer'],
+#breakout-rooms-list [class*='-actionsContainer'] {
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#participants-pane [class*='-footer'] button,
+#breakout-rooms-list [class*='-actionsContainer'] button {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#participants-pane [class*='-footer'] button:first-of-type {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+#breakout-rooms-list [class*='-actionsContainer'] button[title='加入'],
+#breakout-rooms-list [class*='-actionsContainer'] button:nth-of-type(1) {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+#breakout-rooms-list [class*='-actionsContainer'] button[title='更多'],
+#breakout-rooms-list [class*='-actionsContainer'] button:nth-of-type(2) {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+/* ================= 4. 聊天面板和侧边栏 ================= */
+
+#sideToolbarContainer,
+#chat-tab-panel,
+#polls-tab-panel,
+#chat-conversation-container,
+#chatconversation {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#chat-tab-panel .chat-message,
+#chatconversation .chatmessage,
+#chatconversation [class*='-chatMessage'] {
+  color: var(--lx-text-hi) !important;
+}
+
+#chatconversation .display-name,
+#chatconversation [class*='-displayName'] {
+  color: var(--lx-text-hi) !important;
+}
+
+#chatconversation .timestamp,
+#chatconversation [class*='-timestamp'],
+#chatconversation [class*='-chatMessageFooter'],
+#chatconversation [class*='-chatMessageFooterLeft'] {
+  color: var(--lx-text-low) !important;
+}
+
+#chatconversation .usermessage,
+#chatconversation [class*='-userMessage'] {
+  color: var(--lx-text-mid) !important;
+}
+
+#chatconversation .chatmessage.error {
+  color: var(--lx-danger) !important;
+}
+
+#chatconversation a,
+#chatconversation a:link,
+#chatconversation a:visited {
+  color: var(--lx-accent) !important;
+}
+
+#chatconversation a:hover,
+#chatconversation a:active {
+  color: var(--lx-accent-strong) !important;
+}
+
+#chat-input .jitsi-icon svg,
+#chat-input .iconButton svg,
+#chat-input [class*='-iconButton'] svg {
+  color: var(--lx-text-mid) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#chat-input .iconButton:disabled,
+#chat-input [class*='-iconButton']:disabled {
+  color: var(--lx-text-low) !important;
+}
+
+/* ================= 5. 工具栏、菜单和上下文弹层 ================= */
+
+#new-toolbox,
+.new-toolbox,
+.toolbox,
+.always-on-top-toolbox,
+.toolbox-content-wrapper,
+.toolbox-content,
+.toolbox-content-items {
+  background-color: var(--lx-toolbar) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#new-toolbox svg,
+.toolbox svg,
+.always-on-top-toolbox svg,
+.settings-button-container .toolbox-icon svg,
+.settings-button-small-icon svg,
+.reactions-menu svg {
+  color: currentColor !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#new-toolbox .toolbox-icon,
+.toolbox .toolbox-icon,
+.always-on-top-toolbox .toolbox-icon,
+.settings-button-container .toolbox-icon,
+.settings-button-small-icon {
+  background-color: transparent !important;
+  color: var(--lx-text-mid) !important;
+}
+
+#new-toolbox .toolbox-icon:hover,
+.toolbox .toolbox-icon:hover,
+.always-on-top-toolbox .toolbox-icon:hover,
+.settings-button-container .toolbox-icon:hover,
+.settings-button-small-icon:hover {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+.settings-button-small-icon--disabled,
+.settings-button-small-icon:hover.settings-button-small-icon--disabled {
+  color: var(--lx-text-low) !important;
+}
+
+.reactions-menu {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.reactions-menu .toolbox-icon {
+  background-color: transparent !important;
+  color: var(--lx-text-hi) !important;
+}
+
+.reactions-menu .toolbox-icon:hover {
+  background-color: var(--lx-bg-2) !important;
+}
+
+.reactions-menu.with-gif .reactions-row .toolbox-button:last-of-type .toolbox-icon.toggled {
+  background-color: var(--lx-accent-soft) !important;
+  color: var(--lx-accent-strong) !important;
+}
+
+.popupmenu__contents,
+[class$='-contextMenu'],
+#overflow-context-menu {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.popupmenu__contents [class*='-menuItem'],
+#overflow-context-menu [class*='-menuItem'] {
+  color: var(--lx-text-hi) !important;
+}
+
+.popupmenu__contents [class*='-menuItem']:hover,
+#overflow-context-menu [class*='-menuItem']:hover {
+  background-color: var(--lx-bg-2) !important;
+}
+
+.popupmenu__contents .popupmenu__volume-slider::-webkit-slider-runnable-track,
+.popupmenu__contents .popupmenu__volume-slider::-moz-range-track,
+.popupmenu__contents .popupmenu__volume-slider::-ms-fill-lower {
+  background-color: var(--lx-bg-2) !important;
+}
+
+/* ================= 6. 弹窗、提示和通知 ================= */
+
+.overlay__container,
+.overlay__container-light {
+  background-color: var(--lx-overlay) !important;
+}
+
+#notifications-container [class*='-notification'],
+.recording-dialog,
+.live-stream-dialog,
+.security-dialog,
+.invite-more-dialog,
+.info-dialog,
+.modal-dialog-form,
+.shared-video-dialog-error {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#notifications-container [class*='-notification'] svg,
+#notifications-container .jitsi-icon svg {
+  color: var(--lx-accent) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.modal-dialog-form-error,
+.shared-video-dialog-error,
+.live-stream-dialog .google-error {
+  color: var(--lx-danger) !important;
+}
+
+.recording-dialog .local-recording-warning.notification,
+.live-stream-dialog .warning-text,
+.security-dialog .separator-line {
+  color: var(--lx-warn) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.security-dialog.password-section .password-actions button {
+  color: var(--lx-accent) !important;
+}
+
+.invite-more-dialog.stream.clicked {
+  background-color: var(--lx-accent-soft) !important;
+  color: var(--lx-accent-strong) !important;
+}
+
+.invite-more-dialog.stream > div > svg > path {
+  fill: currentColor !important;
+}
+
+.info-dialog .info-label {
+  color: var(--lx-text-mid) !important;
+}
+
+/* ================= 7. 欢迎页、预加入页和大厅 ================= */
+
+body.welcome-page,
+.welcome,
+.premeeting-screen,
+.lobby-screen-content {
+  background-color: var(--lx-bg-0) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+.welcome .header {
+  background-color: var(--lx-bg-1) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+.welcome .header .header-text-title,
+.welcome .header .header-text-subtitle,
+.welcome .welcome-card-text,
+.welcome .welcome-footer,
+.welcome .welcome-page-settings *,
+.welcome .header ::placeholder,
+.welcome .welcome-card,
+.welcome .welcome-page-button,
+.premeeting-screen .action-btn,
+.lobby-screen-content .lobby-chat-container {
+  color: var(--lx-text-hi) !important;
+}
+
+.welcome .welcome-card,
+.welcome .welcome-page-button,
+.premeeting-screen .action-btn,
+.lobby-screen-content .lobby-chat-container {
+  background-color: var(--lx-panel) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.welcome .welcome-card--dark {
+  background-color: var(--lx-panel-soft) !important;
+}
+
+.welcome .welcome-card--blue {
+  background-color: rgba(37, 99, 235, 0.08) !important;
+}
+
+.welcome .welcome-card--grey {
+  background-color: var(--lx-bg-2) !important;
+}
+
+.welcome .tab-buttons [role='tab'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-mid) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.welcome .tab-buttons [role='tab'][aria-selected='true'] {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+.welcome .welcome-page-button:hover,
+.welcome .welcome-page-button:focus-within {
+  background-color: var(--lx-bg-2) !important;
+}
+
+.welcome .welcome-page-settings .toolbox-icon {
+  color: var(--lx-text-mid) !important;
+}
+
+.welcome .welcome-page-settings .toolbox-icon:hover {
+  color: var(--lx-text-hi) !important;
+}
+
+.premeeting-screen .action-btn.primary {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+.premeeting-screen .action-btn.secondary,
+.premeeting-screen .action-btn.text {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.premeeting-screen .action-btn.disabled {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-low) !important;
+}
+
+.premeeting-screen .action-btn .options:hover {
+  color: var(--lx-text-hi) !important;
+}
+
+.lobby-screen-content .joining-message,
+.lobby-prejoin-error {
+  color: var(--lx-text-mid) !important;
+}
+
+.premeeting-screen #new-toolbox,
+.prejoin-third-party .content .new-toolbox {
+  background-color: var(--lx-toolbar) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+/* ================= 8. 其他常见颜色覆盖 ================= */
+
+.chrome-extension-banner {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.action-btn.primary,
+button.primary,
+.primary-button {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+.action-btn.secondary,
+button.secondary {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+.action-btn.disabled,
+button:disabled {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-low) !important;
+  border-color: var(--lx-line) !important;
+}
+
+/* ================= 9. 浅色背景下的字体和图标补充 ================= */
+
+:root {
+  /* 官方样式中的颜色变量，先提供深色默认值，再由浅色分支覆盖。 */
+  --icon-svg-fill: #ffffff;
+  --toolbox-background-color: #131519;
+  --toolbar-badge-background: #165ecc;
+  --reactions-menu-background: #242528;
+  --reactions-menu-button-toggled: #000000;
+  --prejoin-preview-background: #040404;
+}
+
+@supports (color: light-dark(#ffffff, #000000)) {
+  :root {
+    /* 这些官方变量也要跟随 iframe color-scheme，否则部分 Jitsi 组件会继续使用旧主题色。 */
+    --icon-svg-fill: light-dark(#243244, #ffffff);
+    --toolbox-background-color: light-dark(#ffffff, #131519);
+    --toolbar-badge-background: light-dark(#2563eb, #165ecc);
+    --reactions-menu-background: light-dark(#ffffff, #242528);
+    --reactions-menu-button-toggled: light-dark(rgba(37, 99, 235, 0.12), #000000);
+    --prejoin-preview-background: light-dark(#edf2f8, #040404);
+  }
+}
+
+.jitsi-icon-default svg,
+.jitsi-icon-default svg path,
+.jitsi-icon-default svg polygon,
+.jitsi-icon-default svg rect {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.disabled .jitsi-icon svg,
+.disabled .jitsi-icon-default svg,
+.jitsi-icon.gray svg,
+.jitsi-icon.metr > svg,
+.jitsi-icon.metr--disabled > svg {
+  color: var(--lx-text-low) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 成员页中官方写死的白色前景色改为深色，蓝色操作按钮保留白字。 */
+#participants-pane button,
+#participants-pane [role='button'],
+#breakout-rooms-list button,
+#breakout-rooms-list [role='button'],
+#participants-pane button svg,
+#breakout-rooms-list button svg {
+  color: var(--lx-text-hi) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#participants-pane [class*='-header'] button,
+#participants-pane [class*='-header'] [role='button'],
+#participants-pane [class*='-indicators'] button,
+#participants-pane [class*='-indicators'] [role='button'] {
+  color: var(--lx-text-mid) !important;
+}
+
+#participants-pane [class*='-footer'] button:first-of-type,
+#breakout-rooms-list [class*='-actionsContainer'] button[title='加入'],
+#breakout-rooms-list [class*='-actionsContainer'] button:nth-of-type(1) {
+  color: #ffffff !important;
+}
+
+/* 聊天输入区的文字、占位符和发送图标同步适配浅色背景。 */
+.chat-input-container,
+.chat-input-container *,
+#chat-input,
+#chat-input *,
+#chat-recipient,
+#select-chat-recipient,
+#nickname,
+#nickname label,
+#nickname label span {
+  color: var(--lx-text-mid) !important;
+}
+
+#chat-input textarea,
+#chat-input-messagebox,
+#chat-input textarea *,
+#chat-input-messagebox * {
+  color: var(--lx-text-hi) !important;
+}
+
+#chat-input textarea::placeholder,
+#chat-input-messagebox::placeholder,
+#chat-recipient::placeholder,
+#select-chat-recipient::placeholder {
+  color: var(--lx-text-low) !important;
+}
+
+#chat-input button,
+#chat-input [role='button'],
+#chat-input button svg,
+#chat-input [role='button'] svg,
+.chat-input-container button,
+.chat-input-container [role='button'],
+.chat-input-container button svg,
+.chat-input-container [role='button'] svg {
+  color: var(--lx-text-mid) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#chatconversation .chatmessage,
+#chatconversation .chatmessage *,
+#chatconversation [class*='-chatMessage'],
+#chatconversation [class*='-chatMessage'] * {
+  color: var(--lx-text-hi) !important;
+}
+
+#chatconversation .timestamp,
+#chatconversation [class*='-timestamp'],
+#chatconversation [class*='-chatMessageFooter'],
+#chatconversation [class*='-chatMessageFooter'] * {
+  color: var(--lx-text-low) !important;
+}
+
+#chatconversation .chatmessage.error,
+#chatconversation .chatmessage.error *,
+#chatconversation [class*='-chatMessage'].error,
+#chatconversation [class*='-chatMessage'].error * {
+  color: var(--lx-danger) !important;
+}
+
+/* 参与者更多菜单、权限菜单和工具菜单由运行时生成，按角色和类名统一改色。 */
+[role='menu'],
+[role='listbox'],
+[class*='popupmenu'],
+[class*='contextMenu'],
+[class*='ContextMenu'],
+#overflow-context-menu {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+[role='menu'] *,
+[role='listbox'] *,
+[class*='popupmenu'] *,
+[class*='contextMenu'] *,
+[class*='ContextMenu'] *,
+#overflow-context-menu * {
+  color: var(--lx-text-hi) !important;
+}
+
+[role='menu'] button,
+[role='menu'] [role='menuitem'],
+[role='menu'] [role='option'],
+[role='listbox'] button,
+[role='listbox'] [role='option'],
+[class*='popupmenu'] button,
+[class*='popupmenu'] [role='menuitem'],
+[class*='contextMenu'] button,
+[class*='contextMenu'] [role='menuitem'],
+[class*='ContextMenu'] button,
+[class*='ContextMenu'] [role='menuitem'],
+#overflow-context-menu button,
+#overflow-context-menu [role='menuitem'] {
+  background-color: transparent !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+[role='menu'] button:hover,
+[role='menu'] [role='menuitem']:hover,
+[role='menu'] [role='option']:hover,
+[role='listbox'] button:hover,
+[role='listbox'] [role='option']:hover,
+[class*='popupmenu'] button:hover,
+[class*='popupmenu'] [role='menuitem']:hover,
+[class*='contextMenu'] button:hover,
+[class*='contextMenu'] [role='menuitem']:hover,
+[class*='ContextMenu'] button:hover,
+[class*='ContextMenu'] [role='menuitem']:hover,
+#overflow-context-menu button:hover,
+#overflow-context-menu [role='menuitem']:hover {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+[role='menu'] svg,
+[role='listbox'] svg,
+[class*='popupmenu'] svg,
+[class*='contextMenu'] svg,
+[class*='ContextMenu'] svg,
+#overflow-context-menu svg {
+  color: var(--lx-text-hi) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+[role='menu'] [class*='label'],
+[role='menu'] [class*='Label'],
+[role='menu'] [class*='description'],
+[role='menu'] [class*='Description'],
+[role='listbox'] [class*='label'],
+[role='listbox'] [class*='Label'],
+[class*='popupmenu'] [class*='label'],
+[class*='popupmenu'] [class*='Label'],
+[class*='contextMenu'] [class*='label'],
+[class*='contextMenu'] [class*='Label'] {
+  color: var(--lx-text-mid) !important;
+}
+
+/* 权限确认和信息弹窗中的说明文字使用深色，错误和警告保持语义色。 */
+.recording-dialog *,
+.live-stream-dialog *,
+.security-dialog *,
+.invite-more-dialog *,
+.info-dialog *,
+.modal-dialog-form * {
+  color: var(--lx-text-hi) !important;
+}
+
+.recording-dialog a,
+.live-stream-dialog a,
+.security-dialog a,
+.invite-more-dialog a,
+.info-dialog a,
+.modal-dialog-form a {
+  color: var(--lx-accent) !important;
+}
+
+.recording-dialog .recording-info,
+.recording-dialog .recording-info *,
+.live-stream-dialog .warning-text,
+.live-stream-dialog .youtube-go-live-warning,
+.live-stream-dialog .youtube-go-live-warning *,
+.security-dialog .separator-line {
+  color: var(--lx-warn) !important;
+}
+
+.modal-dialog-form-error,
+.shared-video-dialog-error,
+.live-stream-dialog .google-error {
+  color: var(--lx-danger) !important;
+}
+
+/* 工具栏和状态标签中的 SVG 不再沿用官方深色主题的白色填充。 */
+#new-toolbox button,
+#new-toolbox [role='button'],
+.new-toolbox button,
+.new-toolbox [role='button'],
+.toolbox button,
+.toolbox [role='button'],
+.always-on-top-toolbox button,
+.always-on-top-toolbox [role='button'],
+.settings-button-small-icon,
+.settings-button-small-icon svg {
+  color: var(--lx-text-mid) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+div.hangup-button,
+div.hangup-menu-button,
+div.hangup-button *,
+div.hangup-menu-button * {
+  color: #ffffff !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+.lobby-screen-content .lobby-chat-container *,
+.lobby-screen-content .joining-message *,
+.premeeting-screen *,
+.welcome * {
+  color: inherit;
+}
+
+:root[data-theme='light'],
+html.theme--light,
+html.theme-light,
+body.theme--light,
+body.theme-light {
+  --icon-svg-fill: #243244;
+  --toolbox-background-color: #ffffff;
+  --toolbar-badge-background: #2563eb;
+  --reactions-menu-background: #ffffff;
+  --reactions-menu-button-toggled: rgba(37, 99, 235, 0.12);
+  --prejoin-preview-background: #edf2f8;
+}
+
+@supports not (color: light-dark(#ffffff, #000000)) {
+  @media (prefers-color-scheme: light) {
+    :root {
+      --icon-svg-fill: #243244;
+      --toolbox-background-color: #ffffff;
+      --toolbar-badge-background: #2563eb;
+      --reactions-menu-background: #ffffff;
+      --reactions-menu-button-toggled: rgba(37, 99, 235, 0.12);
+      --prejoin-preview-background: #edf2f8;
+    }
+  }
+}
+
+/* ================= 10. 根据深色原版截图补齐浅色前景与控件颜色 ================= */
+
+/* 聊天标题在官方样式中固定为白色，浅色面板需要改为深色文字和图标。 */
+.chat-dialog-header,
+.chat-dialog-header *,
+.chat-dialog-header .jitsi-icon,
+.chat-dialog-header .jitsi-icon svg,
+#sideToolbarContainer [role='tab'],
+#sideToolbarContainer [role='tab'] *,
+#sideToolbarContainer [role='tablist'] *,
+#chat-tab,
+#chat-tab * {
+  color: var(--lx-text-hi) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#sideToolbarContainer [role='tab'][aria-selected='true'],
+#sideToolbarContainer [role='tab'][aria-selected='true'] *,
+#chat-tab.selected,
+#chat-tab.selected * {
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-accent) !important;
+}
+
+/* 当前浅色截图中的消息卡片仍保留了深色背景，这里只替换卡片和头像底色。 */
+#chatconversation .chat-message-group,
+#chatconversation .chatmessage,
+#chatconversation [class*='-chatMessageWrapper'],
+#chatconversation [class*='-messageGroup'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#chatconversation .chatmessage .avatar,
+#chatconversation [class*='-chatMessage'] [class*='-avatar'],
+#chatconversation [class*='-messageGroup'] [class*='-avatar'] {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-mid) !important;
+}
+
+/* 成员搜索框和分组讨论室行对应原版深色界面的灰色层级。 */
+#participants-pane input[type='search'],
+#participants-pane input[placeholder],
+#participants-search-input {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#breakout-rooms-list .list-item-container,
+#breakout-rooms-list [role='listitem'],
+#breakout-rooms-list [class*='-highlighted'],
+#breakout-rooms-list [class*='-room'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#participants-pane [class*='-moderatorLabel'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-mid) !important;
+}
+
+/* 成员操作图标使用中等深度的前景色，避免在白底上变成低对比度浅蓝色。 */
+#participants-pane [class*='-indicators'] svg,
+#participants-pane .indicators svg,
+#participants-pane [class*='-participant'] svg:not([class*='avatar']),
+#breakout-rooms-list [class*='-arrowContainer'] svg {
+  color: var(--lx-text-mid) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 原版底部的全体静音和更多按钮是浅底深字，不能被通用 primary 规则改成蓝底。 */
+#participants-pane [class*='-footer'] button,
+#participants-pane [class*='-footer'] button:first-of-type,
+#participants-pane [class*='-footer'] button:nth-of-type(2),
+#participants-pane [class*='-footer'] button svg {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 加入按钮仍保留原版的蓝色强调色和白色文字。 */
+#breakout-rooms-list [class*='-actionsContainer'] button[title='加入'],
+#breakout-rooms-list [class*='-actionsContainer'] button:nth-of-type(1),
+#breakout-rooms-list [class*='-actionsContainer'] button[title='加入'] svg,
+#breakout-rooms-list [class*='-actionsContainer'] button:nth-of-type(1) svg {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* ================= 11. 修复聊天、投票和主持人浮层的细节颜色 ================= */
+
+/* 侧栏标题使用更具体的选择器，覆盖官方标题的固定白色，确保“聊天”可见。 */
+#chat-tab-panel .chat-dialog-header,
+#chat-tab-panel .chat-dialog-header *,
+#sideToolbarContainer .chat-dialog-header,
+#sideToolbarContainer .chat-dialog-header *,
+#sideToolbarContainer [class*='chatHeader'],
+#sideToolbarContainer [class*='chatHeader'] *,
+#sideToolbarContainer [class*='ChatHeader'],
+#sideToolbarContainer [class*='ChatHeader'] * {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 每条聊天消息单独着色，组容器透明，避免多条气泡连成一整块。 */
+#chatconversation .chat-message-group,
+#chatconversation [class*='-messageGroup'],
+#chatconversation [class*='-chatMessageGroup'] {
+  background-color: transparent !important;
+  color: var(--lx-text-hi) !important;
+}
+
+#chatconversation .chatmessage,
+#chatconversation .chat-message-group > .chatmessage,
+#chatconversation [class*='-chatMessageWrapper'],
+#chatconversation [class*='-chatMessageItem'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#chatconversation .chatmessage .usermessage,
+#chatconversation .chatmessage .display-name,
+#chatconversation .chatmessage .timestamp,
+#chatconversation [class*='-chatMessageWrapper'] *,
+#chatconversation [class*='-chatMessageItem'] * {
+  color: var(--lx-text-hi) !important;
+}
+
+#chatconversation .chatmessage .timestamp,
+#chatconversation [class*='-chatMessageWrapper'] [class*='-timestamp'],
+#chatconversation [class*='-chatMessageItem'] [class*='-timestamp'] {
+  color: var(--lx-text-low) !important;
+}
+
+/* 投票题目、选项输入框和分隔线增强浅色背景下的可见度。 */
+#polls-tab-panel input,
+#polls-tab-panel textarea,
+#polls-tab-panel [role='textbox'],
+#polls-tab-panel [class*='option'],
+#polls-tab-panel [class*='Option'],
+[class*='poll'] input,
+[class*='poll'] textarea,
+[class*='poll'] [role='textbox'],
+[class*='Poll'] input,
+[class*='Poll'] textarea,
+[class*='Poll'] [role='textbox'] {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line-strong) !important;
+}
+
+#polls-tab-panel hr,
+#polls-tab-panel [class*='divider'],
+#polls-tab-panel [class*='Divider'],
+[class*='poll'] hr,
+[class*='poll'] [class*='divider'],
+[class*='Poll'] [class*='Divider'] {
+  border-color: var(--lx-line-strong) !important;
+  background-color: var(--lx-line-strong) !important;
+}
+
+#polls-tab-panel input::placeholder,
+#polls-tab-panel textarea::placeholder,
+[class*='poll'] input::placeholder,
+[class*='poll'] textarea::placeholder,
+[class*='Poll'] input::placeholder,
+[class*='Poll'] textarea::placeholder {
+  color: var(--lx-text-low) !important;
+}
+
+/* 主持人视频浮层使用浅色面板，避免名称区域继续保留黑色底。 */
+#alwaysOnTop,
+#alwaysOnTop .displayname,
+#alwaysOnTop .displayname *,
+.large-video-labels .displayname,
+.large-video-labels .displayname * {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#alwaysOnTop .displayname svg,
+.large-video-labels .displayname svg {
+  color: var(--lx-text-mid) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 加入按钮去除官方深色主题遗留的投影，仅保留浅色主题的蓝色填充。 */
+#breakout-rooms-list [class*='-actionsContainer'] button[title='加入'],
+#breakout-rooms-list [class*='-actionsContainer'] button:nth-of-type(1) {
+  box-shadow: none !important;
+}
+
+/* 分组讨论室展开箭头的按钮背景改为浅色，避免出现黑色方块。 */
+#breakout-rooms-list [class*='-arrowContainer'],
+#breakout-rooms-list [class*='-arrowContainer'] button,
+#breakout-rooms-list [class*='-arrowContainer'] [role='button'],
+#breakout-rooms-list [class*='-arrowContainer'] svg {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-mid) !important;
+  border-color: var(--lx-line) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* ================= 12. 投票、讨论室弹窗和悬浮成员标签 ================= */
+
+/* 投票卡片及其内部内容改为浅色层级，覆盖运行时生成的 poll/Poll 容器。 */
+#polls-tab-panel [class*='poll'],
+#polls-tab-panel [class*='Poll'],
+#polls-tab-panel [class*='poll-container'],
+#polls-tab-panel [class*='PollContainer'],
+#polls-tab-panel [class*='poll-card'],
+#polls-tab-panel [class*='PollCard'],
+[class*='poll-container'],
+[class*='PollContainer'],
+[class*='poll-card'],
+[class*='PollCard'] {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+/* 投票选项单独使用浅灰底和清晰边框，避免选项与卡片融为一体。 */
+#polls-tab-panel [class*='option'],
+#polls-tab-panel [class*='Option'],
+[class*='poll'] [class*='option'],
+[class*='poll'] [class*='Option'],
+[class*='Poll'] [class*='option'],
+[class*='Poll'] [class*='Option'] {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line-strong) !important;
+}
+
+#polls-tab-panel input[type='checkbox'],
+[class*='poll'] input[type='checkbox'],
+[class*='Poll'] input[type='checkbox'] {
+  background-color: var(--lx-panel) !important;
+  border-color: var(--lx-line-strong) !important;
+  accent-color: var(--lx-accent) !important;
+}
+
+#polls-tab-panel button,
+[class*='poll'] button,
+[class*='Poll'] button {
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#polls-tab-panel button.primary,
+#polls-tab-panel button[class*='primary'],
+[class*='poll'] button.primary,
+[class*='poll'] button[class*='primary'],
+[class*='Poll'] button.primary,
+[class*='Poll'] button[class*='primary'] {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+/* “新建投票”按钮保留蓝色强调色，普通编辑按钮使用浅色底深色字。 */
+#polls-tab-panel [class*='new'] button,
+#polls-tab-panel [class*='New'] button,
+#polls-tab-panel [class*='create'] button,
+#polls-tab-panel [class*='Create'] button {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+/* 主持人状态条去掉浅蓝色块，与用户名称所在背景统一。 */
+#participants-pane [class*='-moderatorLabel'],
+#participants-pane [class*='-moderator-label'],
+#participants-pane [class*='ModeratorLabel'],
+#participants-pane [class*='moderator'] {
+  background-color: transparent !important;
+  color: var(--lx-text-mid) !important;
+  border-color: transparent !important;
+}
+
+/* 房间列表中所有加入按钮统一去除深色主题遗留阴影，并保持蓝底白字。 */
+#breakout-rooms-list button[title='加入'],
+#breakout-rooms-list button[aria-label='加入'],
+#breakout-rooms-list [class*='join'] button,
+#breakout-rooms-list [class*='Join'] button,
+#breakout-rooms-list button[class*='join'],
+#breakout-rooms-list button[class*='Join'] {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+  box-shadow: none !important;
+}
+
+/* 重命名分组讨论室弹窗改为浅色，覆盖不同版本使用的 dialog/modal 容器。 */
+[role='dialog'],
+.modal-dialog,
+.dialog,
+[class*='modal-dialog'],
+[class*='ModalDialog'],
+[class*='dialog-container'],
+[class*='DialogContainer'] {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+[role='dialog'] *,
+.modal-dialog *,
+.dialog *,
+[class*='modal-dialog'] *,
+[class*='ModalDialog'] *,
+[class*='dialog-container'] *,
+[class*='DialogContainer'] * {
+  color: var(--lx-text-hi) !important;
+}
+
+[role='dialog'] input,
+[role='dialog'] textarea,
+.modal-dialog input,
+.modal-dialog textarea,
+.dialog input,
+.dialog textarea,
+[class*='modal-dialog'] input,
+[class*='ModalDialog'] input,
+[class*='dialog-container'] input,
+[class*='DialogContainer'] input {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line-strong) !important;
+}
+
+[role='dialog'] button,
+.modal-dialog button,
+.dialog button,
+[class*='modal-dialog'] button,
+[class*='ModalDialog'] button,
+[class*='dialog-container'] button,
+[class*='DialogContainer'] button {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+[role='dialog'] button.primary,
+[role='dialog'] button[class*='primary'],
+.modal-dialog button.primary,
+.modal-dialog button[class*='primary'],
+.dialog button.primary,
+.dialog button[class*='primary'],
+[class*='modal-dialog'] button.primary,
+[class*='ModalDialog'] button[class*='primary'],
+[class*='dialog-container'] button.primary,
+[class*='DialogContainer'] button[class*='primary'] {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+}
+
+[role='dialog'] svg,
+.modal-dialog svg,
+.dialog svg,
+[class*='modal-dialog'] svg,
+[class*='ModalDialog'] svg,
+[class*='dialog-container'] svg,
+[class*='DialogContainer'] svg {
+  color: var(--lx-text-hi) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 右上角悬浮成员标签使用浅色底，图标和姓名均采用深色前景。 */
+#alwaysOnTop,
+#alwaysOnTop .always-on-top-toolbox,
+#alwaysOnTop .toolbox-icon,
+#alwaysOnTop .displayname,
+.always-on-top-toolbox,
+.always-on-top-toolbox .toolbox-icon,
+.always-on-top-toolbox .displayname {
+  background-color: var(--lx-panel-soft) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#alwaysOnTop .toolbox-icon svg,
+#alwaysOnTop .displayname svg,
+.always-on-top-toolbox .toolbox-icon svg,
+.always-on-top-toolbox .displayname svg {
+  color: var(--lx-text-mid) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* ================= 13. 动作区域、成员按钮、聊天间距和投票背景 ================= */
+
+/* 精确覆盖运行时生成的 actionsContainer，统一区域底色并移除官方阴影。 */
+.actions.css-12lauss-actionsContainer-actionsVisible,
+.css-12lauss-actionsContainer-actionsVisible,
+[class*='actionsContainer-actionsVisible'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+  box-shadow: none !important;
+}
+
+/* 成员面板中的普通按钮统一为浅灰底深色字，避免同一区域出现多种中性色。 */
+#participants-pane button,
+#participants-pane [role='button'],
+#breakout-rooms-list button,
+#breakout-rooms-list [role='button'] {
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+  box-shadow: none !important;
+}
+
+#participants-pane button svg,
+#participants-pane [role='button'] svg,
+#breakout-rooms-list button svg,
+#breakout-rooms-list [role='button'] svg {
+  color: currentColor !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 同一动作区域内的加入和更多按钮统一使用蓝色操作色，保持按钮组视觉一致。 */
+#breakout-rooms-list [class*='actionsContainer'] button,
+#breakout-rooms-list [class*='ActionsContainer'] button,
+.actions.css-12lauss-actionsContainer-actionsVisible button,
+.css-12lauss-actionsContainer-actionsVisible button {
+  background-color: var(--lx-accent) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-accent-strong) !important;
+  box-shadow: none !important;
+}
+
+#breakout-rooms-list [class*='actionsContainer'] button svg,
+#breakout-rooms-list [class*='ActionsContainer'] button svg,
+.actions.css-12lauss-actionsContainer-actionsVisible button svg,
+.css-12lauss-actionsContainer-actionsVisible button svg {
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+/* 离开分组讨论室保留危险操作色，但不再带官方深色主题阴影。 */
+#breakout-rooms-list button[title*='离开'],
+#breakout-rooms-list button[aria-label*='离开'],
+#breakout-rooms-list button[class*='leave'],
+#breakout-rooms-list button[class*='Leave'] {
+  background-color: var(--lx-danger) !important;
+  color: #ffffff !important;
+  border-color: var(--lx-danger) !important;
+  box-shadow: none !important;
+}
+
+/* 每条聊天消息增加垂直间隔，避免相邻气泡粘连；最后一条不额外增加空白。 */
+#chatconversation .chatmessage:not(:last-child),
+#chatconversation .chat-message-group:not(:last-child),
+#chatconversation [class*='-chatMessageWrapper']:not(:last-child),
+#chatconversation [class*='-chatMessageItem']:not(:last-child) {
+  margin-bottom: 8px !important;
+}
+
+/* 投票面板和卡片统一使用浅色背景，选项继续使用轻微灰阶区分层级。 */
+#polls-tab-panel,
+#polls-tab-panel > *,
+#polls-tab-panel [class*='poll'],
+#polls-tab-panel [class*='Poll'],
+[class*='polls-panel'],
+[class*='PollsPanel'],
+[class*='poll-container'],
+[class*='PollContainer'],
+[class*='poll-card'],
+[class*='PollCard'] {
+  background-color: var(--lx-panel) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line) !important;
+}
+
+#polls-tab-panel [class*='option'],
+#polls-tab-panel [class*='Option'],
+[class*='poll'] [class*='option'],
+[class*='poll'] [class*='Option'],
+[class*='Poll'] [class*='option'],
+[class*='Poll'] [class*='Option'] {
+  background-color: var(--lx-bg-2) !important;
+  color: var(--lx-text-hi) !important;
+  border-color: var(--lx-line-strong) !important;
+}
+
+/* ================= 14. 弹窗菜单条目透明背景 ================= */
+
+/* 成员权限菜单和分组讨论室更多菜单的条目不使用背景，只保留外层面板底色。 */
+[role='menu'] button,
+[role='menu'] [role='menuitem'],
+[role='menu'] [role='option'],
+[role='listbox'] button,
+[role='listbox'] [role='option'],
+.popupmenu__contents button,
+.popupmenu__contents [role='menuitem'],
+[class*='popupmenu'] button,
+[class*='popupmenu'] [role='menuitem'],
+[class*='contextMenu'] button,
+[class*='contextMenu'] [role='menuitem'],
+[class*='ContextMenu'] button,
+[class*='ContextMenu'] [role='menuitem'],
+#overflow-context-menu button,
+#overflow-context-menu [role='menuitem'] {
+  background-color: transparent !important;
+  color: var(--lx-text-hi) !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+}
+
+/* 菜单条目里的图标容器也透明，避免左侧图标格出现浅灰块。 */
+[role='menu'] button *,
+[role='menu'] [role='menuitem'] *,
+[role='listbox'] [role='option'] *,
+.popupmenu__contents button *,
+.popupmenu__contents [role='menuitem'] *,
+[class*='popupmenu'] button *,
+[class*='popupmenu'] [role='menuitem'] *,
+[class*='contextMenu'] button *,
+[class*='contextMenu'] [role='menuitem'] *,
+[class*='ContextMenu'] button *,
+[class*='ContextMenu'] [role='menuitem'] *,
+#overflow-context-menu button *,
+#overflow-context-menu [role='menuitem'] * {
+  background-color: transparent !important;
+  color: inherit !important;
+  border-color: transparent !important;
+}
+
+[role='menu'] svg,
+[role='listbox'] svg,
+.popupmenu__contents svg,
+[class*='popupmenu'] svg,
+[class*='contextMenu'] svg,
+[class*='ContextMenu'] svg,
+#overflow-context-menu svg {
+  color: var(--lx-text-hi) !important;
+  fill: currentColor !important;
+  stroke: currentColor !important;
+}
+
+#modal-dialog-ok-button span {
+  color: #ffffff !important;
+}
+
+.chat-message-group [class*='optionsButtonContainer'] {
+  display: none !important;
+}
+
+#polls-tab-panel [class*='-inputContainer'] label {
+  color: var(--lx-text-hi) !important;
+}
+
+.subject-info-container [class*='-timer'] {
+  background-color: var(--lx-bg-0) !important;
+  color: var(--lx-text-hi) !important;
+}
+
+[class*='container']:hover .actions {
+  background: none !important;
+  box-shadow: none !important;
+}
+
+[class*='button-secondary-medium-fullWidth-button'] {
+  background-color: var(--lx-bg-2) !important;
+}
+
+/* 自定义工具栏 */
+#new-toolbox {
+  display: none !important;
+  height: 0px !important;
+  width: 0px !important;
+  overflow: hidden !important;
+  bottom: -1000px !important;
+}
+
+[class*='badgeContainer-containerElevated'] {
+  margin-bottom: 40px !important;
+}

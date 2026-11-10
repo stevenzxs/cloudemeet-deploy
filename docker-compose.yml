@@ -1,0 +1,49 @@
+name: cloudmeet-ip
+services:
+  web:
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:?required}
+  prosody:
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:?required}
+  gateway:
+    image: caddy:2.10.2-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    environment:
+      SITE_HOST: ${SITE_HOST:?required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [meet.jitsi]
+  api:
+    image: eclipse-temurin:17-jre
+    restart: unless-stopped
+    mem_limit: 512m
+    working_dir: /app
+    command: ['java', '-XX:MaxRAMPercentage=65', '-jar', '/app/app.jar']
+    environment:
+      JITSI_MEET_DB_URL: jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db
+      JITSI_TOKEN_APP_ID: zhsz
+      JITSI_TOKEN_APP_SECRET: ${JWT_APP_SECRET:?required}
+      JITSI_TOKEN_DOMAIN: meet.jitsi
+      BANNER_LOGO_DIRECTORY: /data/banner-logos
+    volumes:
+      - ./artifacts/app.jar:/app/app.jar:ro
+      - ./data/api:/app/data
+      - ./data/logos:/data/banner-logos
+    networks: [meet.jitsi]
+  app-web:
+    image: nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311
+    restart: unless-stopped
+    volumes:
+      - ./artifacts/dist:/usr/share/nginx/html/cm:ro
+      - ./artifacts/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./data/logos:/data/banner-logos:ro
+    networks: [meet.jitsi]
+volumes:
+  caddy_data:
+  caddy_config:
