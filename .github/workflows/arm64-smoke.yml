@@ -24,3 +24,25 @@ jobs:
         env:
           SERVICE: ${{ matrix.service }}
         run: bash tools/arm64-source-smoke.sh "$SERVICE"
+
+  control-plane:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Unit-test acceptance gate
+        run: python3 -B -m unittest discover -s tests -p test_arm64_integration.py
+      - name: Build full runtimes and verify XMPP operational bridge
+        run: bash tools/arm64-control-build.sh
+      - name: Upload sanitized control-plane evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arm64-control-plane-${{ github.run_id }}
+          path: |
+            arm64-evidence/*.log
+            arm64-evidence/result.json
+          if-no-files-found: warn
+          retention-days: 14
