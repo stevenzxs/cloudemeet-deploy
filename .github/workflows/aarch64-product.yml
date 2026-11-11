@@ -1,0 +1,50 @@
+name: Aarch64 product package candidate
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/arm64-smoke]
+    paths:
+      - .github/workflows/aarch64-product.yml
+      - tools/product-inputs.json
+      - tools/assemble-aarch64-product.py
+      - tools/aarch64-product-inputs.py
+      - tools/offline-runtime/**
+
+permissions:
+  contents: read
+  actions: read
+
+jobs:
+  package:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          path: deployment-input
+          persist-credentials: false
+      - name: Verify native architecture and exact deployment inputs
+        env:
+          MATERIAL_SHA: ${{ github.sha }}
+        run: |
+          test "$(uname -m)" = aarch64
+          python3 -B deployment-input/tools/aarch64-product-inputs.py deployment-input "$MATERIAL_SHA" > input-evidence.json
+      - name: Assemble locked source images with product patches
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 -B deployment-input/tools/assemble-aarch64-product.py --inputs deployment-input --ci deployment-input --output "output/cloudmeet-aarch64-47-${GITHUB_RUN_ID}"
+      - name: Retain candidate and explicit limitations (not an install-qualified release)
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: aarch64-product-${{ github.run_id }}
+          path: |
+            output/*.tar.gz
+            output/*.sha256
+            input-evidence.json
+          compression-level: 0
+          retention-days: 14
+          if-no-files-found: error
