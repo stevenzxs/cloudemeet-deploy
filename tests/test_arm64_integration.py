@@ -7,6 +7,11 @@ spec = importlib.util.spec_from_file_location(
 
 
 class IntegrationGateTests(unittest.TestCase):
+    def test_prosody_storage_parent_is_owned_by_runtime_user(self):
+        dockerfile = (Path(__file__).resolve().parents[1] /
+                      'tools/arm64-prosody-core.Dockerfile').read_text()
+        self.assertIn('install -d -o 1000 -g 1000 /var/lib/prosody /var/lib/prosody/data', dockerfile)
+
     def test_gate_requires_one_bridge_and_all_stable_containers(self):
         self.assertIsNotNone(spec.loader)
         module = importlib.util.module_from_spec(spec)
