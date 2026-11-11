@@ -1,0 +1,68 @@
+name: Aarch64 release environment preflight only
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/arm64-smoke]
+    paths:
+      - .github/workflows/aarch64-release-preflight.yml
+
+permissions:
+  contents: read
+
+jobs:
+  environment:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 5
+    steps:
+      - name: Inspect full-system test capabilities without engine changes
+        run: |
+          python3 -B - <<'PY'
+          import json, os, pathlib, platform, shutil, subprocess
+          if platform.machine() != 'aarch64':
+              raise SystemExit('Native aarch64 required')
+          device = pathlib.Path('/dev/kvm')
+          kvm = {'exists': device.exists(), 'api_version': None, 'vm_creation': False}
+          if device.exists():
+              import fcntl
+              try:
+                  fd = os.open(str(device), os.O_RDWR | os.O_CLOEXEC)
+                  try:
+                      kvm['api_version'] = fcntl.ioctl(fd, 0xAE00, 0)
+                      vm = fcntl.ioctl(fd, 0xAE01, 0)
+                      os.close(vm)
+                      kvm['vm_creation'] = True
+                  finally:
+                      os.close(fd)
+              except OSError as error:
+                  kvm['error_errno'] = error.errno
+          tools = {}
+          for name in ['qemu-system-aarch64', 'qemu-img', 'cloud-localds']:
+              executable = shutil.which(name)
+              tools[name] = {'available': bool(executable)}
+              if executable and name != 'cloud-localds':
+                  result = subprocess.run([executable, '--version'], capture_output=True, text=True, timeout=10)
+                  tools[name]['version'] = result.stdout.splitlines()[0] if result.stdout else ''
+          memory = dict(line.split(':', 1) for line in pathlib.Path('/proc/meminfo').read_text().splitlines())
+          result = {
+              'status': 'PREFLIGHT_ONLY_NOT_QUALIFIED',
+              'run_id': os.environ['GITHUB_RUN_ID'],
+              'attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+              'workflow_commit': os.environ['GITHUB_SHA'],
+              'machine': platform.machine(), 'kernel': platform.release(),
+              'os_release': pathlib.Path('/etc/os-release').read_text(),
+              'memory_total': memory.get('MemTotal'),
+              'disk_free_bytes': shutil.disk_usage('.').free,
+              'kvm': kvm, 'tools': tools,
+              'not_tested': ['guest OS boot', 'Kylin compatibility', 'offline first installation', 'package qualification'],
+          }
+          pathlib.Path('environment-preflight.json').write_text(json.dumps(result, indent=2) + '\n')
+          print(json.dumps(result, indent=2))
+          PY
+      - name: Retain environment facts only
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: aarch64-environment-${{ github.run_id }}
+          path: environment-preflight.json
+          retention-days: 14
+          if-no-files-found: error

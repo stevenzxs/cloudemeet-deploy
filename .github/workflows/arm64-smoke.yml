@@ -20,6 +20,8 @@ on:
       - tools/verify-aarch64-product-runtime.py
       - tools/product-role-probe.py
       - .github/workflows/aarch64-product.yml
+      - .github/workflows/aarch64-release-preflight.yml
+      - tests/test_release_preflight.py
 
 permissions:
   contents: read

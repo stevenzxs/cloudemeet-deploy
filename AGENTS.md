@@ -15,10 +15,10 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 3. 目录与唯一流程
 
-- `deploy/` 是唯一交付根，新目录统一为 `debug/<架构>/` 和 `release/<架构>/`，架构名称使用 `amd64`、`aarch64`。debug 用于功能迭代、bug定位与回归测试；release 用于正式部署交付。这是用途分类，不等同编译器 Debug/Release 模式，debug 包也可以正式签名或优化编译。
-- `debug/<架构>/server/` 放服务器测试包，`clients/` 放客户端测试包，`evidence/` 放构建、诊断、回归及历史证据。`release/<架构>/server/` 放完整部署包，`clients/` 放客户端交付包，`dependencies/` 放 Docker、Compose 等依赖安装材料。
+- `deploy/release/` 是唯一新增交付入口，架构名称使用 `amd64`、`aarch64`。不再建立或下载到 `deploy/debug/`。release是交付用途，不等同编译器构建模式或签名身份。
+- `release/<架构>/server/` 只放具备安装资格的完整服务器包，`clients/` 放具备注明范围验收证据的客户端，`dependencies/` 放按OS/版本区分的Docker、Compose依赖。未完成候选仅保留在Actions临时工作区及有期限artifact，不下载到release，不作为部署包交付。合格包附reports证据、INSTALL、摘要和明确前置条件；失败报告可记录在当前检查点，不另建本地候选交付树。
 - 架构按产物本身而非其连接的服务器划分。客户端注明 OS/ABI；多ABI包记录实际支持集合，不冒称单架构。依赖在 dependencies 下按目标OS/版本和组件版本区分，记录来源、摘要、安装前提及验证状态；有安装材料不等于该平台安装通过，不授权覆盖已有引擎。
-- 迁移现状：上述目录及 `config/` 已建立但仍为空；旧 `packages/`、`history/`、`artifacts/`、`releases/`、根 `clients/` 和 `offline-packs/` 尚未移动，现有工具仍可能输出旧路径。不得声称已改造工具或已迁移，不自动删除旧目录；用户后续人工清理。新批次采用新目录前必须显式核对工具的实际输出，尚未适配则报告差异，不能声称输出已在新目录。
+- 目录调整：用户明确授权删除deploy/debug及全部内容，不迁移其中候选包和证据。旧 `packages/`、`history/`、`artifacts/`、`releases/`、根 `clients/` 和 `offline-packs/` 不在此次删除范围。现有工具可能仍输出旧路径，不能声称已完成工具迁移；发现旧debug输出须先停用，不得重建目录。
 - `config/` 用于人工维护公共配置，现有 `artifacts/nginx.conf` 尚未迁入；旧 `releases/` 为镜像候选登记、`offline-packs/` 为既有引擎材料，均不是另一条正式交付主线。
 - `patches/` 是公开补丁维护源；`artifacts/` 是模板所需生成物暂存及路由配置；`tools/`、`tests/` 是维护工具和测试；`.worktrees/` 是独立 Git 工作树，不随整理移动或清除。
 - 编译和组包工具留在 `build-tools/`；服务器构建/组包的位置按第4节已确认执行路线，不能默认改用WSL。WSL仅承担已授权的辅助脚本/测试与文件检查；Windows构建客户端。不得移动业务源码进deploy，不重建根级delivery-history或cloudmeet-deploy-offline。
@@ -50,11 +50,6 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `start.sh` | 根模板准备补丁/权限、校验并启动服务，不隐式拉取或清数据 |
 | `.git/` | 部署维护仓库 Git 元数据，不作交付材料、不手工整理内部文件 |
 | `.worktrees/` | 独立工作树及其分支实现，不移动、不按缓存删除，不枚举内部副本 |
-| `debug/` | 功能迭代、定位问题及回归测试材料根，不是正式交付入口 |
-| `debug/amd64/`、`debug/aarch64/` | 按产物实际架构组织测试材料 |
-| `debug/amd64/server/`、`debug/aarch64/server/` | 服务器测试包及镜像候选 |
-| `debug/amd64/clients/`、`debug/aarch64/clients/` | MSI/APK等客户端测试包，记录实际OS/ABI |
-| `debug/amd64/evidence/`、`debug/aarch64/evidence/` | 构建日志、诊断、回归和历史证据 |
 | `release/` | 正式部署交付根；移动到这里不能替代资格验证 |
 | `release/amd64/`、`release/aarch64/` | 按产物实际架构组织正式交付 |
 | `release/amd64/server/`、`release/aarch64/server/` | 完整服务器部署包，按批次保存，不原地改包 |
@@ -106,6 +101,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `tools/product-inputs.json` | 本批Actions输入文件摘要，锁定公开补丁、配置与公共运行时副本；不是运行验收结果 |
 | `tools/verify-aarch64-product-runtime.py`、`tools/product-role-probe.py` | build-tools同名源的受控CI副本；严格TLS下核对外置补丁实际资源和真实BOSH/JWT角色，不等于全系统离线首装 |
 | `.github/workflows/aarch64-product.yml` | CI分支原生aarch64候选组包入口，只有只读仓库/artifact权限，不上传服务器或发布镜像 |
+| `.github/workflows/aarch64-release-preflight.yml` | CI分支原生ARM独立全系统验证前置能力探测，仅记录资源、KVM访问与QEMU工具，不构建镜像、不提供安装资格 |
+| `tests/test_release_preflight.py` | CI前置探测限定架构、无镜像构建/导入及诚实结果标签的静态回归 |
 | `tools/fetch-image.py` | 从 registry 获取 ARM64 镜像，校验层摘要并导出 Docker 归档 |
 | `tools/backup-host-control.py` | 主持人能力更新前检查会议空闲并创建配置/SQLite 一致性备份 |
 | `tools/prepare-host-control.py` | 准备可选主持人能力覆盖配置与秘密，不自动部署或重启 |
@@ -199,6 +196,18 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 - 新布局完整服务器交付进入 `release/<架构>/server/<批次>/`，最终复制后复核所有摘要，报告实际路径、可信 SHA256SUMS 摘要、限定平台/origin、已过门禁和未验项。旧 packages 包保持原位置直至明确迁移；历史路径不能替代实际交付路径。
 - 不断网、不移除已有 Docker/数据/CA 卷来模拟离线；在独立环境验证。
 
+### 6.1 release闭环（打包前规划，交付前完成）
+
+- 请求“打包release/部署包”默认终点是具备本节安装资格的完整包，不是候选归档。仅在用户明确只要研究材料时停在候选；Actions绿灯、编译成功或临时栈通过不能作为完成答复。
+- **验证环境前置**：调度组包前登记构建环境和独立全系统验证环境各自的OS/版本、架构、镜像来源/摘要、可启动方式、离线隔离方式、资源、安装前置条件及证据输出。先确认环境可取得/可启动，再安排候选到资格测试的调用链；不要在候选交给用户后才发现缺环境。执行者先调查已批准Actions路线的可行性，仅对具体镜像许可、资源或新授权阻塞提问，不默认要求用户另备服务器。Ubuntu验证不等于麒麟兼容；不支持目标环境时报告阻塞，不虚构资格。
+- 明确依赖契约：已有Docker包核实限定版本/架构及检查方法，默认不覆盖引擎；缺Compose时包内携带已核验来源/摘要/可执行性与离线安装步骤。含Docker首装的包另验证全部依赖闭包。历史机器已装过不等于清理后的当前状态；前置条件未知必须如实列明。
+- 状态流为 `CANDIDATE → QUALIFYING → READY_FOR_INSTALL → RELEASED`，任何必需检查失败进入FAIL/BLOCKED，不保留前阶段PASS。各阶段关联部署commit、run/attempt、artifact和输入/包摘要；复用已验镜像，只有受影响组件确需变化才重建并重验，不因补文档/安装验证重编全部项目。
+- **资格测试不得依赖先改READY**：安装核心须支持受控资格测试调用同一套实际校验/导入/初始化/启动逻辑，同时保持普通用户入口对未合格候选拒绝。测试编排不得编辑候选状态、重算清单掩盖改动或使用QA override来启动；现实现若先要求READY才能执行资格测试，属于待修复的实现阻塞，不能用文档宣称已具备。隔离环境的测试授权不等于产品安装资格，交付包不得携带绕过入口。
+- Actions显式串联：候选材料/包级坏包负例 → 产品补丁与真实JWT角色 → 独立全系统离线首装（空store、包内原始入口、严格TLS/API/信令/桥）→ 资格证据检查 → release组包/放行。缺少任一阶段或阶段被跳过，均不产可交付release，不将仅候选workflow标成release成功。
+- **最终归档复验**：资格结果绑定被测有效载荷的逐文件摘要；放行只能由检查完整证据的受控工具生成状态和报告。若增加资格报告/元数据导致归档字节变化，记录变更范围、被测摘要与最终摘要的绑定，并重新解压最终归档，执行完整性、只读安装资格检查及内容/引用/负例检查。有效载荷或安装入口变化必须重新执行受影响的安装验证，不沿用旧证据。
+- 交付前按包内INSTALL逐条核对前置条件、解压和校验、依赖准备、首次安装命令及预期结果，记录实际入口退出码。`--verify-only`若兼验完整性和资格必须明示，不可描述成仅完整性检查；完整性命令不得被称为安装证明。正式包的该入口必须退出0，仍报Incomplete/REFUSED即阻断交付，不要求用户自行解除。
+- 最后才下载至 `deploy/release/<架构>/server/<批次>/` 并复核摘要；报告实际路径、SHA256、限定平台/origin、安装命令和未验项。目标人工安装与Android/Electron媒体属于后续独立阶段，不阻止已有证据的服务器安装资格放行，也不能据此提前发布未完成第一阶段验收的镜像。
+
 ## 7. 目标部署、安全与回滚
 
 - 本地整理/组包不授权 SSH、上传、重启、迁移、卸载或切换服务器。部署既有实例前核实其实际配置，不能用 IP HTTPS 模板覆盖 ARM HTTP 或域名/DNS 插件实例。
@@ -213,7 +222,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 - 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`，显式指定仅含 SITE_DOMAIN、SITE_SCHEME、SITE_PORT 的 client-only env。唯一活动版本状态为 `build-tools/clients/release-version.json`，不绕过计数、不回退已占版本、不并发构建或删除活动锁。
 - 每批核对完整 origin、实际 MSI/APK 版本和摘要、包内入口及目标公开 CA。新地址不会自动配置 CA 信任。Electron 按准确 origin 限定信任；Android 按主机限定，保留已有端点策略，不打包私钥。
 - 实测 APK signing certificate、MSI/内嵌程序实际签名与有效性；旧 manifest 固定文案和文件名不是签名证据。签名改变字节后重新计算最终摘要。
-- 客户端新布局为先进入 `deploy/debug/<架构>/clients/<批次>/`，接受交付进入 `deploy/release/<架构>/clients/<批次>/` 并明示状态；当前构建器仍输出 `deploy/history/client-builds/`，未完成路径适配，必须据实报告。本次目录创建不授权改动构建器。设备安装需授权并保留数据，Android 使用数据保留升级，不自动卸载旧版或清数据。
+- 客户端合格交付仅进入 `deploy/release/<架构>/clients/<批次>/`，明确OS/ABI、签名和已验范围；不再设置debug交付树。当前构建器仍输出 `deploy/history/client-builds/`，属于尚未适配的内部构建路径，不当作新增交付入口，不因此自动修改构建器。设备安装需授权并保留数据，Android使用数据保留升级，不自动卸载或清数据。
 - 安装成功、首页、入会、真实媒体分别取证。至少三端或关闭 P2P 确保经过 JVB，核对 ICE/UDP、双向音视频、共享及重连；未验证不能标通过。no-auth 同会不能证明 JWT 角色或转移能力。
 
 ## 9. 测试、记录及能力边界
