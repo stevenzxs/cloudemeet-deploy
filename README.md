@@ -2,6 +2,8 @@
 
 ## 源码版本管理
 
+七服务 GHCR 候选发布：[11248-cm.20261110-rc2-amd64](releases/11248-cm.20261110-rc2-amd64/README.md)（主持人转移修复；镜像锁定清单，不是离线安装包）。
+
 部署维护仓库：<https://github.com/stevenzxs/cloudemeet-deploy>。
 本仓库仅追踪模板、初始化/启动脚本、公开补丁、技能、测试及维护文档；
 `history/`、`packages/`、`clients/`、实际实例配置、数据库、密钥和构建产物保留本地，不上传Git。

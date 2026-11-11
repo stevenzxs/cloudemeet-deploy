@@ -19,6 +19,12 @@
 !/skills/
 !/tests/
 !/tools/
+!/releases/
+/releases/*
+!/releases/11248-cm.20261110-rc2-amd64/
+/releases/11248-cm.20261110-rc2-amd64/*
+!/releases/11248-cm.20261110-rc2-amd64/README.md
+!/releases/11248-cm.20261110-rc2-amd64/registry.yaml
 
 # Never publish instance state, credentials, keys or generated payloads.
 .env
