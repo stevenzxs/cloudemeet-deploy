@@ -137,7 +137,7 @@ def import_images(work, lock):
     return images
 
 
-def main():
+def main(product_check=None):
     if platform.machine() != 'aarch64':
         raise RuntimeError('Native ARM64 only')
     evidence = ROOT / 'stack-evidence'
@@ -258,6 +258,9 @@ with context.wrap_socket(socket.create_connection(('127.0.0.1',443),timeout=10),
                 time.sleep(5)
             if stable < 2:
                 raise RuntimeError('Seven-service stability/bridge gate failed')
+            if product_check is not None:
+                product_check(execute, https, private, checks)
+                result['status'] = 'PASS_PRODUCT_PATCHES_ROLES_NOT_OFFLINE_OR_MEDIA'
         except Exception as error:
             # Do not print subprocess command/body, which can contain hostKey.
             result['error_type'] = type(error).__name__

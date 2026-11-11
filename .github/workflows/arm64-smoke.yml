@@ -17,6 +17,8 @@ on:
       - tools/assemble-aarch64-product.py
       - tools/aarch64-product-inputs.py
       - tools/offline-runtime/**
+      - tools/verify-aarch64-product-runtime.py
+      - tools/product-role-probe.py
       - .github/workflows/aarch64-product.yml
 
 permissions:

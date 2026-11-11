@@ -104,6 +104,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `tools/check-deployment-layout.py` | 内含现有实现路径清单，只读校验限定命名入口是否登记，不执行部署、不新增规范 |
 | `tools/assemble-aarch64-product.py`、`tools/aarch64-product-inputs.py`、`tools/offline-runtime/` | Actions所需build-tools维护源的受控同步副本；只在runner组包/校验，不另建安装逻辑；每批核对源与副本摘要 |
 | `tools/product-inputs.json` | 本批Actions输入文件摘要，锁定公开补丁、配置与公共运行时副本；不是运行验收结果 |
+| `tools/verify-aarch64-product-runtime.py`、`tools/product-role-probe.py` | build-tools同名源的受控CI副本；严格TLS下核对外置补丁实际资源和真实BOSH/JWT角色，不等于全系统离线首装 |
 | `.github/workflows/aarch64-product.yml` | CI分支原生aarch64候选组包入口，只有只读仓库/artifact权限，不上传服务器或发布镜像 |
 | `tools/fetch-image.py` | 从 registry 获取 ARM64 镜像，校验层摘要并导出 Docker 归档 |
 | `tools/backup-host-control.py` | 主持人能力更新前检查会议空闲并创建配置/SQLite 一致性备份 |

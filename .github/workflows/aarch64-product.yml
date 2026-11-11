@@ -36,6 +36,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 -B deployment-input/tools/assemble-aarch64-product.py --inputs deployment-input --ci deployment-input --output "output/cloudmeet-aarch64-47-${GITHUB_RUN_ID}"
+      - name: Verify actual product patch loading and JWT roles
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 -B deployment-input/tools/verify-aarch64-product-runtime.py deployment-input
       - name: Retain candidate and explicit limitations (not an install-qualified release)
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -45,6 +49,8 @@ jobs:
             output/*.tar.gz
             output/*.sha256
             input-evidence.json
+            deployment-input/stack-evidence/result.json
+            deployment-input/stack-evidence/stack.log
           compression-level: 0
           retention-days: 14
           if-no-files-found: error
