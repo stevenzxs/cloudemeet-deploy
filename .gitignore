@@ -19,6 +19,11 @@
 !/skills/
 !/tests/
 !/tools/
+!/.github/
+/.github/*
+!/.github/workflows/
+/.github/workflows/*
+!/.github/workflows/arm64-smoke.yml
 !/releases/
 /releases/*
 !/releases/11248-cm.20261110-rc2-amd64/

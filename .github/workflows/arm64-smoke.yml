@@ -1,0 +1,26 @@
+name: ARM64 source smoke
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ci/arm64-smoke]
+
+permissions:
+  contents: read
+
+jobs:
+  source-smoke:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [prosody, jvb]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Build and test pinned sources
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: bash tools/arm64-source-smoke.sh "$SERVICE"
