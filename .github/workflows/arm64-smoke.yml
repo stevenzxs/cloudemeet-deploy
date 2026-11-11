@@ -4,6 +4,13 @@ on:
   workflow_dispatch:
   push:
     branches: [ci/arm64-smoke]
+    paths-ignore:
+      - tools/arm64-stack.py
+      - tools/arm64-stack-lock.json
+      - tests/test_arm64_stack.py
+      - .github/workflows/arm64-stack.yml
+      - tools/ARM64-CI.md
+      - .gitignore
 
 permissions:
   contents: read

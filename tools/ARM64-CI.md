@@ -13,6 +13,12 @@ Next gate after a successful control-plane run: construct the other four ARM64 s
 
 ## Seven-service candidate retention (2026-11-11)
 
+## Isolated seven-service integration
+
+`arm64-stack.yml` consumes the exact artifact IDs and hashes in `tools/arm64-stack-lock.json` from successful run 42967794060 attempt 2. It does not rebuild, publish or access a server. `tools/arm64-stack.py` verifies ZIP/archive/source/image identities, imports into a fresh native ARM runner, starts exactly seven images on a unique internal bridge with no host ports, and verifies strict temporary-CA TLS, routes/internal 404, API create/end/history and persistence after recreation, BOSH session, XMPP WebSocket 101/accept, and two stable operational-bridge observations. JWT/host-transfer, offline/target/media/security acceptance remain explicitly untested.
+
+The workflow supports manual dispatch and branch pushes limited to its own files (initial bootstrap on a non-default branch uses that push trigger); candidate builds ignore these integration-only changes. Evidence upload includes only result JSON and bounded credential-redacted logs, never the private Compose, databases or CA keys. Only the unique temporary Compose project/volumes are cleaned. Artifact expiry is a hard blocker; never silently rebuild substitute images.
+
 Web build resource diagnostics: `web-builder.json` retains before/after host memory, VM OOM counters, CPU count, filtered kernel OOM records (or explicit probe-unavailable status), and an allowlisted Docker exit/OOM state. `web-cgroup-before.txt` and `web-cgroup-after.txt` retain available cgroup v2 memory events/peak/limits. The build command, source env/locks and compression settings are unchanged. The named ephemeral builder is inspected before removal; a killed child can set cgroup OOM counters even when Docker's parent-process OOM flag is false. Missing counters do not establish absence of OOM.
 
 The workflow now builds four additional services in native ARM64 matrix jobs and retains three control-plane images after the existing bridge gate. The older standalone source smoke script remains available but is no longer duplicated in the candidate workflow.
