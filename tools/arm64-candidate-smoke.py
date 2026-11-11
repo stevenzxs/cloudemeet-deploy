@@ -112,7 +112,11 @@ def smoke(service):
                        'displayName': 'CI', 'creatorId': 'arm64-ci', 'hostKey': secrets.token_hex(32)}
             credentials.append(fixture['hostKey'])
             for index in range(2):
-                cid = start('-v', volume + ':/app/data')
+                # With network=none there is no non-loopback address. MyBatis-Plus
+                # falls back to InetAddress.getLocalHost(), so explicitly resolve
+                # this container's hostname without granting network access.
+                cid = start('--hostname', 'arm64-api-ci', '--add-host', 'arm64-api-ci:127.0.0.1',
+                            '-v', volume + ':/app/data')
                 wait_http(cid, '/mapi/actuator/health', 9000)
                 if index == 0:
                     http(cid, '/mapi/open/desktop/meetings', 9000, 'POST', fixture)

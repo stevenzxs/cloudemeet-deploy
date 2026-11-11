@@ -11,6 +11,31 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CandidateEvidenceTests(unittest.TestCase):
+    def test_api_isolated_smoke_has_resolvable_hostname_without_network_access(self):
+        spec = importlib.util.spec_from_file_location('smoke', ROOT / 'tools/arm64-candidate-smoke.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        commands = []
+        def output(*args):
+            commands.append(args)
+            if args[1] == 'inspect':
+                return json.dumps([{'State': {'OOMKilled': False}, 'RestartCount': 0}]).encode()
+            return b'container'
+        with tempfile.TemporaryDirectory() as directory:
+            module.EVIDENCE = Path(directory)
+            with patch.object(module, 'run', side_effect=output), \
+                    patch.object(module, 'wait_http'), \
+                    patch.object(module, 'http', return_value=b'[{"roomName":"987654321"}]'), \
+                    patch.object(module.subprocess, 'run'):
+                module.smoke('api')
+        starts = [args for args in commands if args[:3] == ('docker', 'run', '-d')]
+        self.assertEqual(len(starts), 2)
+        for args in starts:
+            self.assertEqual(args[args.index('--network') + 1], 'none')
+            self.assertEqual(args[args.index('--hostname') + 1], 'arm64-api-ci')
+            self.assertIn('arm64-api-ci:127.0.0.1', args)
+            self.assertNotIn('-p', args)
+
     def test_failure_diagnostics_redact_credentials_and_exclude_container_env(self):
         spec = importlib.util.spec_from_file_location('smoke', ROOT / 'tools/arm64-candidate-smoke.py')
         module = importlib.util.module_from_spec(spec)
