@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import secrets
+import re
 import subprocess
 import time
 
@@ -11,6 +12,28 @@ EVIDENCE = Path('arm64-evidence')
 
 def run(*args):
     return subprocess.check_output(args, stderr=subprocess.STDOUT, timeout=45)
+
+
+def redact(text, credentials):
+    for value in credentials:
+        if value:
+            text = text.replace(value, '<redacted>')
+    return re.sub(r'(?i)((?:hostkey|token|password|secret|authorization)["\s]*[:=]["\s]*)([^\s,;"}]+)',
+                  r'\1<redacted>', text)
+
+
+def diagnose(cid, credentials):
+    result = {}
+    try:
+        info = json.loads(run('docker', 'inspect', cid))[0]
+        # Explicit state allowlist: never serialize Config.Env, mounts or secrets.
+        result['state'] = {key: info['State'].get(key) for key in
+                           ('Running', 'ExitCode', 'OOMKilled', 'Error', 'StartedAt', 'FinishedAt')}
+        result['restarts'] = info['RestartCount']
+        result['logs'] = redact(run('docker', 'logs', '--tail', '200', cid).decode(errors='replace'), credentials)
+    except (subprocess.SubprocessError, ValueError, KeyError) as error:
+        result['diagnostic_error'] = type(error).__name__
+    return result
 
 
 def http(cid, path, port, method='GET', data=None):
@@ -24,9 +47,10 @@ def wait_http(cid, path, port):
     for attempt in range(90):
         try:
             return http(cid, path, port)
-        except subprocess.CalledProcessError:
+        except subprocess.CalledProcessError as error:
             if attempt == 89:
-                raise
+                output = (error.output or b'').decode(errors='replace')[-4000:]
+                raise RuntimeError('Health probe failed: ' + output) from None
             time.sleep(2)
 
 
@@ -37,6 +61,7 @@ def smoke(service):
     volume = None
     result = {'service': service, 'status': 'FAIL', 'scope': 'service smoke only; no full-stack/media acceptance'}
     checks = []
+    credentials = []
 
     def start(*options):
         cid = run('docker', 'run', '-d', '--network', 'none', '--memory', '1g',
@@ -85,6 +110,7 @@ def smoke(service):
             # Throwaway fixture only; never serialize hostKey or tokens into evidence.
             fixture = {'roomName': '987654321', 'subject': 'ARM64 persistence smoke',
                        'displayName': 'CI', 'creatorId': 'arm64-ci', 'hostKey': secrets.token_hex(32)}
+            credentials.append(fixture['hostKey'])
             for index in range(2):
                 cid = start('-v', volume + ':/app/data')
                 wait_http(cid, '/mapi/actuator/health', 9000)
@@ -115,13 +141,20 @@ def smoke(service):
             if service != 'api' and not state['State']['Running']:
                 raise RuntimeError('Candidate stopped')
         result.update(status='PASS_SERVICE_SMOKE_NOT_INTEGRATION', checks=checks)
+    except Exception as error:
+        # Do not serialize command args: POST args could contain the fixture hostKey.
+        result['error_type'] = type(error).__name__
+        if isinstance(error, RuntimeError):
+            result['error'] = redact(str(error), credentials)
+        result['diagnostics'] = [diagnose(cid, credentials) for cid in containers]
+        raise
     finally:
-        # API logs may contain fixture auth context; do not upload runtime logs.
+        # Failure-only, bounded/redacted diagnostics; no raw runtime log artifact.
+        (EVIDENCE / (service + '-smoke.json')).write_text(json.dumps(result, indent=2))
         for cid in containers:
             subprocess.run(['docker', 'rm', '-f', '-v', cid], check=True, timeout=60)
         if volume:
             subprocess.run(['docker', 'volume', 'rm', volume], check=True, timeout=30)
-        (EVIDENCE / (service + '-smoke.json')).write_text(json.dumps(result, indent=2))
 
 
 if __name__ == '__main__':

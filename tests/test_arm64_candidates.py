@@ -3,6 +3,7 @@ import importlib.util
 import json
 from pathlib import Path
 import tempfile
+import subprocess
 import unittest
 from unittest.mock import patch
 
@@ -10,6 +11,34 @@ ROOT = Path(__file__).resolve().parents[1]
 
 
 class CandidateEvidenceTests(unittest.TestCase):
+    def test_failure_diagnostics_redact_credentials_and_exclude_container_env(self):
+        spec = importlib.util.spec_from_file_location('smoke', ROOT / 'tools/arm64-candidate-smoke.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.assertTrue(hasattr(module, 'diagnose'), 'Failure diagnostics are missing')
+        info = [{'State': {'Running': False, 'ExitCode': 1, 'OOMKilled': False, 'Error': ''},
+                 'RestartCount': 0, 'Config': {'Env': ['SECRET=must-not-export']}}]
+        def output(*args):
+            if args[1] == 'inspect':
+                return json.dumps(info).encode()
+            return b'Boot failed token=secret-token known-fixture secret-token'
+        with patch.object(module, 'run', side_effect=output):
+            result = module.diagnose('container', ['known-fixture', 'secret-token'])
+        text = json.dumps(result)
+        self.assertNotIn('known-fixture', text)
+        self.assertNotIn('secret-token', text)
+        self.assertNotIn('must-not-export', text)
+        self.assertEqual(result['state']['ExitCode'], 1)
+
+    def test_wait_http_reports_last_probe_output(self):
+        spec = importlib.util.spec_from_file_location('smoke', ROOT / 'tools/arm64-candidate-smoke.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        failure = subprocess.CalledProcessError(1, ['docker', 'exec'], output=b'container is not running')
+        with patch.object(module, 'http', side_effect=failure), patch.object(module.time, 'sleep'):
+            with self.assertRaisesRegex(RuntimeError, 'container is not running'):
+                module.wait_http('container', '/health', 9000)
+
     def test_source_manifest_covers_seven_pinned_sources(self):
         path = ROOT / 'tools/arm64-candidate-sources.json'
         self.assertTrue(path.exists(), 'Seven-service source manifest is missing')
