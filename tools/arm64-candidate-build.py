@@ -5,6 +5,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import secrets
 import shutil
 import subprocess
 import tempfile
@@ -42,12 +43,61 @@ def resolve_base(reference):
 
 
 def container_build(base, source, command, evidence_name):
-    run(['docker', 'run', '--rm', '--platform', 'linux/arm64',
+    if evidence_name != 'web':
+        run(['docker', 'run', '--rm', '--platform', 'linux/arm64',
          '--user', str(os.getuid()) + ':' + str(os.getgid()), '-e', 'HOME=/tmp',
          '-e', 'GOPATH=/tmp/go', '-e', 'GOCACHE=/tmp/go-cache',
          '-v', str(source) + ':/src', '-v', str(EVIDENCE) + ':/evidence',
          '-w', '/src', base, 'bash', '-euc', command])
-    (EVIDENCE / (evidence_name + '-builder.json')).write_text(json.dumps({'base': base, 'command': command}, indent=2))
+        (EVIDENCE / (evidence_name + '-builder.json')).write_text(json.dumps({'base': base, 'command': command}, indent=2))
+        return
+    name = 'cloudmeet-web-build-' + secrets.token_hex(8)
+    record = {'base': base, 'command': command, 'host_before': resource_snapshot()}
+    # The parent shell survives a killed Node child and captures cgroup counters.
+    wrapper = '''snapshot() {
+  for key in memory.events memory.peak memory.max memory.swap.max; do
+    if [ -r /sys/fs/cgroup/$key ]; then
+      printf '%s\\n' "$key"; cat /sys/fs/cgroup/$key
+    fi
+  done
+}
+snapshot > /evidence/web-cgroup-before.txt
+trap 'snapshot > /evidence/web-cgroup-after.txt' EXIT
+bash -euc "$1"
+'''
+    try:
+        run(['docker', 'run', '--name', name, '--platform', 'linux/arm64',
+             '--user', str(os.getuid()) + ':' + str(os.getgid()), '-e', 'HOME=/tmp',
+             '-v', str(source) + ':/src', '-v', str(EVIDENCE) + ':/evidence',
+             '-w', '/src', base, 'bash', '-euc', wrapper, 'resource-probe', command])
+    finally:
+        record['host_after'] = resource_snapshot()
+        try:
+            info = json.loads(capture(['docker', 'inspect', name]))[0]
+            record['docker_state'] = {key: info['State'].get(key) for key in
+                                      ('ExitCode', 'OOMKilled', 'Error', 'StartedAt', 'FinishedAt')}
+        except (subprocess.SubprocessError, ValueError, KeyError) as error:
+            record['inspect_error'] = type(error).__name__
+        (EVIDENCE / 'web-builder.json').write_text(json.dumps(record, indent=2))
+        # Only this uniquely named ephemeral build container is removed.
+        subprocess.run(['docker', 'rm', '-f', name], timeout=60, check=False)
+
+
+def resource_snapshot():
+    result = {'cpu_count': os.cpu_count()}
+    for key in ('meminfo', 'vmstat', 'pressure/memory'):
+        try:
+            result[key] = (Path('/proc') / key).read_text()
+        except OSError:
+            result[key] = 'unavailable'
+    try:
+        probe = subprocess.run(['sudo', '-n', 'dmesg', '--ctime'], capture_output=True, timeout=15)
+        result['kernel_probe_exit'] = probe.returncode
+        result['kernel_oom_lines'] = [line for line in probe.stdout.decode(errors='replace').splitlines()
+                                    if any(word in line.lower() for word in ('out of memory', 'oom-kill', 'killed process'))][-40:]
+    except (OSError, subprocess.SubprocessError):
+        result['kernel_probe_exit'] = 'unavailable'
+    return result
 
 
 def hashes(root, names):

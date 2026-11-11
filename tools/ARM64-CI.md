@@ -13,6 +13,8 @@ Next gate after a successful control-plane run: construct the other four ARM64 s
 
 ## Seven-service candidate retention (2026-11-11)
 
+Web build resource diagnostics: `web-builder.json` retains before/after host memory, VM OOM counters, CPU count, filtered kernel OOM records (or explicit probe-unavailable status), and an allowlisted Docker exit/OOM state. `web-cgroup-before.txt` and `web-cgroup-after.txt` retain available cgroup v2 memory events/peak/limits. The build command, source env/locks and compression settings are unchanged. The named ephemeral builder is inspected before removal; a killed child can set cgroup OOM counters even when Docker's parent-process OOM flag is false. Missing counters do not establish absence of OOM.
+
 The workflow now builds four additional services in native ARM64 matrix jobs and retains three control-plane images after the existing bridge gate. The older standalone source smoke script remains available but is no longer duplicated in the candidate workflow.
 
 Source identities are in `arm64-candidate-sources.json`; see the approved [implementation plan](../docs/plans/2026-11-11-arm64-candidates.md). Business Web keeps checked-in `.env` and lockfile unchanged (actual pinned configuration is `same-origin`, not an overridden address). Go/Maven/npm builders execute tests. Runtime images use source-built application payloads and published dependency/base images, not prebuilt application images.

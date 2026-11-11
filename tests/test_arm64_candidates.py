@@ -119,12 +119,37 @@ class CandidateEvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             module.EVIDENCE = Path(directory)
             with patch.object(module.os, 'getuid', return_value=1001, create=True), \
-                    patch.object(module.os, 'getgid', return_value=1001, create=True), patch.object(module, 'run') as execute:
+                    patch.object(module.os, 'getgid', return_value=1001, create=True), patch.object(module, 'run') as execute, \
+                    patch.object(module, 'capture', return_value=b'[{"State":{"OOMKilled":false,"ExitCode":0}}]'), \
+                    patch.object(module, 'resource_snapshot', return_value={}), patch.object(module.subprocess, 'run'):
                 module.container_build('base@sha256:abc', Path(directory), 'npm ci', 'web')
             command = execute.call_args.args[0]
             self.assertIn('1001:1001', command)
             self.assertNotIn('-p', command)
             self.assertNotIn('--privileged', command)
+
+    def test_web_builder_retains_failure_resources_before_cleanup(self):
+        spec = importlib.util.spec_from_file_location('candidate_build', ROOT / 'tools/arm64-candidate-build.py')
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            module.EVIDENCE = Path(directory)
+            def execute(args, **kwargs):
+                if args[:2] == ['docker', 'run']:
+                    self.assertNotIn('--rm', args)
+                    self.assertIn('--name', args)
+                    raise subprocess.CalledProcessError(2, args)
+            with patch.object(module.os, 'getuid', return_value=1001, create=True), \
+                    patch.object(module.os, 'getgid', return_value=1001, create=True), \
+                    patch.object(module, 'run', side_effect=execute), \
+                    patch.object(module, 'capture', return_value=b'[{"State":{"OOMKilled":false,"ExitCode":2},"Config":{"Env":["SECRET=hidden"]}}]'), \
+                    patch.object(module, 'resource_snapshot', return_value={}), patch.object(module.subprocess, 'run'):
+                with self.assertRaises(subprocess.CalledProcessError):
+                    module.container_build('base', Path(directory), 'npm ci; make all', 'web')
+            record = json.loads((Path(directory) / 'web-builder.json').read_text())
+            self.assertEqual(record['docker_state']['ExitCode'], 2)
+            self.assertNotIn('hidden', json.dumps(record))
+            self.assertEqual(record['command'], 'npm ci; make all')
 
     def load_module(self):
         path = ROOT / 'tools/arm64-candidate-evidence.py'
