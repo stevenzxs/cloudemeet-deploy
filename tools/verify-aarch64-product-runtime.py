@@ -66,7 +66,7 @@ def main(inputs):
         plugin = probe('Prosody plugin read', execute, 'prosody', 'cat', '/prosody-plugins-custom/mod_muc_jwt_owner.lua')
         if plugin != (inputs / 'patches/prosody/mod_muc_jwt_owner.lua').read_bytes():
             raise RuntimeError('Runtime plugin digest mismatch')
-        config = probe('Prosody config read', execute, 'prosody', 'cat', '/config/conf.d/jitsi-meet.cfg.lua')
+        config = probe('Prosody config read', execute, 'prosody', 'cat', '/run/prosody/config/conf.d/jitsi-meet.cfg.lua')
         if b'muc_jwt_owner' not in config:
             raise RuntimeError('JWT role plugin not configured')
         checks.append('CSS digest and rendered head; JWT plugin bytes and configured module')

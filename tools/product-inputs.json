@@ -19,6 +19,6 @@
   "tools/offline-runtime/initialize.py": "e185f503bf6909f198b12aa2436134de6c48fd558bc978cbebab4c7114f63140",
   "tools/offline-runtime/install.py": "a3d4945d81272b5f9664ff8ab487784eb726ad79b79b7d9e54ba106c2ce8dcf4",
   "tools/offline-runtime/start.py": "6842d5cfb7746c7870cb56987b2dacae694a13e9882c9c0504be45dd4654d132",
-  "tools/verify-aarch64-product-runtime.py": "f1ab1a5dae65cbb8d4542033b4967f2fc83cf987c04da541fd0f8340d4b1b37a",
+  "tools/verify-aarch64-product-runtime.py": "5dd192a18ab0bef08f292a574fd66176a86f482088b093d6d2ea974bb7c98a15",
   "tools/product-role-probe.py": "dc7fb866540d449e98341d199c40fac7fd5b3a56ea152df5e8ae9cb9bda96da3"
 }
