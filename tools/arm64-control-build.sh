@@ -18,6 +18,10 @@ checkout() {
 }
 
 checkout https://github.com/jitsi/docker-jitsi-meet.git "$work/docker" 276801c7fd4233f7288ba95bd132c219852c7ac7
+cp tools/arm64-candidate-sources.json arm64-evidence/control-plane-sources.json
+docker pull --platform linux/arm64 ghcr.io/jitsi/base@sha256:48f5eb97cdb15306f4ae0f1d924f6485f3f514d6781aeb86e36601a67aa73781
+docker pull --platform linux/arm64 debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+docker image inspect ghcr.io/jitsi/base@sha256:48f5eb97cdb15306f4ae0f1d924f6485f3f514d6781aeb86e36601a67aa73781 debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2 > arm64-evidence/control-plane-bases.json
 checkout https://github.com/stevenzxs/jitsi-meet-prosody.git "$work/prosody" 72b2dc8fe282cf168ff932016fda68e034860815
 cmp patches/prosody/mod_muc_host_transfer.lua "$work/prosody/jitsi-plugins/cloudmeet/mod_muc_host_transfer.lua"
 docker build --platform linux/arm64 -t cloudmeet-ci/prosody-core \
@@ -47,9 +51,14 @@ for service in jicofo jvb; do
     unzip -q "${archives[0]}" -d "$work/$service-context/unpack"
     jar=$(find "$work/$service-context/unpack" -name "$jarname" -type f)
     test -s "$jar"
+    sha256sum "${archives[0]}" "$jar" > "arm64-evidence/$service-artifacts.txt"
+    (cd "$work/$service"; mvn -B -ntp dependency:tree) > "arm64-evidence/$service-maven-dependencies.txt" 2>&1
     mv "$(dirname "$jar")" "$work/$service-context/distribution"
     cp -a "$work/docker/$service/rootfs" "$work/$service-context/rootfs"
     docker build --platform linux/arm64 -t "cloudmeet-ci/$service" \
         --build-arg "SERVICE=$service" -f "$repo/tools/arm64-java-service.Dockerfile" "$work/$service-context"
+done
+for service in prosody jicofo jvb; do
+    docker run --rm --network none --entrypoint sh "cloudmeet-ci/$service" -c 'dpkg-query -W' > "arm64-evidence/$service-runtime-packages.txt"
 done
 python3 tools/arm64-integration.py

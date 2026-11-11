@@ -34,7 +34,7 @@ def validate_archives(records, root, expected):
     root = Path(root).resolve()
     for record in records:
         path = (root / record['archive']).resolve()
-        if path.parent != root or not path.is_file():
+        if path.parent != root or not path.is_file() or (root / record['archive']).is_symlink():
             raise ValueError('Archive must be a file directly inside candidate directory')
         if path.stat().st_size != record['size'] or sha256(path) != record['sha256']:
             raise ValueError('Candidate archive changed: ' + record['service'])
