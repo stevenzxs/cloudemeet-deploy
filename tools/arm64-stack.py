@@ -137,7 +137,7 @@ def import_images(work, lock):
     return images
 
 
-def main(product_check=None):
+def main(product_check=None, product_cleanup=None):
     if platform.machine() != 'aarch64':
         raise RuntimeError('Native ARM64 only')
     evidence = ROOT / 'stack-evidence'
@@ -259,11 +259,16 @@ with context.wrap_socket(socket.create_connection(('127.0.0.1',443),timeout=10),
             if stable < 2:
                 raise RuntimeError('Seven-service stability/bridge gate failed')
             if product_check is not None:
+                result['status'] = 'FAIL_PRODUCT_CHECK'
                 product_check(execute, https, private, checks)
                 result['status'] = 'PASS_PRODUCT_PATCHES_ROLES_NOT_OFFLINE_OR_MEDIA'
         except Exception as error:
             # Do not print subprocess command/body, which can contain hostKey.
             result['error_type'] = type(error).__name__
+            result['status'] = 'FAIL'
+            if isinstance(error, subprocess.CalledProcessError):
+                result['exit_code'] = error.returncode
+                # Never retain command arguments: they can contain JWT/host keys.
             if isinstance(error, RuntimeError):
                 result['error'] = str(error)
             raise RuntimeError('Integration failed; see sanitized result') from None
@@ -276,7 +281,11 @@ with context.wrap_socket(socket.create_connection(('127.0.0.1',443),timeout=10),
                         logs = logs.replace(value, '<redacted>')
                     (evidence / 'stack.log').write_text(logs)
                 finally:
-                    subprocess.run(cmd + ['down', '--volumes', '--remove-orphans'], timeout=90, check=True)
+                    try:
+                        subprocess.run(cmd + ['down', '--volumes', '--remove-orphans'], timeout=90, check=True)
+                    finally:
+                        if product_cleanup is not None:
+                            product_cleanup(private)
 
 
 if __name__ == '__main__':

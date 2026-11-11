@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
+import os
 import sys
 
 
@@ -17,6 +18,11 @@ def product_topology(config, inputs, private, secret):
     config['services']['web']['volumes'] = [str(private / 'web') + ':/config']
     config['services']['prosody']['volumes'] = [str(private / 'prosody-plugins-custom') + ':/prosody-plugins-custom:ro']
     return config
+
+
+def restore_web_owner(private, uid, gid, runner=subprocess.run):
+    runner(['sudo', '-n', 'chown', '-R', '--no-dereference',
+            str(uid) + ':' + str(gid), str(private / 'web')], check=True)
 
 
 def main(inputs):
@@ -45,17 +51,22 @@ def main(inputs):
     stack.topology = topology
 
     def check(execute, https, private, checks):
-        css = https('/css/custom.css')
+        def probe(label, function, *args):
+            try:
+                return function(*args)
+            except subprocess.CalledProcessError as error:
+                raise RuntimeError(label + ' failed with exit ' + str(error.returncode)) from None
+        css = probe('CSS HTTPS fetch', https, '/css/custom.css')
         expected = (inputs / 'patches/web/custom.css').read_bytes()
         if hashlib.sha256(css).digest() != hashlib.sha256(expected).digest():
             raise RuntimeError('Runtime CSS digest mismatch')
-        page = https('/')
+        page = probe('HTML HTTPS fetch', https, '/')
         if b'/css/custom.css' not in page:
             raise RuntimeError('Runtime CSS head reference missing')
-        plugin = execute('prosody', 'cat', '/prosody-plugins-custom/mod_muc_jwt_owner.lua')
+        plugin = probe('Prosody plugin read', execute, 'prosody', 'cat', '/prosody-plugins-custom/mod_muc_jwt_owner.lua')
         if plugin != (inputs / 'patches/prosody/mod_muc_jwt_owner.lua').read_bytes():
             raise RuntimeError('Runtime plugin digest mismatch')
-        config = execute('prosody', 'cat', '/config/conf.d/jitsi-meet.cfg.lua')
+        config = probe('Prosody config read', execute, 'prosody', 'cat', '/config/conf.d/jitsi-meet.cfg.lua')
         if b'muc_jwt_owner' not in config:
             raise RuntimeError('JWT role plugin not configured')
         checks.append('CSS digest and rendered head; JWT plugin bytes and configured module')
@@ -66,7 +77,8 @@ def main(inputs):
         exec(compile(roles.read_text(), str(roles), 'exec'), namespace)
         namespace['verify_roles'](checks)
 
-    stack.main(product_check=check)
+    stack.main(product_check=check,
+               product_cleanup=lambda private: restore_web_owner(private, os.getuid(), os.getgid()))
 
 
 def xml_request(execute, path, data):

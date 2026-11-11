@@ -13,12 +13,12 @@
   "patches/web/nginx-custom/custom-css.conf": "2605b6b8fe5779414243ef303f6e541737fde1146bb08d12e0b20113d940a8da",
   "tools/aarch64-product-inputs.py": "5b188fa26988154f1a16f11784602f2ee3fdc10ad6113834076c245d64b36f25",
   "tools/arm64-stack-lock.json": "5688683ce3a5749403813d87c592d052d97e5cadd70c86c1340dddfca4bcd18e",
-  "tools/arm64-stack.py": "c112249644fa11f7fae414c0ffd62b591a40f949790d2a3b70feaca9f1249a51",
+  "tools/arm64-stack.py": "79410538507ed4268169d262aae9e6b8bfbe7d3ad884ce38c59b1bfd7b76d63e",
   "tools/assemble-aarch64-product.py": "e11771f3aab0d5b82be41630d2f9615aae64856d1e4b4776918dcdd0cf23ec84",
   "tools/offline-runtime/deploy.py": "e5234c0483da962324b8396e8a38814314e7b1b28c96d0100164a1d870def141",
   "tools/offline-runtime/initialize.py": "e185f503bf6909f198b12aa2436134de6c48fd558bc978cbebab4c7114f63140",
   "tools/offline-runtime/install.py": "a3d4945d81272b5f9664ff8ab487784eb726ad79b79b7d9e54ba106c2ce8dcf4",
   "tools/offline-runtime/start.py": "6842d5cfb7746c7870cb56987b2dacae694a13e9882c9c0504be45dd4654d132",
-  "tools/verify-aarch64-product-runtime.py": "c96e5d2583283bd3a2dd5b34cbbae5da709260b63b773ec74fc0b516ece54d8c",
+  "tools/verify-aarch64-product-runtime.py": "f1ab1a5dae65cbb8d4542033b4967f2fc83cf987c04da541fd0f8340d4b1b37a",
   "tools/product-role-probe.py": "dc7fb866540d449e98341d199c40fac7fd5b3a56ea152df5e8ae9cb9bda96da3"
 }
