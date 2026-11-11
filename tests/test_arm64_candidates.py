@@ -16,6 +16,17 @@ class CandidateEvidenceTests(unittest.TestCase):
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
         commands = []
+        ended = False
+        def api(cid, path, port, method='GET', data=None):
+            nonlocal ended
+            if path.endswith('/end'):
+                self.assertEqual(method, 'POST')
+                self.assertTrue(data['hostKey'])
+                ended = True
+                return b''
+            if '/history?' in path:
+                return b'[{"roomName":"987654321"}]' if ended else b'[]'
+            return b'{}'
         def output(*args):
             commands.append(args)
             if args[1] == 'inspect':
@@ -25,7 +36,7 @@ class CandidateEvidenceTests(unittest.TestCase):
             module.EVIDENCE = Path(directory)
             with patch.object(module, 'run', side_effect=output), \
                     patch.object(module, 'wait_http'), \
-                    patch.object(module, 'http', return_value=b'[{"roomName":"987654321"}]'), \
+                    patch.object(module, 'http', side_effect=api), \
                     patch.object(module.subprocess, 'run'):
                 module.smoke('api')
         starts = [args for args in commands if args[:3] == ('docker', 'run', '-d')]

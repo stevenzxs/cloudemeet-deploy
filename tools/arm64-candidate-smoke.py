@@ -120,6 +120,10 @@ def smoke(service):
                 wait_http(cid, '/mapi/actuator/health', 9000)
                 if index == 0:
                     http(cid, '/mapi/open/desktop/meetings', 9000, 'POST', fixture)
+                    # History intentionally excludes RUNNING meetings. Exercise the
+                    # authorized end transition before checking durable history.
+                    http(cid, '/mapi/open/desktop/meetings/' + fixture['roomName'] + '/end',
+                         9000, 'POST', {'hostKey': fixture['hostKey']})
                 history = json.loads(http(cid, '/mapi/open/desktop/meetings/history?creatorId=arm64-ci', 9000))
                 if not any(item.get('roomName') == fixture['roomName'] for item in history):
                     raise RuntimeError('SQLite persisted fixture missing')
