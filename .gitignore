@@ -34,6 +34,7 @@
 .env.*
 !.env.example
 client.env
+!/config/client.env
 .client-build.lock
 data/
 __pycache__/

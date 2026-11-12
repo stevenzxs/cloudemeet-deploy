@@ -22,6 +22,14 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 ## 1. 首先询问部署选择
 
+### 客户端入口配置（与服务端监听配置分离）
+
+- Electron MSI和Android APK仅以工作区`deploy/config/client.env`为入口配置来源，包含`SITE_DOMAIN`、`SITE_SCHEME`、`SITE_PORT`。先读取已确认值；有效时复用，不重复询问，不把实例地址抄成本技能通用默认值。
+- 配置填写客户端可达的外层IP/域名和端口，不从`target.env`、服务端`.env`、旧`deploy/client.env`、进程环境或源码历史默认值覆盖/回退；缺失或无效时先修配置，不能继续打包。
+- `build-tools/clients/build-clients.cjs`及`release-version.json`当前缺失，恢复版本状态并接通唯一配置前不可执行发布打包或绕过计数。新增配置文件不代表构建器已恢复。
+- 服务端无固定IP模式只让页面/信令跟随请求入口，不负责客户端首次寻址。接受浏览器证书告警不等于Electron/Android自动接受证书；分别检查限定信任策略，不全局关闭证书校验。
+- 构建与签名步骤见[客户端参考](references/arm-clients.md)；只更新文档不触发构建、安装、服务器操作或占用版本。
+
 实际部署前先询问以下项目。用户本次已明确的值直接复述确认，只补问缺项，不从历史环境或本机 `.env` 代替用户决定。仅编写交付文档或更新技能时，不要求SSH账号或清理选择，也不连接服务器；缺失的规模、拓扑或单价列为待确认，先形成带假设的草案：
 
 | 必问项 | 需要确认的内容 |

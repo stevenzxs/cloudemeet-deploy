@@ -14,15 +14,27 @@
 
 ## 客户端
 
-在工作区根运行，显式指定本次客户端配置：
+唯一配置源为`deploy/config/client.env`，只含下列公开参数；实际值读取该文件，不在技能中保存实例默认地址：
+
+```dotenv
+SITE_DOMAIN=<客户端实际访问的外层IP或域名，不含协议和端口>
+SITE_SCHEME=https
+SITE_PORT=<外层访问端口>
+```
+
+MSI/APK共用此入口；不得从服务端target.env、.env、旧client.env、进程环境或源码默认值覆盖/回退。无效或缺项必须拒绝打包。服务端通配监听不代替客户端首次寻址。
+
+**当前阻塞：**`build-tools/clients/build-clients.cjs`及`release-version.json`缺失，以下是恢复并接通配置后的命令，不是当前已可执行的入口。不得绕过统一版本分配直接运行Forge/Gradle充当正式发布。
+
+恢复后在工作区根运行：
 
 ```powershell
-node build-tools/clients/build-clients.cjs --target all --env-file deploy/client.env --check
-node build-tools/clients/build-clients.cjs --target all --env-file deploy/client.env
+node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env --check
+node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env
 node --test build-tools/clients/tests/*.test.cjs
 ```
 
-配置接受 IPv4/DNS 和 SITE_SCHEME/SITE_PORT；核对完整 origin。新私有 CA 必须适配客户端限定信任策略，不是只换环境变量。
+配置接受 IPv4/DNS 和 SITE_SCHEME/SITE_PORT；核对完整origin及Electron的`/cm/desktop`入口。新私有CA必须适配客户端限定信任策略；服务端使用本地兜底证书、用户接受浏览器告警，不代表MSI/APK可接受证书主机不匹配。兼容性须明确报告，禁止全局证书bypass。
 
 Electron 需要 WiX v3、SDK/.NET 和合法 OpenVPN payload；Android 需要 JDK17、SDK35/Build Tools35 和项目指定 NDK。禁止并发构建、删除活动锁；强制中断后检查入口配置恢复。
 

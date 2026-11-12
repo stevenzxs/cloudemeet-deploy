@@ -179,14 +179,14 @@ bash config/start.sh
 Windows 下从工作区根目录构建，源码仍在 `jitsi-meet-electron/` 和 `jm/`：
 
 ```powershell
-Copy-Item deploy/client.env.example deploy/client.env
-# 编辑 host/scheme/port，不能保留占位值。
-node build-tools/clients/build-clients.cjs --target all --env-file deploy/client.env --check
-node build-tools/clients/build-clients.cjs --target all --env-file deploy/client.env
+# 唯一入口配置：deploy/config/client.env；编辑其中host/scheme/port。
+# 以下为恢复统一构建工具后的命令；当前build-tools/clients目录缺失，尚不能执行。
+node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env --check
+node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env
 node --test build-tools/clients/tests/*.test.cjs
 ```
 
-先检查输出的完整 origin。默认仅读取 `deploy/client.env`，不隐式读取服务端 `.env`。构建输出到工作区 `deploy/history/client-builds/<批次>/`，包含 MSI、APK、日志及 manifest/SHA256；实际签名必须检查产物，不能信任固定文案。详见 [构建工具说明](../build-tools/clients/README.md)。
+唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。当前统一构建工具及版本状态文件缺失，须恢复并接通配置后才能打包。原工具内部输出路径为 `deploy/history/client-builds/<批次>/`；新客户端交付仍按产物架构放入 `deploy/release/<架构>/clients/<批次>/`，实际签名必须检查产物，不能信任固定文案。
 
 Release 统一使用此入口：每次实际构建在锁内将 `release-version.json` 的补丁号加一（1.0.0 → 1.0.1 → 1.0.2），同一批次 Electron 和 Android 共享该版本。Android versionCode 按时间值与上次值+1取大者，保持递增。`--check` 不占版本；失败构建已占版本不回退，批次 release.json 保留分配记录。请保留此状态文件，不手动回退或在多台构建机各自维护计数。
 
@@ -194,7 +194,7 @@ Release 统一使用此入口：每次实际构建在锁内将 `release-version.
 
 Electron 需 WiX v3、有效 OpenVPN payload；Android 需 JDK 17、SDK/Build Tools 35、项目 NDK 及依赖。脚本临时修改源码入口配置并在正常结束时恢复；禁止并发构建或删除活动锁。强制中断后先检查配置恢复情况。
 
-新入口的私有 CA 必须先适配源码信任策略，不能认为换 `client.env` 就会自动信任。Android 默认入口为构建期配置。APK/MSI 签名身份与有效性均须实测报告，不依据文件名或旧清单判定。MSI 安装/升级/VPN/卸载须在隔离 Windows 测试机验收，不自动在开发机卸载旧版。
+新入口的私有CA必须先适配源码信任策略，不能认为修改`config/client.env`就会自动信任。服务端无固定IP的本地证书模式已获准接受浏览器告警，但不表示Electron/Android会放行证书主机不匹配，不能全局关闭客户端证书校验。Android默认入口为构建期配置。APK/MSI签名身份与有效性均须实测报告，不依据文件名或旧清单判定。MSI安装/升级/VPN/卸载须在隔离Windows测试机验收，不自动在开发机卸载旧版。
 
 ## 6. 验收与回滚
 

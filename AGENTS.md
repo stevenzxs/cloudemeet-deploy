@@ -45,7 +45,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `config/docker-compose.yml` | 网关、业务Web/API与Jitsi配置覆盖；由config/start.sh在config/jitsi-base.yaml之后合并，显式project-directory为deploy根，不能单独当完整配置 |
 | `config/jitsi-base.yaml` | 过渡模板 Jitsi web、Prosody、Jicofo、JVB 服务定义 |
 | `config/jitsi.env` | 过渡模板非秘密 Jitsi 参数、资源与内部管理配置 |
-| `client.env.example` | 客户端专用 origin 参数示例，不放服务端秘密 |
+| `config/client.env` | Electron MSI与Android APK唯一人工维护入口配置：SITE_DOMAIN、SITE_SCHEME、SITE_PORT；仅公开参数，不放服务端秘密 |
 | `config/init.py` | 校验target.env后仅生成deploy根的三项随机秘密及数据目录，拒绝覆盖既有.env，不再接收IP参数 |
 | `config/start.sh` | 以deploy根为运行目录及Compose项目目录，准备补丁/权限、校验并启动服务，不隐式拉取或清数据 |
 | `.git/` | 部署维护仓库 Git 元数据，不作交付材料、不手工整理内部文件 |
@@ -305,7 +305,7 @@ flowchart TD
 
 ## 8. 客户端编译与签名
 
-- 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`，显式指定仅含 SITE_DOMAIN、SITE_SCHEME、SITE_PORT 的 client-only env。唯一活动版本状态为 `build-tools/clients/release-version.json`，不绕过计数、不回退已占版本、不并发构建或删除活动锁。
+- 唯一客户端入口配置源为 `deploy/config/client.env`，仅含 SITE_DOMAIN、SITE_SCHEME、SITE_PORT，MSI/APK均须显式读取；不从服务端target.env、.env、旧client.env、环境变量或源码历史默认地址覆盖/回退。缺项或无效入口拒绝构建。唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；该工具当前缺失，恢复并接通此配置前不得宣称已可构建。唯一活动版本状态为 `build-tools/clients/release-version.json`，不绕过计数、不回退已占版本、不并发构建或删除活动锁。
 - 每批核对完整 origin、实际 MSI/APK 版本和摘要、包内入口及目标公开 CA。新地址不会自动配置 CA 信任。Electron 按准确 origin 限定信任；Android 按主机限定，保留已有端点策略，不打包私钥。
 - 实测 APK signing certificate、MSI/内嵌程序实际签名与有效性；旧 manifest 固定文案和文件名不是签名证据。签名改变字节后重新计算最终摘要。
 - 客户端交付进入 `deploy/release/<架构>/clients/<批次>/`，明确OS/ABI、签名、版本和摘要；不再设置debug交付树。当前构建器仍输出 `deploy/history/client-builds/`，属于尚未适配的内部构建路径，不当作新增交付入口，不因此自动修改构建器。编译打包不自动安装设备应用或清数据。
