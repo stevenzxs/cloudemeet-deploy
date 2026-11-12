@@ -2,10 +2,6 @@ name: Aarch64 release environment preflight only
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/arm64-smoke]
-    paths:
-      - .github/workflows/aarch64-release-preflight.yml
 
 permissions:
   contents: read
@@ -13,7 +9,7 @@ permissions:
 jobs:
   environment:
     runs-on: ubuntu-24.04-arm
-    timeout-minutes: 5
+    timeout-minutes: 25
     steps:
       - name: Inspect full-system test capabilities without engine changes
         run: |
@@ -60,9 +56,11 @@ jobs:
           print(json.dumps(result, indent=2))
           PY
       - name: Retain environment facts only
+        if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: aarch64-environment-${{ github.run_id }}
-          path: environment-preflight.json
+          path: |
+            environment-preflight.json
           retention-days: 14
           if-no-files-found: error

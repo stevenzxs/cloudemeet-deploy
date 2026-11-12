@@ -32,6 +32,14 @@
 !/.github/workflows/arm64-stack.yml
 !/.github/workflows/aarch64-product.yml
 !/.github/workflows/aarch64-release-preflight.yml
+!/.github/workflows/build-package.yml
+!/build-tools/
+/build-tools/output/
+/build-tools/incoming/
+/build-tools/downloads/
+output/
+incoming/
+downloads/
 !/releases/
 /releases/*
 !/releases/11248-cm.20261110-rc2-amd64/

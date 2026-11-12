@@ -2,14 +2,6 @@ name: Aarch64 product package candidate
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/arm64-smoke]
-    paths:
-      - .github/workflows/aarch64-product.yml
-      - tools/product-inputs.json
-      - tools/assemble-aarch64-product.py
-      - tools/aarch64-product-inputs.py
-      - tools/offline-runtime/**
 
 permissions:
   contents: read

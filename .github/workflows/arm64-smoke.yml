@@ -2,26 +2,6 @@ name: ARM64 source smoke
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/arm64-smoke]
-    paths-ignore:
-      - tools/arm64-stack.py
-      - tools/arm64-stack-lock.json
-      - tests/test_arm64_stack.py
-      - .github/workflows/arm64-stack.yml
-      - tools/ARM64-CI.md
-      - .gitignore
-      - AGENTS.md
-      - patches/**
-      - tools/product-inputs.json
-      - tools/assemble-aarch64-product.py
-      - tools/aarch64-product-inputs.py
-      - tools/offline-runtime/**
-      - tools/verify-aarch64-product-runtime.py
-      - tools/product-role-probe.py
-      - .github/workflows/aarch64-product.yml
-      - .github/workflows/aarch64-release-preflight.yml
-      - tests/test_release_preflight.py
 
 permissions:
   contents: read

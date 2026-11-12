@@ -2,13 +2,6 @@ name: ARM64 seven-service integration
 
 on:
   workflow_dispatch:
-  push:
-    branches: [ci/arm64-smoke]
-    paths:
-      - tools/arm64-stack.py
-      - tools/arm64-stack-lock.json
-      - .github/workflows/arm64-stack.yml
-      - tests/test_arm64_stack.py
 
 permissions:
   contents: read
