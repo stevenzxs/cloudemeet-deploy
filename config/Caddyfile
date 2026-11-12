@@ -1,0 +1,26 @@
+{
+    auto_https disable_redirects
+    skip_install_trust
+    # TLS clients commonly omit SNI for literal IPs; select this site's IP cert.
+    default_sni {$SITE_HOST}
+}
+
+# PUBLIC_URL includes the external HTTPS port, not the container port.
+http://{$SITE_HOST} {
+    redir {$PUBLIC_URL}{uri} permanent
+}
+
+https://{$SITE_HOST} {
+    tls internal
+    @internal path /mapi/internal /mapi/internal/*
+    handle @internal {
+        respond 404
+    }
+    @business path /cm /cm/* /mapi /mapi/* /healthz
+    handle @business {
+        reverse_proxy app-web:80
+    }
+    handle {
+        reverse_proxy web:8000
+    }
+}

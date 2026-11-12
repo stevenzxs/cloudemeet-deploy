@@ -14,11 +14,6 @@ on:
         description: 'Release version (immutable batch also includes run and attempt)'
         required: true
         type: string
-      origin:
-        description: 'Confirmed HTTPS origin'
-        default: 'https://47.110.84.166:8443'
-        required: true
-        type: string
 
 permissions:
   contents: read
@@ -102,8 +97,6 @@ jobs:
           pathlib.Path('incoming/artifacts.json').write_text(json.dumps(records, indent=2) + '\n')
           PY
       - name: Assemble complete package and check material integrity only
-        env:
-          PUBLIC_ORIGIN: ${{ inputs.origin || 'https://47.110.84.166:8443' }}
         run: bash build-tools/package.sh assemble
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

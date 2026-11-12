@@ -1,5 +1,13 @@
 # 当前执行记录
 
+## 2026-11-12 统一目标配置与config迁移收尾
+
+- 本轮仅本地代码改造及无Docker检查，不提交/推送/调度Actions，不连接服务器，不改历史包。
+- config/target.env为单机IPv4 HTTPS唯一地址/端口源；target.py严格校验并派生公共地址。jitsi.env独立维护公共参数；模板init及新包initialize仅动态生成三项秘密，不覆盖既有.env。
+- config/start.sh固定deploy为Compose项目根，拒绝旧.env混入地址参数；旧实例需显式迁移，工具不自动改秘密或数据。
+- workflow不再接受origin覆盖；组包携带target.env、同一加载器和jitsi.env，最终包文件仍采用既有包根布局。旧包运行时保留兼容分支。
+- 本次没有实际原生构建或新包交付；最终辅助检查结果另以执行输出为证据。
+
 ## 2026-11-11 Actions打包脚本收敛
 
 - 用户已要求“按建议优化打包脚本”；本轮终点为脚本修改及无Docker辅助回归，不自动提交/推送/调度Actions。

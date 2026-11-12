@@ -208,9 +208,9 @@ PY
 )
 
 assemble_package() {
-    : "${PUBLIC_ORIGIN:?Set PUBLIC_ORIGIN}"
-    : "${HTTP_PORT:=8080}"
-    : "${MEDIA_PORT:=10000}"
+    target_exports=$(python3 -B "$repo/config/target.py" "$repo/config/target.env")
+    eval "$target_exports"
+    PUBLIC_ORIGIN=$PUBLIC_URL
     export PUBLIC_ORIGIN HTTP_PORT MEDIA_PORT
     output="$repo/output/cloudmeet-$BATCH-aarch64"
     [[ ! -e $output ]] || die 'Output batch already exists'
@@ -246,13 +246,16 @@ def digest(p):
     with p.open('rb') as f:
         for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
     return h.hexdigest()
-origin=os.environ['PUBLIC_ORIGIN']; url=urllib.parse.urlsplit(origin)
+target_spec=importlib.util.spec_from_file_location('target_config',repo/'config/target.py')
+target_module=importlib.util.module_from_spec(target_spec); target_spec.loader.exec_module(target_module)
+target=target_module.load_target(repo/'config/target.env')
+origin=target['PUBLIC_URL']; url=urllib.parse.urlsplit(origin)
 if (url.scheme!='https' or not url.hostname or url.username or url.password
         or url.path not in ('','/') or url.query or url.fragment):
     raise ValueError('An HTTPS origin without path or credentials is required')
 host=url.hostname
 if ':' in host: raise ValueError('This package entry currently supports IPv4/DNS hosts only')
-https_port=url.port or 443; http_port=int(os.environ['HTTP_PORT']); media_port=int(os.environ['MEDIA_PORT'])
+https_port=url.port or 443; http_port=int(target['HTTP_PORT']); media_port=int(target['MEDIA_PORT'])
 if any(not 1<=p<=65535 for p in (https_port,http_port,media_port)) or https_port==http_port:
     raise ValueError('Invalid port configuration')
 records={}
@@ -283,6 +286,12 @@ common={'PUBLIC_URL':'${PUBLIC_URL:?required}','XMPP_DOMAIN':'meet.jitsi','XMPP_
  'JVB_PORT':str(media_port),'TZ':'Asia/Shanghai'}
 configs={s:{'image':records[s]['tag'],'pull_policy':'never','restart':'unless-stopped',
             'mem_limit':'640m','pids_limit':512,'networks':{'meeting':{}}} for s in services}
+public_settings=target_module.read_env(repo/'config/jitsi.env')
+# Runtime contracts remain required, but their maintained public values come from jitsi.env.
+for key in set(common) & set(public_settings):
+    common[key]=public_settings[key]
+for key in ('ENABLE_COLIBRI_WEBSOCKET','CODEC_ORDER_JVB','CODEC_ORDER_JVB_MOBILE','JICOFO_REST_PORT','JVB_COLIBRI_PORT'):
+    if key in public_settings: common[key]=public_settings[key]
 for s in ('web','prosody','jicofo','jvb'):
     configs[s]['environment']=dict(common)
     configs[s]['volumes']=['./data/jitsi/'+s+':/config']
@@ -299,18 +308,19 @@ configs['api'].update(mem_limit='384m',environment={'JITSI_TOKEN_APP_ID':'zhsz',
  'JITSI_MEET_DB_URL':'jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db','BANNER_LOGO_DIRECTORY':'/data/banner-logos'},
  volumes=['./data/api:/app/data','./data/logos:/data/banner-logos'])
 configs['app-web'].update(depends_on=['api'],volumes=['./data/logos:/data/banner-logos:ro'])
-configs['gateway'].update(depends_on=['app-web','web'],environment={'SITE_HOST':'${SITE_HOST:?required}'},
+configs['gateway'].update(depends_on=['app-web','web'],environment={'SITE_HOST':'${SITE_HOST:?required}',
+ 'PUBLIC_URL':'${PUBLIC_URL:?required}'},
  ports=[str(https_port)+':443',str(http_port)+':80'],
  volumes=['./Caddyfile:/etc/caddy/Caddyfile:ro','caddy_data:/data','caddy_config:/config'])
 compose={'name':'cloudmeet-'+os.environ['BATCH'].lower().replace('_','-'),
  'services':configs,'networks':{'meeting':{}},'volumes':{'caddy_data':{},'caddy_config':{}}}
 (out/'jitsi-base.yaml').write_text(json.dumps(compose,indent=2)+'\n')
 for name in ('docker-compose.yml','source-images.yaml'): (out/name).write_text('services: {}\n')
-(out/'jitsi.env').write_text('# Non-secret settings are explicit in Compose.\n')
-(out/'server.env.example').write_text('SITE_HOST='+host+'\nPUBLIC_URL='+origin.rstrip('/')+'\nJVB_ADVERTISE_IPS='+host+'\n')
-caddy=(repo/'Caddyfile').read_text()
-caddy='{\n    auto_https disable_redirects\n'+caddy.split('{\n',1)[1]
-caddy+='\nhttp://{$SITE_HOST} {\n redir '+origin.rstrip('/')+'{uri} permanent\n}\n'
+shutil.copyfile(repo/'config/jitsi.env',out/'jitsi.env')
+shutil.copyfile(repo/'config/target.env',out/'target.env')
+shutil.copyfile(repo/'config/target.py',out/'target.py')
+(out/'server.env.example').write_text('# Public target parameters are in target.env; .env contains generated secrets only.\n')
+caddy=(repo/'config/Caddyfile').read_text()
 (out/'Caddyfile').write_text(caddy)
 manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
  'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
@@ -367,7 +377,7 @@ Packaging completion is not installation, host-compatibility or media acceptance
    `docker info` (Linux ARM64 engine), system clock, disk/RAM and port availability.
 4. Run `sha256sum -c SHA256SUMS` and `python3 -B install.py --verify-only`.
 5. Run `./bin/docker-compose version` (no system plugin installation needed).
-6. Review server.env.example. JVB_ADVERTISE_IPS must be the reachable media address.
+6. Review target.env against the approved target. Public settings derive from its single SERVER_HOST; initialization generates secrets only. This package supports single-host IPv4 HTTPS. jitsi.env holds maintained public settings. Do not change historical package bytes; rebuild for another target.
    This batch uses the confirmed origin/ports; do not change immutable package files.
 7. Run `sudo python3 -B deploy.py --first-install` explicitly to import the included
    images, generate fresh secrets, install baseline patches and start the services.

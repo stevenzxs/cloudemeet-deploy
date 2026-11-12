@@ -41,13 +41,13 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `README.md` | 材料入口、批次路径及实际状态导航，不另立规则 |
 | `.gitignore` | 维护仓库跟踪白名单，排除产物、实例秘密和数据；不得强制添加绕过边界 |
 | `SHA256SUMS` | 已有根级材料的校验清单，不代表所有未来包的完整性或产品资格 |
-| `Caddyfile` | 根模板的 IP HTTPS 私有 CA、业务/会议路由与内部接口隔离配置 |
-| `docker-compose.yml` | 根模板网关、业务 Web/API 与 Jitsi 配置覆盖，不能单独当完整配置 |
-| `jitsi-base.yaml` | 根模板 Jitsi web、Prosody、Jicofo、JVB 服务定义 |
-| `jitsi.env` | 根模板非秘密 Jitsi 参数、资源与内部管理配置 |
+| `config/Caddyfile` | 公共网关模板：IP HTTPS 私有CA、业务/会议路由、内部接口隔离及参数化HTTP重定向；根Compose挂载此文件，组包读取后生成包内Caddyfile，不含实例IP |
+| `config/docker-compose.yml` | 网关、业务Web/API与Jitsi配置覆盖；由config/start.sh在config/jitsi-base.yaml之后合并，显式project-directory为deploy根，不能单独当完整配置 |
+| `config/jitsi-base.yaml` | 过渡模板 Jitsi web、Prosody、Jicofo、JVB 服务定义 |
+| `config/jitsi.env` | 过渡模板非秘密 Jitsi 参数、资源与内部管理配置 |
 | `client.env.example` | 客户端专用 origin 参数示例，不放服务端秘密 |
-| `init.py` | 根模板首次初始化目录及随机秘密，拒绝覆盖既有实例配置 |
-| `start.sh` | 根模板准备补丁/权限、校验并启动服务，不隐式拉取或清数据 |
+| `config/init.py` | 校验target.env后仅生成deploy根的三项随机秘密及数据目录，拒绝覆盖既有.env，不再接收IP参数 |
+| `config/start.sh` | 以deploy根为运行目录及Compose项目目录，准备补丁/权限、校验并启动服务，不隐式拉取或清数据 |
 | `.git/` | 部署维护仓库 Git 元数据，不作交付材料、不手工整理内部文件 |
 | `.worktrees/` | 独立工作树及其分支实现，不移动、不按缓存删除，不枚举内部副本 |
 | `release/` | 完整部署包交付根；材料/摘要校验不代表安装运行结果 |
@@ -56,6 +56,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `release/amd64/clients/`、`release/aarch64/clients/` | 注明OS/ABI、版本、签名与摘要的客户端交付包 |
 | `release/amd64/dependencies/`、`release/aarch64/dependencies/` | Docker/Compose等依赖安装材料，细分OS/版本，不自动安装 |
 | `config/` | 人工维护公共配置的目标位置，当前未迁入旧配置 |
+| `config/target.env` | 单机IPv4 HTTPS目标地址与端口的唯一人工配置源；SERVER_HOST仅定义一次，模板启动及组包统一派生公共地址，不接受workflow origin覆盖 |
+| `config/target.py` | 严格读取公开配置，检查IPv4/HTTPS/端口和重复键，派生SITE_HOST、PUBLIC_URL、JVB_ADVERTISE_IPS及JVB_PORT；不执行dotenv文本，包内携带同一加载器 |
 | `packages/` | 待人工整理的既有不可变服务器交付批次，不再作为新布局目标 |
 | `history/` | 待人工整理的既有构建/实例/测试及技能备份证据；工具尚可能使用 |
 | `clients/` | 待人工整理的既有客户端候选/交付材料，非新布局目标 |
@@ -115,6 +117,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `../build-tools/offline-runtime/initialize.py` | 首次安装生成新秘密，拒绝既有env/data |
 | `../build-tools/offline-runtime/start.py` | 首次安装准备品牌/CSS/角色补丁与数据权限，使用包内Compose无build/pull启动 |
 | `../build-tools/tests/test_package.py` | 无Docker脚本回归、嵌入Python语法与归档身份校验；不纳入产品安装/运行验收 |
+| `../build-tools/tests/test_target_config.py` | 单一主机派生、无效配置拒绝及初始化仅生成秘密/拒绝覆盖回归 |
+| `../docs/plans/2026-11-12-target-config.md` | 统一目标配置及目录迁移收尾计划，非另一规范源 |
 | `../build-tools/tests/test_offline_installer.py`、`test_offline_start.py`、`test_offline_deploy.py` | 公共安装核心无Docker单元回归；后两个相对同一tests目录，所有宿主变更均mock，不执行安装 |
 | `../docs/plans/2026-11-11-actions-package-rewrite.md` | 本次收敛实施计划，非另立规范 |
 | `../build-tools/migration/STATUS.md` | 当前脚本收敛进度与未运行边界；历史记录仍保留原处 |

@@ -114,7 +114,10 @@ class PackageTests(unittest.TestCase):
             tools.mkdir()
             shutil.copyfile(ROOT / 'build-tools/sources.json', tools / 'sources.json')
             sources = json.loads((tools / 'sources.json').read_text())
-            shutil.copyfile(ROOT / 'deploy/Caddyfile', repo / 'Caddyfile')
+            (repo / 'config').mkdir()
+            shutil.copyfile(ROOT / 'deploy/config/Caddyfile', repo / 'config/Caddyfile')
+            for name in ('target.env','target.py','jitsi.env'):
+                shutil.copyfile(ROOT/'deploy/config'/name,repo/'config'/name)
             out = repo / 'fixture'
             out.mkdir()
             (out / 'bin').mkdir()
@@ -156,10 +159,16 @@ class PackageTests(unittest.TestCase):
                 exec(compile(block, 'assembly-fixture', 'exec'), {})
             manifest = json.loads((out / 'candidate.json').read_text())
             self.assertEqual(manifest['status'], 'PACKAGED')
+            target_spec = __import__('importlib.util', fromlist=['util']).spec_from_file_location('fixture_target', repo/'config/target.py')
+            target_module = __import__('importlib.util', fromlist=['util']).module_from_spec(target_spec)
+            target_spec.loader.exec_module(target_module)
+            self.assertEqual(manifest['origin'], target_module.load_target(repo/'config/target.env')['PUBLIC_URL'])
+            self.assertNotIn('SITE_HOST=', (out/'server.env.example').read_text())
             compose = json.loads((out / 'jitsi-base.yaml').read_text())
             self.assertEqual(compose['services']['gateway']['ports'], ['8443:443', '8080:80'])
             self.assertEqual(compose['services']['jvb']['ports'], ['10000:10000/udp'])
-            self.assertIn('redir https://47.110.84.166:8443{uri}', (out / 'Caddyfile').read_text())
+            self.assertIn('redir {$PUBLIC_URL}{uri}', (out / 'Caddyfile').read_text())
+            self.assertEqual(compose['services']['gateway']['environment']['PUBLIC_URL'], '${PUBLIC_URL:?required}')
             self.assertTrue((out / 'INSTALL.md').is_file())
             archive = repo / 'fixture.tar.gz'
             with tarfile.open(archive, 'w:gz') as tar:

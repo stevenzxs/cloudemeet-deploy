@@ -12,6 +12,14 @@ sys.dont_write_bytecode=True
 
 
 def compose_command(root):
+    if (root/'target.env').is_file():
+        spec=importlib.util.spec_from_file_location('target_config',root/'target.py')
+        target=importlib.util.module_from_spec(spec); spec.loader.exec_module(target)
+        values=target.load_target(root/'target.env')
+        secrets=target.read_env(root/'.env')
+        if set(secrets)!={'JWT_APP_SECRET','JICOFO_AUTH_PASSWORD','JVB_AUTH_PASSWORD'}:
+            raise ValueError('Instance .env must contain secrets only')
+        os.environ.update(values)
     prefix=['docker','compose']
     if (root/'candidate.json').is_file():
         spec=importlib.util.spec_from_file_location('compose_verifier',root/'install.py')

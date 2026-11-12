@@ -93,12 +93,12 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 
 | 文件 | 用途 |
 |---|---|
-| `docker-compose.yml` | 网关、业务 Web/API 以及 Jitsi 环境覆盖；必须与基础配置一起使用 |
-| `jitsi-base.yaml` | 官方 Jitsi Web、Prosody、Jicofo、JVB 四组件定义 |
-| `jitsi.env` | Jitsi 非秘密配置、资源参数和私有管理端口 |
-| `Caddyfile` | IP HTTPS 私有 CA、统一路由及内部接口阻断 |
-| `init.py` | 首次创建目录和随机秘密，拒绝覆盖已有 `.env` |
-| `start.sh` | 复制持久补丁、修正公开文件权限、校验并启动，不删除数据、不隐式拉镜像 |
+| `config/docker-compose.yml` | 网关、业务 Web/API 以及 Jitsi 环境覆盖；必须在根基础配置之后合并 |
+| `config/jitsi-base.yaml` | 官方 Jitsi Web、Prosody、Jicofo、JVB 四组件定义 |
+| `config/jitsi.env` | Jitsi 非秘密配置、资源参数和私有管理端口 |
+| `config/Caddyfile` | 公共网关模板：私有CA、统一路由、内部接口阻断及PUBLIC_URL参数化重定向 |
+| `config/init.py` | 首次创建deploy根的数据目录和随机秘密，拒绝覆盖已有 `.env` |
+| `config/start.sh` | 固定deploy项目根，复制持久补丁、校验并启动，不删除数据、不隐式拉镜像 |
 | `patches/` | 品牌、CSS 和主持人角色插件的部署副本 |
 | `artifacts/nginx.conf` | 业务 Web/API 路由配置 |
 | `../build-tools/clients/` | MSI/APK 构建工具已迁出；不属于服务器交付材料 |
@@ -133,16 +133,18 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 
 ```bash
 # 在实际部署目录执行；仅首次初始化，参数为本次批准的 IP。
-python3 init.py <approved-ip>
+python3 config/init.py
 
 # 所有操作使用同一组参数，不省略 -f 让未知 override 自动生效。
-docker compose --env-file jitsi.env --env-file .env \
-  -f jitsi-base.yaml -f docker-compose.yml config --quiet
-docker compose --env-file jitsi.env --env-file .env \
-  -f jitsi-base.yaml -f docker-compose.yml pull
+target_exports=$(python3 -B config/target.py config/target.env)
+eval "$target_exports"
+docker compose --project-directory "$PWD" --env-file config/jitsi.env --env-file .env \
+  -f config/jitsi-base.yaml -f config/docker-compose.yml config --quiet
+docker compose --project-directory "$PWD" --env-file config/jitsi.env --env-file .env \
+  -f config/jitsi-base.yaml -f config/docker-compose.yml pull
 
 # 先检查所有镜像实际架构、摘要及端口；再执行启动。
-bash start.sh
+bash config/start.sh
 ```
 
 七个服务：`gateway`（TLS/入口）、`app-web`（业务页面）、`api`（业务/JWT/SQLite）、`web`（Jitsi 页面/信令）、`prosody`（XMPP/角色）、`jicofo`（会议协调）、`jvb`（媒体）。本配置 `web` 不是业务 Web。

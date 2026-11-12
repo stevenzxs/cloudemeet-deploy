@@ -9,6 +9,6 @@
 | web/nginx-custom/custom-css.conf | data/jitsi/web/nginx-custom/ | 映射 /css/custom.css 和 /head.html 到 /run/web/config |
 | prosody/mod_muc_jwt_owner.lua | data/jitsi/prosody/prosody-plugins-custom/ | XMPP_MUC_MODULES=muc_jwt_owner，ENABLE_AUTO_OWNER=false；验证真实角色 |
 
-`start.sh` 复制这些文件，修正公开文件权限。当前参考 Jitsi 组合 stable-11146-2；更换版本先验证加载机制与 API 兼容。当前未启用主持人转移、HTTP iframe 和 HTTP 信令降级补丁。
+`config/start.sh` 复制这些文件，修正公开文件权限。当前参考 Jitsi 组合 stable-11146-2；更换版本先验证加载机制与 API 兼容。当前未启用主持人转移、HTTP iframe 和 HTTP 信令降级补丁。
 
 成套备份及恢复补丁和配置，不修改容器只读层；回滚后重启受影响服务并再次验证。配置存在不是运行验收证据。

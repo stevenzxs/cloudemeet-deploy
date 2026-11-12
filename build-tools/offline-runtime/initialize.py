@@ -15,7 +15,14 @@ def main():
     verifier.require_ready(json.loads((root / 'candidate.json').read_text()))
     if any((root / name).exists() or (root / name).is_symlink() for name in ['.env', 'data']):
         raise ValueError('First installation refuses existing secrets or data')
-    text = (root / 'server.env.example').read_text()
+    if (root/'target.env').is_file():
+        target_spec = importlib.util.spec_from_file_location('target_config', root/'target.py')
+        target = importlib.util.module_from_spec(target_spec)
+        target_spec.loader.exec_module(target)
+        target.load_target(root/'target.env')
+        text = ''
+    else:
+        text = (root / 'server.env.example').read_text()
     for key in ['JWT_APP_SECRET', 'JICOFO_AUTH_PASSWORD', 'JVB_AUTH_PASSWORD']:
         text += key + '=' + secrets.token_hex(32) + '\n'
     fd = os.open(str(root / '.env'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)

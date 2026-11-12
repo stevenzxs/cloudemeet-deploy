@@ -3,13 +3,13 @@ from pathlib import Path
 import sys
 
 EXCLUDED = {'.git', '.worktrees', 'history', 'packages', 'clients',
-            'node_modules', '__pycache__', 'skills', 'releases', 'migration'}
+            'node_modules', '__pycache__', 'skills', 'release', 'releases', 'migration'}
 
 # Implementation inventory only; deploy/AGENTS.md is the sole policy source.
 CATALOG = {'schema_version': 1, 'routes': [
     {'id': 'root-template', 'state': 'template', 'product_delivery_allowed': False,
-     'paths': ['deploy/init.py', 'deploy/start.sh', 'deploy/docker-compose.yml',
-               'deploy/jitsi-base.yaml']},
+     'paths': ['deploy/config/init.py', 'deploy/config/start.sh', 'deploy/config/docker-compose.yml',
+                'deploy/config/jitsi-base.yaml']},
     {'id': 'offline-runtime', 'state': 'candidate', 'product_delivery_allowed': False,
       'paths': ['build-tools/offline-runtime/install.py', 'build-tools/offline-runtime/start.py',
                 'build-tools/offline-runtime/initialize.py', 'build-tools/offline-runtime/deploy.py',

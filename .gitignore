@@ -73,3 +73,15 @@ node_modules/
 *.tar
 *.tar.gz
 *.zip
+
+# Maintained config source (instance secrets remain excluded).
+!/config/
+/config/*
+!/config/Caddyfile
+!/config/docker-compose.yml
+!/config/init.py
+!/config/jitsi-base.yaml
+!/config/jitsi.env
+!/config/start.sh
+!/config/target.env
+!/config/target.py

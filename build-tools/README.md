@@ -10,10 +10,10 @@
 
 - `version`：本次版本，如 `1.0.19-rc1`（不代表已占用客户端版本）。
 - `material_commit`：包含本次脚本、补丁及配置的完整40位提交SHA，必须等于所选workflow提交。
-- `origin`：默认 `https://47.110.84.166:8443`；HTTP重定向8080、媒体UDP10000。
+- 地址与端口：仅修改部署维护源`config/target.env`，不再提供workflow origin覆盖；`config/jitsi.env`保留公共参数。当前支持单机IPv4 HTTPS。
 
 工作流只读仓库，不需要SSH或registry秘密，不自动发布镜像。每次run/attempt完整编译七服务；
-当前CI分支尚未进入默认分支，首次启动使用限定push触发：仅ci/arm64-smoke分支修改新workflow文件时运行，默认版本1.0.19-rc1、材料SHA为该提交、origin为已确认47入口；其他修改不自动构建。
+当前CI分支尚未进入默认分支，限定push触发仅在ci/arm64-smoke分支修改新workflow文件时运行，默认版本1.0.19-rc1、材料SHA为该提交，目标来自受控config/target.env；其他修改不自动构建。
 失败则无最终包，不跨run/attempt补旧镜像。**重跑请选择全部jobs**，不能仅重跑失败job后混用旧attempt。
 Docker build中的依赖和构建层缓存允许复用，但输出应用镜像必须由本批build步骤产生。
 
