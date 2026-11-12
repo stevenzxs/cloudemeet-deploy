@@ -24,12 +24,22 @@ def prepare(root, prosody_container):
                                         'cat', '/defaults/prosody.cfg.lua'], text=True)
     if 'Include' not in template:
         raise RuntimeError('unsupported Prosody configuration template')
+    uid, gid = map(int, subprocess.check_output(
+        ['docker', 'exec', prosody_container, 'sh', '-c', 'printf "%s %s" "$(id -u)" "$(id -g)"'],
+        text=True).split())
+    if uid == 0:
+        raise RuntimeError('Inspect actual Prosody service identity; refusing root ownership assumption')
+    info = json.loads(subprocess.check_output(['docker', 'inspect', prosody_container], text=True))[0]
+    environment = dict(item.split('=', 1) for item in info['Config']['Env'] if '=' in item)
+    modules = list(dict.fromkeys(filter(None,
+        [item.strip() for item in environment.get('XMPP_MUC_MODULES', '').split(',')]
+        + ['muc_jwt_owner', 'muc_host_transfer'])))
     out.mkdir(mode=0o750)
     # Precreate persistent bind parent; Docker-created root-owned directories
     # cannot be copied/managed by the uid1000 Prosody startup process.
     conf = root/'data/jitsi/prosody/config/conf.d'
     conf.mkdir(parents=True, exist_ok=True)
-    os.chown(conf, 1000, 1000)
+    os.chown(conf, uid, gid)
     secret = secrets.token_urlsafe(48)
     private = out / 'private'
     private.mkdir(mode=0o700)
@@ -61,12 +71,12 @@ def prepare(root, prosody_container):
     # Module list is configured through XMPP_MUC_MODULES, not overwritten here.
     cfg = out/'zz-cloudmeet-host-control.cfg.lua'
     cfg.write_text(config)
-    os.chown(out, 1000, 1000)
-    os.chown(cfg, 1000, 1000)
+    os.chown(out, uid, gid)
+    os.chown(cfg, uid, gid)
     cfg.chmod(0o600)
     overlay = {'services': {
         'api': {'env_file':['./host-control/api.env']},
-        'prosody': {'environment': {'XMPP_MUC_MODULES':'muc_jwt_owner,muc_host_transfer'}, 'volumes': [
+        'prosody': {'environment': {'XMPP_MUC_MODULES':','.join(modules)}, 'volumes': [
             './host-control/ca.crt:/host-control/ca.crt:ro',
             './host-control/prosody.cfg.lua:/defaults/prosody.cfg.lua:ro',
             './host-control/zz-cloudmeet-host-control.cfg.lua:/config/conf.d/zz-cloudmeet-host-control.cfg.lua:ro']},

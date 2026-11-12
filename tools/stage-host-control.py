@@ -17,13 +17,19 @@ def stage(root, plugin):
     current = caddy.read_text()
     if 'gateway:9443' in current:
         raise RuntimeError('internal listener already staged; inspect, do not append again')
-    for directory in [root/'patches/prosody', root/'data/jitsi/prosody/prosody-plugins-custom']:
+    directories = [root/'patches/prosody', root/'data/jitsi/prosody/prosody-plugins-custom']
+    for directory in directories:
         target = directory/'mod_muc_host_transfer.lua'
         if target.exists():
             raise RuntimeError('existing plugin requires explicit diff review')
+    for directory in directories:
+        directory.mkdir(parents=True, exist_ok=True)
+        target = directory/'mod_muc_host_transfer.lua'
         shutil.copy2(plugin, target)
         target.chmod(0o644)
-    caddy.write_text(current+'\n'+(root/'host-control/gateway-internal.caddy').read_text())
+    # Preserve the inode used by the running Caddy bind mount and public TLS config.
+    with caddy.open('w') as output:
+        output.write(current+'\n'+(root/'host-control/gateway-internal.caddy').read_text())
     print('Staged plugin and internal listener; services unchanged')
 
 

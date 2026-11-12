@@ -21,7 +21,9 @@ class PrepareTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             root = Path(d)
             (root/'.env').write_text('existing-secret=not-modified')
-            with patch.object(prepare.subprocess, 'check_output', return_value='Include "conf.d/*.cfg.lua"'), \
+            with patch.object(prepare.subprocess, 'check_output', side_effect=[
+                    'Include "conf.d/*.cfg.lua"', '1234 1235',
+                    json.dumps([{'Config': {'Env': ['XMPP_MUC_MODULES=existing_module']}}])]), \
                  patch.object(prepare.subprocess, 'run') as run, patch.object(prepare.os, 'chown', create=True):
                 prepare.prepare(root, 'prosody')
             out = root/'host-control'
@@ -30,6 +32,9 @@ class PrepareTests(unittest.TestCase):
             self.assertIn('host_transfer_admin_recovery_enabled = false', cfg)
             overlay = json.loads((out/'compose.json').read_text())
             self.assertTrue(all('ports' not in s for s in overlay['services'].values()))
+            self.assertEqual(overlay['services']['prosody']['environment']['XMPP_MUC_MODULES'],
+                             'existing_module,muc_jwt_owner,muc_host_transfer')
+            self.assertEqual(overlay['services']['api']['env_file'], ['./host-control/api.env'])
             self.assertIn('verify = "peer"', (out/'prosody.cfg.lua').read_text())
             self.assertIn('api:9000', (out/'gateway-internal.caddy').read_text())
             self.assertIn('rewrite * /mapi{uri}', (out/'gateway-internal.caddy').read_text())

@@ -19,8 +19,11 @@ def backup(root, project):
     out = root/'backups'/('host-control-'+stamp)
     out.mkdir(parents=True, mode=0o700)
     out.chmod(0o700)
-    for name in ['.env','jitsi.env','Caddyfile','docker-compose.yml','registry.yaml','jitsi-base.yaml']:
+    for name in ['.env','jitsi.env','Caddyfile','docker-compose.yml','jitsi-base.yaml']:
         shutil.copy2(root/name, out/name)
+    for name in ['registry.yaml', 'source-images.yaml', 'candidate.json', 'target.env', 'target.py']:
+        if (root/name).is_file():
+            shutil.copy2(root/name, out/name)
     for name in ['data/jitsi/prosody/config','data/jitsi/prosody/prosody-plugins-custom','data/jitsi/web']:
         if (root/name).exists():
             shutil.copytree(root/name, out/name)

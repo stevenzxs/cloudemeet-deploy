@@ -12,7 +12,7 @@ http://:80 {
 }
 
 (meeting_routes) {
-    @internal path /mapi/internal /mapi/internal/*
+    @internal path /internal /internal/* /mapi/internal /mapi/internal/*
     handle @internal {
         respond 404
     }
@@ -34,4 +34,20 @@ https://cloudmeet.internal {
 https://:443 {
     tls internal
     import meeting_routes
+}
+
+# Internal container-network listener: never publish port 9443 on the host.
+https://gateway:9443 {
+    tls /host-control/gateway.crt /host-control/gateway.key
+    @allowed {
+        method POST
+        path /internal/host-role/v1/check /internal/host-role/v1/rotate /internal/host-role/v1/complete /internal/host-role/v1/status /internal/host-role/v1/rebind /internal/host-role/v1/claim /internal/host-role/v1/reclaim
+    }
+    handle @allowed {
+        rewrite * /mapi{uri}
+        reverse_proxy api:9000
+    }
+    handle {
+        respond 404
+    }
 }

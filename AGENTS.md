@@ -147,6 +147,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `tools/backup-host-control.py` | 主持人能力更新前检查会议空闲并创建配置/SQLite 一致性备份 |
 | `tools/prepare-host-control.py` | 准备可选主持人能力覆盖配置与秘密，不自动部署或重启 |
 | `tools/stage-host-control.py` | 核实插件摘要并准备插件、内部 Caddy 配置，不重启 |
+| `tools/install-host-transfer-prosody.sh` | 人工执行的Prosody插件限定安装/重启入口；必需配置缺失拒绝修改，不配置API或网关，不代表完整转让修复 |
 | `tools/stage-host-control-web.py` | 校验业务 Web 归档并准备目录覆盖候选，不替换数据或镜像 |
 | `tools/fix-host-control-mount.py` | 修正既有候选 overlay 的 Prosody 配置挂载路径，属于写操作 |
 | `tools/enable-host-control.py` | 通过前提检查后显式打开候选能力配置，不自动重启 |
@@ -223,7 +224,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 - 每批对补丁逐项记录来源版本/摘要、适用条件、安装目标、权限、加载配置、回滚点及验证结果。每项必须结论为“安装”“已内置且有证据”或“有理由不适用”；缺结论阻断。不能一律全复制，也不能一律忽略。
 - 品牌补丁为 `web/custom-interface_config.js`；CSS 注入成套交付 `web/custom.css`、`web/custom-head.html` 和 `web/nginx-custom/custom-css.conf`，检查引用、挂载与摘要。
 - 普通 JWT 主持人映射交付 `prosody/mod_muc_jwt_owner.lua` 或有明确来源的等价内置实现；配置模块加载并关闭 Jicofo 自动 owner。JWT app ID/secret/内部域配置必须一致，不能用关闭鉴权或自动授予 owner 替代；打包不执行真实角色测试。
-- 主持人转移是独立可选能力，不默认开启；启用时须完整验证密钥轮换、撤权、接收确认与恢复，不能用仅装菜单或普通 moderator 授权代替。HTTP iframe/信令降级仅适用明确批准的 HTTP 模式，不加入 HTTPS 默认基线。
+- 主持人转移按2026-11-12用户明确确认，作为所有新正常部署的默认能力，无条件默认开启，不再要求可选启用开关。正式构建/组包/初始化/启动链路必须成套包含API内部鉴权、仅容器网络可访问的内部HTTPS、Prosody插件及模块/接口/撤权配置；缺项应失败，不得静默降级。运行验收仍须完整验证密钥轮换、撤权、接收确认与恢复，不能用仅装菜单或普通moderator授权代替；打包不因此增加运行测试门禁。该默认值不追溯修改历史包，也不授权自动更新既有服务器。主持人找回及管理员恢复不随之默认开启。HTTP iframe/信令降级仅适用明确批准的HTTP模式，不加入HTTPS默认基线。
 - 补丁公开目录典型0755、文件0644；仅修正必要公开范围。Prosody storage 属主必须与所选镜像 UID/GID 一致，不能盲用1000。宿主文件存在或单元测试通过不证明容器已加载。
 - 最终包材料校验必须依据产品要求检查缺失，不能只核对组包器自己生成的文件列表；必需补丁、引用或鉴权配置缺失即组包失败，不扩展到运行测试。
 
