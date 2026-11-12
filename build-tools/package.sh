@@ -411,6 +411,7 @@ PY
     # Rendering only: no daemon operation or application startup.
     # target.py already exported validated public settings; example files are not inputs.
     JWT_APP_SECRET=RENDER_ONLY JICOFO_AUTH_PASSWORD=RENDER_ONLY JVB_AUTH_PASSWORD=RENDER_ONLY \
+    JITSI_ROLE_CHECK_SECRET=RENDER_ONLY \
         "$output/bin/docker-compose" -f "$output/jitsi-base.yaml" config --quiet
     python3 -B "$output/install.py" --verify-only
     tar -czf "$output.tar.gz" -C "$(dirname "$output")" "$(basename "$output")"

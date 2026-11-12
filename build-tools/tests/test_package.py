@@ -29,13 +29,15 @@ class PackageTests(unittest.TestCase):
 import os, sys
 expected = {'SITE_HOST':'cloudmeet.internal', 'PUBLIC_URL':'https://cloudmeet.internal',
             'HTTPS_PORT':'8443', 'HTTP_PORT':'8080', 'MEDIA_PORT':'10000', 'JVB_PORT':'10000',
-            'JVB_ADVERTISE_IPS':os.environ['EXPECTED_MEDIA']}
+            'JVB_ADVERTISE_IPS':os.environ['EXPECTED_MEDIA'],
+            'JITSI_ROLE_CHECK_SECRET':'RENDER_ONLY'}
 for key, value in expected.items():
     assert os.environ.get(key) == value, (key, os.environ.get(key), value)
 assert sys.argv[-2:] == ['config', '--quiet']
 ''')
                 fake.chmod(0o755)
                 env = dict(os.environ, EXPECTED_MEDIA=media)
+                env.pop('JITSI_ROLE_CHECK_SECRET', None)
                 command = '''set -euo pipefail
 output=$1
 target_exports=$(python3 -B "$output/target.py" "$output/target.env")
