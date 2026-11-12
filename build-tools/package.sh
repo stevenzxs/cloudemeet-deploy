@@ -403,8 +403,7 @@ for path in out.rglob('*'):
 verifier.verify_checksums(out)
 PY
     # Rendering only: no daemon operation or application startup.
-    SITE_HOST=$(sed -n 's/^SITE_HOST=//p' "$output/server.env.example") \
-    PUBLIC_URL="$PUBLIC_ORIGIN" JVB_ADVERTISE_IPS=$(sed -n 's/^JVB_ADVERTISE_IPS=//p' "$output/server.env.example") \
+    # target.py already exported validated public settings; example files are not inputs.
     JWT_APP_SECRET=RENDER_ONLY JICOFO_AUTH_PASSWORD=RENDER_ONLY JVB_AUTH_PASSWORD=RENDER_ONLY \
         "$output/bin/docker-compose" -f "$output/jitsi-base.yaml" config --quiet
     python3 -B "$output/install.py" --verify-only

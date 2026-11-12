@@ -8,6 +8,44 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PackageTests(unittest.TestCase):
+    def test_render_command_preserves_validated_target_environment(self):
+        import os
+        import shutil
+        import subprocess
+        import tempfile
+        script = (ROOT/'build-tools/package.sh').read_text(encoding='utf-8')
+        render = script.split('# Rendering only: no daemon operation or application startup.\n', 1)[1]
+        render = render.split('    python3 -B "$output/install.py"', 1)[0]
+        for media in ('', '192.0.2.8'):
+            with self.subTest(media=media), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory)
+                (root/'bin').mkdir()
+                shutil.copyfile(ROOT/'deploy/config/target.py', root/'target.py')
+                text = (ROOT/'deploy/config/target.env').read_text(encoding='utf-8')
+                (root/'target.env').write_text(text.replace('MEDIA_HOST=', 'MEDIA_HOST='+media), encoding='utf-8')
+                (root/'server.env.example').write_text('# No instance addresses here.\n')
+                fake = root/'bin/docker-compose'
+                fake.write_text('''#!/usr/bin/env python3
+import os, sys
+expected = {'SITE_HOST':'cloudmeet.internal', 'PUBLIC_URL':'https://cloudmeet.internal',
+            'HTTPS_PORT':'8443', 'HTTP_PORT':'8080', 'MEDIA_PORT':'10000', 'JVB_PORT':'10000',
+            'JVB_ADVERTISE_IPS':os.environ['EXPECTED_MEDIA']}
+for key, value in expected.items():
+    assert os.environ.get(key) == value, (key, os.environ.get(key), value)
+assert sys.argv[-2:] == ['config', '--quiet']
+''')
+                fake.chmod(0o755)
+                env = dict(os.environ, EXPECTED_MEDIA=media)
+                command = '''set -euo pipefail
+output=$1
+target_exports=$(python3 -B "$output/target.py" "$output/target.env")
+eval "$target_exports"
+PUBLIC_ORIGIN=$PUBLIC_URL
+''' + render
+                result = subprocess.run(['bash', '-c', command, 'render-test', str(root)],
+                                        env=env, capture_output=True, text=True)
+                self.assertEqual(result.returncode, 0, result.stdout+result.stderr)
+
     def test_single_manual_workflow_builds_all_seven_services(self):
         workflow = (ROOT / 'build-tools/build-package.yml').read_text(encoding='utf-8')
         self.assertIn('workflow_dispatch:', workflow)

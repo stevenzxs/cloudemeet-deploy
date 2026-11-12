@@ -1,5 +1,12 @@
 # 当前执行记录
 
+## 2026-11-12 修复Actions组包渲染环境被空值覆盖
+
+- run 43155412543 attempt 1七服务镜像artifact上传完成，但组包Compose解析因SITE_HOST空值失败，未产生完整交付包。
+- 根因：组包Shell仍从仅含注释的server.env.example读取SITE_HOST/JVB_ADVERTISE_IPS，覆盖target.py已导出的参数。移除两项旧读取，沿用校验后的目标环境；不更改镜像、鉴权或TLS模式。
+- 新回归执行真实渲染Shell片段，以探针替代Compose二进制检查收到的环境及命令，覆盖空媒体地址和显式媒体覆盖。修复前两例均复现SITE_HOST为空；修复后无Docker回归48/48及Bash语法检查通过。
+- 此回归不运行真实Compose/daemon，不代表Actions组包已成功。本次仅本地修复并同步受控CI副本，未提交、推送、重跑Actions或操作服务器。
+
 ## 当前：用户批准无固定网页IP与证书告警模式
 
 - target.env仅保留协议、端口及可选MEDIA_HOST；移除SERVER_HOST。cloudmeet.internal仅为本地证书和上游兼容占位，不是客户端入口。
