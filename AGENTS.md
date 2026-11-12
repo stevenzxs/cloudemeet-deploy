@@ -105,6 +105,11 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 |---|---|
 | `../build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
 | `../build-tools/README.md` | 统一入口参数、artifact内容、已有Docker依赖契约及辅助检查方法；非另一份规范 |
+| `../build-tools/clients/build-clients.cjs` | Windows MSI/Android统一候选构建入口；显式读取config/client.env，提供只读预检查、锁、临时配置恢复及产物摘要，不自动晋级交付 |
+| `../build-tools/clients/core.cjs` | 严格四项配置校验、版本到Android整数转换、WiX路径识别与锁/临时文件恢复公共实现 |
+| `../build-tools/clients/README.md`、`../build-tools/clients/.gitignore` | 客户端工具操作说明及本机锁/旧状态文件忽略边界，非并列规范 |
+| `../build-tools/clients/tests/core.test.cjs`、`../build-tools/clients/tests/cli.test.cjs` | 配置、版本转换、WiX发现、独占锁/恢复、候选收集和只读预检查回归，不替代实际构建或安装验收 |
+| `../docs/plans/2026-11-12-client-builder.md` | 统一客户端构建工具实施计划，历史设计选择由当前第8节覆盖，非规范源 |
 | `../build-tools/migration/test_deploy_governance.py` | 当前目录登记与打包边界回归，不依赖旧构建脚本 |
 | `../build-tools/build-package.yml`、`.github/workflows/build-package.yml` | 手动原生aarch64七服务矩阵及组包；显式核对材料SHA，无registry写入及服务器操作 |
 | `../build-tools/inputs.sha256` | 当前编排、Dockerfile、公共安装核心、公开补丁和Caddy模板的受审摘要；同步后核对，不代表构建成功 |
@@ -305,11 +310,11 @@ flowchart TD
 
 ## 8. 客户端编译与签名
 
-- 唯一客户端入口及发布版本配置源为 `deploy/config/client.env`，包含 SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION，MSI/APK均须显式读取；不从服务端target.env、.env、旧client.env、环境变量或源码历史默认值覆盖/回退。缺项、无效入口或无效版本拒绝构建。CLIENT_VERSION使用三段数字版本，Electron产品版本与Android versionName保持一致；按配置原值使用，不自动递增补丁号，不用release-version.json覆盖发布版本。Android versionCode仍须依据已有发布证据保持递增，不能把1.0.19直接当versionCode或在状态未知时重置计数。构建记录保留所用版本及versionCode，不并发构建或删除活动锁。
-- 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；该工具当前缺失，恢复并接通四项配置及Android versionCode状态前不得宣称已可构建。上述CLIENT_VERSION约定替代原release-version.json自动递增发布版本方案，不变更历史包或既有版本记录。
+- 唯一客户端入口及发布版本配置源为 `deploy/config/client.env`，包含 SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION，MSI/APK均须显式读取；不从服务端target.env、.env、旧client.env、环境变量或源码历史默认值覆盖/回退。缺项、无效入口或无效版本拒绝构建。CLIENT_VERSION使用三段数字版本，Electron产品版本与Android versionName保持一致；按配置原值使用，不自动递增补丁号。Android versionCode自动按major×1000+minor×100+patch转换，1.0.19对应1019；minor限定0..9、patch限定0..99，越界拒绝Android构建。相同版本得到相同code，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译，不自动卸载或清数据。构建记录保留版本及versionCode，不并发构建或删除活动锁。
+- 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；已恢复四项配置读取和候选构建编排，须先执行--check。版本转换约定替代旧历史证据/预留计数方案，不变更历史包或既有记录。工具回归通过不代表真实编译或包级验证完成。
 - 每批核对完整 origin、实际 MSI/APK 版本和摘要、包内入口及目标公开 CA。新地址不会自动配置 CA 信任。Electron 按准确 origin 限定信任；Android 按主机限定，保留已有端点策略，不打包私钥。
 - 实测 APK signing certificate、MSI/内嵌程序实际签名与有效性；旧 manifest 固定文案和文件名不是签名证据。签名改变字节后重新计算最终摘要。
-- 客户端交付进入 `deploy/release/<架构>/clients/<批次>/`，明确OS/ABI、签名、版本和摘要；不再设置debug交付树。当前构建器仍输出 `deploy/history/client-builds/`，属于尚未适配的内部构建路径，不当作新增交付入口，不因此自动修改构建器。编译打包不自动安装设备应用或清数据。
+- 客户端交付进入 `deploy/release/<架构>/clients/<批次>/`，明确OS/ABI、签名、版本和摘要；不再设置debug交付树。恢复后的构建器将未验证候选保留于本机Temp/opencode/cloudmeet-clients-*，不自动晋级release；历史history/client-builds不作为新输出入口。编译打包不自动安装设备应用或清数据。
 
 ## 9. 记录与能力边界
 

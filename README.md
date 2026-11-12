@@ -180,19 +180,21 @@ Windows 下从工作区根目录构建，源码仍在 `jitsi-meet-electron/` 和
 
 ```powershell
 # 唯一入口配置：deploy/config/client.env；编辑其中host/scheme/port。
-# 以下为恢复统一构建工具后的命令；当前build-tools/clients目录缺失，尚不能执行。
+# 先执行只读检查；Android versionCode从CLIENT_VERSION自动转换。
 node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env --check
 node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env
 node --test build-tools/clients/tests/*.test.cjs
 ```
 
-唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。当前统一构建工具及版本状态文件缺失，须恢复并接通配置后才能打包。原工具内部输出路径为 `deploy/history/client-builds/<批次>/`；新客户端交付仍按产物架构放入 `deploy/release/<架构>/clients/<批次>/`，实际签名必须检查产物，不能信任固定文案。
+唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。统一入口已恢复，Android versionCode自动从配置版本转换，无需历史证据，详见[工具说明](../build-tools/clients/README.md)。候选输出到本机Temp/opencode/cloudmeet-clients-*，不自动晋级交付；逐项验证后新客户端交付仍按产物架构放入 `deploy/release/<架构>/clients/<批次>/`，实际签名必须检查产物，不能信任固定文案。
 
-发布版本唯一读取`deploy/config/client.env`的`CLIENT_VERSION`，当前填写`1.0.19`；Electron产品版本和Android versionName共用该值。按配置原值构建，不自动递增补丁号，不以`release-version.json`覆盖发布版本。此约定替代旧自动递增方案。Android versionCode仍须依据历史已发布记录保持递增，不能直接填写1.0.19或在状态未知时从头计数；构建记录必须保留实际版本和versionCode。仅修改文档/配置不占用versionCode、不重写历史发布记录。
+发布版本唯一读取`deploy/config/client.env`的`CLIENT_VERSION`，当前填写`1.0.19`；Electron产品版本和Android versionName共用该值。Android versionCode按`major×1000+minor×100+patch`转换，本次为`1019`；minor限定0..9、patch限定0..99。相同版本得到相同code，不自动递增，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译；不自动卸载或清数据。构建记录保留实际版本和versionCode。
 
-恢复构建器后应在构建期间向Electron package.json临时注入CLIENT_VERSION并恢复；Android用Gradle参数注入versionName和经核对递增的versionCode，不改源码默认appVersion。不得绕过统一入口直接运行Forge/npm make/Gradle充当正式发布；当前配置尚未接入缺失的构建器。
+构建器在构建期间向Electron package.json临时注入CLIENT_VERSION并恢复；Android用Gradle参数注入versionName和自动转换的versionCode，不改源码默认appVersion。不得绕过统一入口直接运行Forge/npm make/Gradle充当正式发布。当前已接入配置，真实构建及包内版本/入口/签名仍待验证。
 
 Electron 需 WiX v3、有效 OpenVPN payload；Android 需 JDK 17、SDK/Build Tools 35、项目 NDK 及依赖。脚本临时修改源码入口配置并在正常结束时恢复；禁止并发构建或删除活动锁。强制中断后先检查配置恢复情况。
+
+WiX已支持从WIX/bin、WIX便携目录、PATH及默认v3.14/v3.11目录自动识别。本机已验证`D:\tool\wix311-binaries`中的candle/light版本为3.11.2，无需重复安装或修改系统环境。当前9项工具回归通过，MSI+Android只读预检查无阻塞，版本1.0.19/versionCode 1019；这不代表已生成安装包、签名验证或安装验收通过。证书信任兼容性及旧APK覆盖升级仍未验证。
 
 新入口的私有CA必须先适配源码信任策略，不能认为修改`config/client.env`就会自动信任。服务端无固定IP的本地证书模式已获准接受浏览器告警，但不表示Electron/Android会放行证书主机不匹配，不能全局关闭客户端证书校验。Android默认入口为构建期配置。APK/MSI签名身份与有效性均须实测报告，不依据文件名或旧清单判定。MSI安装/升级/VPN/卸载须在隔离Windows测试机验收，不自动在开发机卸载旧版。
 

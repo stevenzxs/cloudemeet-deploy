@@ -25,11 +25,11 @@ CLIENT_VERSION=<三段数字发布版本>
 
 MSI/APK共用此入口；不得从服务端target.env、.env、旧client.env、进程环境或源码默认值覆盖/回退。无效或缺项必须拒绝打包。服务端通配监听不代替客户端首次寻址。
 
-CLIENT_VERSION为唯一发布版本来源，按原值用于Electron产品版本和Android versionName；不自动递增补丁号，不从release-version.json或环境变量覆盖。Android versionCode不是versionName，必须核对历史记录并保持递增；缺证据不重置、不猜测。构建manifest记录两者。实例具体版本读取配置文件，不在本参考中设默认值。
+CLIENT_VERSION为唯一发布版本来源，按原值用于Electron产品版本和Android versionName；Android versionCode按major×1000+minor×100+patch转换，例如1.0.19对应1019。minor限0..9、patch限0..99，避免冲突；越界拒绝Android构建。相同版本得到相同code，不自动递增，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译，不自动卸载或清数据。构建manifest记录两者，实例具体版本读取配置，不设技能默认值。
 
-**当前阻塞：**`build-tools/clients/build-clients.cjs`缺失，以下是恢复并接通四项配置及Android versionCode状态后的命令，不是当前已可执行的入口。不得绕过统一构建入口直接运行Forge/Gradle充当正式发布。
+统一入口已恢复四项配置读取及候选构建编排；不得绕过统一入口直接运行Forge/Gradle充当正式发布。--check只读，不启动构建或写版本状态；真实构建须已有授权并通过预检查。详见工作区build-tools/clients/README.md。
 
-恢复后在工作区根运行：
+在工作区根运行（第二条仅在获得构建授权后执行）：
 
 ```powershell
 node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env --check
@@ -41,4 +41,6 @@ node --test build-tools/clients/tests/*.test.cjs
 
 Electron 需要 WiX v3、SDK/.NET 和合法 OpenVPN payload；Android 需要 JDK17、SDK35/Build Tools35 和项目指定 NDK。禁止并发构建、删除活动锁；强制中断后检查入口配置恢复。
 
-唯一新增交付位置为 `deploy/release/<架构>/clients/<批次>/`，按客户端自身OS/ABI归类，多ABI如实登记，明确签名及已验范围；候选留在Actions，不另建debug交付树。当前构建器仍输出 `deploy/history/client-builds/<批次>/`，属于尚未适配的内部构建路径，旧根clients未迁移；不假称输出已切换，不自动移动/删除其他旧材料。核对manifest/摘要/签名，不能以release目录或旧文件名推断资格。MSI安装升级、VPN、卸载须隔离环境验收，不自动卸载开发机旧版本；安装运行与真实会议分别报告。
+WiX自动依次识别WIX/bin、WIX本身的便携目录、PATH、默认v3.14/v3.11目录；先检查已有工具，勿重复安装或全局修改环境。编译器candle.exe和链接器light.exe均须可用。预检查通过不证明完整工具链可完成编译。
+
+唯一新增交付位置为 `deploy/release/<架构>/clients/<批次>/`，按客户端自身OS/ABI归类，多ABI如实登记，明确签名及已验范围。恢复的本机构建器将候选、日志和build.json保留于Temp/opencode/cloudmeet-clients-*，不另建debug目录、不再输出旧history/client-builds、不自动晋级release。build.json记录编译状态与产物摘要，但不自动验证二进制版本、包内origin/ABI或签名，交付前须分别核验。旧材料不自动移动或删除。MSI安装升级、VPN、卸载须隔离环境验收，不自动卸载开发机旧版本；安装运行与真实会议分别报告。

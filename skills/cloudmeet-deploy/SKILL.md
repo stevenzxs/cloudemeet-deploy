@@ -26,8 +26,8 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 - Electron MSI和Android APK仅以工作区`deploy/config/client.env`为入口和发布版本来源，包含`SITE_DOMAIN`、`SITE_SCHEME`、`SITE_PORT`、`CLIENT_VERSION`。先读取已确认值；有效时复用，不重复询问，不把实例地址或版本抄成本技能通用默认值。
 - 配置填写客户端可达的外层IP/域名和端口，不从`target.env`、服务端`.env`、旧`deploy/client.env`、进程环境或源码历史默认值覆盖/回退；缺失或无效时先修配置，不能继续打包。
-- CLIENT_VERSION是三段数字发布版本，Electron产品版本与Android versionName共用原值，不自动递增补丁号、不从release-version.json覆盖；此约定替代旧自动分配发布版本方案。Android versionCode独立保持递增，先核对历史发布记录，不因配置版本而重置或猜测。
-- `build-tools/clients/build-clients.cjs`当前缺失，恢复并接通四项配置及Android versionCode状态前不可执行发布打包。新增配置或同步文档不代表构建器已恢复，不绕过统一入口、锁或历史记录。
+- CLIENT_VERSION是唯一发布版本来源，Electron产品版本与Android versionName共用原值。Android versionCode自动按major×1000+minor×100+patch转换，如1.0.19对应1019；minor限0..9、patch限0..99，越界拒绝Android构建。不自动递增，不读取历史证据、时间计数或release-version.json。旧时间计数APK覆盖升级可能失败，提示但不阻止编译，不自动卸载或清数据。
+- `build-tools/clients/build-clients.cjs`已恢复四项配置读取及候选构建编排，先执行--check。WiX从WIX/bin、WIX便携目录、PATH及默认v3安装目录识别，不因默认目录不存在就要求重装。预检查通过不证明真实编译、签名或安装通过，不绕过统一入口和锁。
 - 服务端无固定IP模式只让页面/信令跟随请求入口，不负责客户端首次寻址。接受浏览器证书告警不等于Electron/Android自动接受证书；分别检查限定信任策略，不全局关闭证书校验。
 - 构建与签名步骤见[客户端参考](references/arm-clients.md)；只更新文档不触发构建、安装、服务器操作或占用版本。
 
