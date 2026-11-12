@@ -1,17 +1,17 @@
 {
     auto_https disable_redirects
     skip_install_trust
-    # TLS clients commonly omit SNI for literal IPs; select this site's IP cert.
-    default_sni {$SITE_HOST}
+    # Fallback certificate identity only; never an external redirect or Host filter.
+    default_sni cloudmeet.internal
+    fallback_sni cloudmeet.internal
 }
 
-# PUBLIC_URL includes the external HTTPS port, not the container port.
-http://{$SITE_HOST} {
-    redir {$PUBLIC_URL}{uri} permanent
+# Do not guess the port of an external TCP forwarding rule.
+http://:80 {
+    respond "Use HTTPS on the configured external port." 426
 }
 
-https://{$SITE_HOST} {
-    tls internal
+(meeting_routes) {
     @internal path /mapi/internal /mapi/internal/*
     handle @internal {
         respond 404
@@ -23,4 +23,15 @@ https://{$SITE_HOST} {
     handle {
         reverse_proxy web:8000
     }
+}
+
+https://cloudmeet.internal {
+    tls internal
+    import meeting_routes
+}
+
+# Catch-all routing: HTTP Host is not tied to the certificate's local identity.
+https://:443 {
+    tls internal
+    import meeting_routes
 }

@@ -165,9 +165,10 @@ class PackageTests(unittest.TestCase):
             self.assertEqual(manifest['origin'], target_module.load_target(repo/'config/target.env')['PUBLIC_URL'])
             self.assertNotIn('SITE_HOST=', (out/'server.env.example').read_text())
             compose = json.loads((out / 'jitsi-base.yaml').read_text())
-            self.assertEqual(compose['services']['gateway']['ports'], ['8443:443', '8080:80'])
-            self.assertEqual(compose['services']['jvb']['ports'], ['10000:10000/udp'])
-            self.assertIn('redir {$PUBLIC_URL}{uri}', (out / 'Caddyfile').read_text())
+            self.assertEqual(compose['services']['gateway']['ports'], ['${HTTPS_PORT:?required}:443', '${HTTP_PORT:?required}:80'])
+            self.assertEqual(compose['services']['jvb']['ports'], ['${MEDIA_PORT:?required}:${JVB_PORT:?required}/udp'])
+            self.assertIn('https://:443', (out / 'Caddyfile').read_text())
+            self.assertNotIn('redir ', (out / 'Caddyfile').read_text())
             self.assertEqual(compose['services']['gateway']['environment']['PUBLIC_URL'], '${PUBLIC_URL:?required}')
             self.assertTrue((out / 'INSTALL.md').is_file())
             archive = repo / 'fixture.tar.gz'

@@ -10,7 +10,7 @@
 
 - `version`：本次版本，如 `1.0.19-rc1`（不代表已占用客户端版本）。
 - `material_commit`：包含本次脚本、补丁及配置的完整40位提交SHA，必须等于所选workflow提交。
-- 地址与端口：仅修改部署维护源`config/target.env`，不再提供workflow origin覆盖；`config/jitsi.env`保留公共参数。当前支持单机IPv4 HTTPS。
+- 地址与端口：`config/target.env`不绑定网页入口IP，仅设置协议、端口及可选媒体IPv4覆盖。Caddy使用本地证书和通配路由，接受证书告警/客户端兼容性限制；信令由启动器生成的custom-config.js跟随浏览器入口。`config/jitsi.env`保留公共参数。
 
 工作流只读仓库，不需要SSH或registry秘密，不自动发布镜像。每次run/attempt完整编译七服务；
 当前CI分支尚未进入默认分支，限定push触发仅在ci/arm64-smoke分支修改新workflow文件时运行，默认版本1.0.19-rc1、材料SHA为该提交，目标来自受控config/target.env；其他修改不自动构建。

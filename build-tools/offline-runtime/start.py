@@ -91,6 +91,10 @@ def main():
                  'data/jitsi/tmp/web-load-test']
     for directory in directories:
         safe_directory(root,directory)
+    if manifest.get('entry_mode') == 'request-origin-local-certificate':
+        spec=importlib.util.spec_from_file_location('target_config',root/'target.py')
+        target=importlib.util.module_from_spec(spec); spec.loader.exec_module(target)
+        target.install_origin_config(root/'data/jitsi/web/custom-config.js')
     patches={'patches/web/custom-interface_config.js':'data/jitsi/web/custom-interface_config.js',
              'patches/web/custom-head.html':'data/jitsi/web/custom-head.html',
              'patches/web/custom.css':'data/jitsi/web/custom.css',

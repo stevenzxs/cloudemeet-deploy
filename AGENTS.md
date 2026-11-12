@@ -41,7 +41,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `README.md` | 材料入口、批次路径及实际状态导航，不另立规则 |
 | `.gitignore` | 维护仓库跟踪白名单，排除产物、实例秘密和数据；不得强制添加绕过边界 |
 | `SHA256SUMS` | 已有根级材料的校验清单，不代表所有未来包的完整性或产品资格 |
-| `config/Caddyfile` | 公共网关模板：IP HTTPS 私有CA、业务/会议路由、内部接口隔离及参数化HTTP重定向；根Compose挂载此文件，组包读取后生成包内Caddyfile，不含实例IP |
+| `config/Caddyfile` | 无固定入口IP的HTTPS网关：本地私有CA兜底证书、通配路由、内部接口隔离；HTTP返回426，不猜测外层端口 |
 | `config/docker-compose.yml` | 网关、业务Web/API与Jitsi配置覆盖；由config/start.sh在config/jitsi-base.yaml之后合并，显式project-directory为deploy根，不能单独当完整配置 |
 | `config/jitsi-base.yaml` | 过渡模板 Jitsi web、Prosody、Jicofo、JVB 服务定义 |
 | `config/jitsi.env` | 过渡模板非秘密 Jitsi 参数、资源与内部管理配置 |
@@ -55,9 +55,9 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `release/amd64/server/`、`release/aarch64/server/` | 完整服务器部署包，按批次保存，不原地改包 |
 | `release/amd64/clients/`、`release/aarch64/clients/` | 注明OS/ABI、版本、签名与摘要的客户端交付包 |
 | `release/amd64/dependencies/`、`release/aarch64/dependencies/` | Docker/Compose等依赖安装材料，细分OS/版本，不自动安装 |
-| `config/` | 人工维护公共配置的目标位置，当前未迁入旧配置 |
-| `config/target.env` | 单机IPv4 HTTPS目标地址与端口的唯一人工配置源；SERVER_HOST仅定义一次，模板启动及组包统一派生公共地址，不接受workflow origin覆盖 |
-| `config/target.py` | 严格读取公开配置，检查IPv4/HTTPS/端口和重复键，派生SITE_HOST、PUBLIC_URL、JVB_ADVERTISE_IPS及JVB_PORT；不执行dotenv文本，包内携带同一加载器 |
+| `config/` | 人工维护公共配置、模板及初始化/启动入口；实例秘密和数据仍在deploy根 |
+| `config/target.env` | 无固定网页入口IP的端口配置及可选MEDIA_HOST；接受本地证书告警，不接受workflow origin覆盖 |
+| `config/target.py` | 校验HTTPS/端口与可选媒体IPv4，生成本地证书占位身份、媒体参数及同源custom-config.js；保留不同的既有自定义文件并拒绝覆盖；占位PUBLIC_URL不是浏览器入口 |
 | `packages/` | 待人工整理的既有不可变服务器交付批次，不再作为新布局目标 |
 | `history/` | 待人工整理的既有构建/实例/测试及技能备份证据；工具尚可能使用 |
 | `clients/` | 待人工整理的既有客户端候选/交付材料，非新布局目标 |
@@ -289,6 +289,12 @@ flowchart TD
 - 不准备测试环境，不安排安装/运行/媒体验收，不自动上传或操作目标服务器。此流程只证明完成编译打包交付，不证明后续使用结果。
 
 ## 7. 目标部署、安全与回滚
+
+### 2026-11-12 用户批准的无固定入口IP模式
+
+- 本模式覆盖下文严格TLS入口身份要求，仅限明确接受证书告警及客户端兼容性限制的部署；不等于严格TLS验收通过，不关闭客户端全局证书校验。
+- config/target.env不配置网页主机；Caddy使用cloudmeet.internal本地私有CA证书身份作default/fallback SNI，路由接受不同Host，HTTP返回426而不猜测外层HTTPS端口。页面与信令沿浏览器入口访问。
+- MEDIA_HOST为可选媒体IPv4覆盖，空值使用JVB自身发现；多层NAT与媒体可达性仍需验证，未知媒体地址不宣称会议可用。
 
 - 本地整理/组包不授权 SSH、上传、重启、迁移、卸载或切换服务器。部署既有实例前核实其实际配置，不能用 IP HTTPS 模板覆盖 ARM HTTP 或域名/DNS 插件实例。
 - 破坏性操作前须只读盘点、验证恢复备份，列出准确目标、待删除和保留资源及风险，取得 explicit second confirmation（二次明确确认）。禁止全局 prune、无范围 down -v、清防火墙、网桥、无关 VPN/代理或新增宿主 Docker daemon。

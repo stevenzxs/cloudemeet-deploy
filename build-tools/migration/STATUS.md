@@ -1,5 +1,13 @@
 # 当前执行记录
 
+## 当前：用户批准无固定网页IP与证书告警模式
+
+- target.env仅保留协议、端口及可选MEDIA_HOST；移除SERVER_HOST。cloudmeet.internal仅为本地证书和上游兼容占位，不是客户端入口。
+- Caddy default/fallback SNI配合catch-all路由，HTTP返回426；模板start及公共安装start通过同一target.py生成custom-config.js覆盖BOSH/WebSocket为浏览器同源，无需修改Web镜像。不同的既有custom-config.js拒绝覆盖。已核对锁定lifecycle启动脚本在system/settings之后追加custom-config.js。
+- 新组包Compose端口与JVB_PORT保留运行时变量，不固化组包目标端口；manifest.origin为上游兼容占位，entry_mode声明请求入口自适应，不是真实访问地址。
+- 不关闭客户端全局TLS校验，证书告警/兼容性风险明确接受；媒体NAT独立，未验证。不改服务器，不提交推送或触发Actions。
+- 辅助回归47/47通过；Caddy 2.10.2 adapt --validate通过（仅配置解析/校验，不证明实际TLS握手、外网转发或浏览器可用）。未构建新镜像/交付新包。
+
 ## 2026-11-12 统一目标配置与config迁移收尾
 
 - 本轮仅本地代码改造及无Docker检查，不提交/推送/调度Actions，不连接服务器，不改历史包。

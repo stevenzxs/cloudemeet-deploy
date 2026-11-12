@@ -14,6 +14,10 @@ PY
 test -f artifacts/app.jar
 test -f artifacts/dist/index.html
 mkdir -p data/jitsi/web/nginx-custom data/jitsi/prosody/prosody-plugins-custom data/jitsi/storage/prosody
+python3 -B - <<'PY'
+from config.target import install_origin_config
+install_origin_config('data/jitsi/web/custom-config.js')
+PY
 cp patches/web/custom-interface_config.js patches/web/custom-head.html patches/web/custom.css data/jitsi/web/
 cp patches/web/nginx-custom/custom-css.conf data/jitsi/web/nginx-custom/
 cp patches/prosody/mod_muc_jwt_owner.lua data/jitsi/prosody/prosody-plugins-custom/

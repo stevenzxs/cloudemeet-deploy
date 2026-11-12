@@ -10,11 +10,30 @@ spec.loader.exec_module(target)
 
 
 class TargetTests(unittest.TestCase):
+    def test_origin_override_preserves_existing_customization(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory)/'custom-config.js'
+            target.install_origin_config(path)
+            self.assertIn('window.location.host', path.read_text())
+            self.assertNotIn('cloudmeet.internal', path.read_text())
+            target.install_origin_config(path)
+            path.write_text('// user customization')
+            with self.assertRaises(ValueError):
+                target.install_origin_config(path)
+            self.assertEqual(path.read_text(), '// user customization')
+
+    def test_gateway_has_no_fixed_ip_host_filter_or_redirect(self):
+        text = (ROOT/'deploy/config/Caddyfile').read_text(encoding='utf-8')
+        self.assertIn('https://:443', text)
+        self.assertIn('fallback_sni cloudmeet.internal', text)
+        self.assertNotIn('{$SITE_HOST}', text)
+        self.assertNotIn('redir ', text)
+
     def test_derives_one_host_and_ports(self):
         values = target.load_target(ROOT/'deploy/config/target.env')
-        self.assertEqual(values['SITE_HOST'], values['SERVER_HOST'])
-        self.assertEqual(values['JVB_ADVERTISE_IPS'], values['SERVER_HOST'])
-        self.assertEqual(values['PUBLIC_URL'], 'https://' + values['SERVER_HOST'] + ':' + values['HTTPS_PORT'])
+        self.assertNotIn('SERVER_HOST', values)
+        self.assertEqual(values['JVB_ADVERTISE_IPS'], '')
+        self.assertEqual(values['SITE_HOST'], 'cloudmeet.internal')
 
     def test_rejects_invalid_or_duplicate_values(self):
         text = (ROOT/'deploy/config/target.env').read_text(encoding='utf-8')
@@ -47,9 +66,8 @@ class TargetTests(unittest.TestCase):
         text = (ROOT/'deploy/config/target.env').read_text(encoding='utf-8')
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory)/'target.env'
-            original = target.load_target(ROOT/'deploy/config/target.env')
-            path.write_text(text.replace(original['SERVER_HOST'], '192.0.2.8').replace('8443','9443'), encoding='utf-8')
+            path.write_text(text.replace('MEDIA_HOST=', 'MEDIA_HOST=192.0.2.8').replace('8443','9443'), encoding='utf-8')
             values = target.load_target(path)
-            self.assertEqual(values['PUBLIC_URL'], 'https://192.0.2.8:9443')
-            self.assertEqual(values['SITE_HOST'], '192.0.2.8')
+            self.assertEqual(values['PUBLIC_URL'], 'https://cloudmeet.internal')
+            self.assertEqual(values['SITE_HOST'], 'cloudmeet.internal')
             self.assertEqual(values['JVB_ADVERTISE_IPS'], '192.0.2.8')

@@ -255,7 +255,7 @@ if (url.scheme!='https' or not url.hostname or url.username or url.password
     raise ValueError('An HTTPS origin without path or credentials is required')
 host=url.hostname
 if ':' in host: raise ValueError('This package entry currently supports IPv4/DNS hosts only')
-https_port=url.port or 443; http_port=int(target['HTTP_PORT']); media_port=int(target['MEDIA_PORT'])
+https_port=int(target['HTTPS_PORT']); http_port=int(target['HTTP_PORT']); media_port=int(target['MEDIA_PORT'])
 if any(not 1<=p<=65535 for p in (https_port,http_port,media_port)) or https_port==http_port:
     raise ValueError('Invalid port configuration')
 records={}
@@ -282,8 +282,9 @@ common={'PUBLIC_URL':'${PUBLIC_URL:?required}','XMPP_DOMAIN':'meet.jitsi','XMPP_
  'JWT_APP_ID':'zhsz','JWT_APP_SECRET':'${JWT_APP_SECRET:?required}','JWT_ALLOW_EMPTY':'1',
  'ENABLE_AUTO_OWNER':'0','XMPP_MUC_MODULES':'muc_jwt_owner','ENABLE_P2P':'0',
  'ENABLE_XMPP_WEBSOCKET':'1','JICOFO_MAX_MEMORY':'256m','JVB_MAX_MEMORY':'384m',
- 'VIDEOBRIDGE_MAX_MEMORY':'384m','JVB_ADVERTISE_IPS':'${JVB_ADVERTISE_IPS:?required}',
- 'JVB_PORT':str(media_port),'TZ':'Asia/Shanghai'}
+ 'VIDEOBRIDGE_MAX_MEMORY':'384m','JVB_ADVERTISE_IPS':'${JVB_ADVERTISE_IPS:-}',
+  'JVB_PORT':'${JVB_PORT:?required}','TZ':'Asia/Shanghai'}
+common['BOSH_RELATIVE']='1'
 configs={s:{'image':records[s]['tag'],'pull_policy':'never','restart':'unless-stopped',
             'mem_limit':'640m','pids_limit':512,'networks':{'meeting':{}}} for s in services}
 public_settings=target_module.read_env(repo/'config/jitsi.env')
@@ -302,7 +303,7 @@ configs['prosody']['volumes']=['./data/jitsi/prosody/config:/config',
  './data/jitsi/prosody/prosody-plugins-custom:/prosody-plugins-custom:ro']
 configs['web']['environment'].update(DISABLE_HTTPS='1',ENABLE_LETSENCRYPT='0',
  ENABLE_HTTP_REDIRECT='0',NGINX_WORKER_PROCESSES='1',XMPP_BOSH_URL_BASE='http://xmpp.meet.jitsi:5280')
-configs['jvb']['ports']=[str(media_port)+':'+str(media_port)+'/udp']
+configs['jvb']['ports']=['${MEDIA_PORT:?required}:${JVB_PORT:?required}/udp']
 configs['api'].update(mem_limit='384m',environment={'JITSI_TOKEN_APP_ID':'zhsz',
  'JITSI_TOKEN_APP_SECRET':'${JWT_APP_SECRET:?required}','JITSI_TOKEN_DOMAIN':'meet.jitsi',
  'JITSI_MEET_DB_URL':'jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db','BANNER_LOGO_DIRECTORY':'/data/banner-logos'},
@@ -310,7 +311,7 @@ configs['api'].update(mem_limit='384m',environment={'JITSI_TOKEN_APP_ID':'zhsz',
 configs['app-web'].update(depends_on=['api'],volumes=['./data/logos:/data/banner-logos:ro'])
 configs['gateway'].update(depends_on=['app-web','web'],environment={'SITE_HOST':'${SITE_HOST:?required}',
  'PUBLIC_URL':'${PUBLIC_URL:?required}'},
- ports=[str(https_port)+':443',str(http_port)+':80'],
+  ports=['${HTTPS_PORT:?required}:443','${HTTP_PORT:?required}:80'],
  volumes=['./Caddyfile:/etc/caddy/Caddyfile:ro','caddy_data:/data','caddy_config:/config'])
 compose={'name':'cloudmeet-'+os.environ['BATCH'].lower().replace('_','-'),
  'services':configs,'networks':{'meeting':{}},'volumes':{'caddy_data':{},'caddy_config':{}}}
@@ -326,6 +327,7 @@ manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION
  'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
  'workflow_commit':os.environ['GITHUB_SHA'],
  'architecture':'arm64','target_profile':'linux-aarch64-existing-engine','origin':origin.rstrip('/'),
+ 'entry_mode':'request-origin-local-certificate',
  'prosody_storage_owner':[1000,1000],
  'deployment_commit':os.environ['DEPLOYMENT_COMMIT'],
  'images':{s:[r['tag'],r['image_id']] for s,r in records.items()},
@@ -377,7 +379,7 @@ Packaging completion is not installation, host-compatibility or media acceptance
    `docker info` (Linux ARM64 engine), system clock, disk/RAM and port availability.
 4. Run `sha256sum -c SHA256SUMS` and `python3 -B install.py --verify-only`.
 5. Run `./bin/docker-compose version` (no system plugin installation needed).
-6. Review target.env against the approved target. Public settings derive from its single SERVER_HOST; initialization generates secrets only. This package supports single-host IPv4 HTTPS. jitsi.env holds maintained public settings. Do not change historical package bytes; rebuild for another target.
+6. Review target.env ports and optional MEDIA_HOST. Browser signaling follows the page origin. Caddy uses a local cloudmeet.internal certificate: external IP access may require accepting certificate warnings and is not strict TLS acceptance. MEDIA_HOST empty uses JVB address discovery; NAT media reachability is not guaranteed. Initialization generates secrets only. Preserve CA volumes. Do not modify historical package bytes.
    This batch uses the confirmed origin/ports; do not change immutable package files.
 7. Run `sudo python3 -B deploy.py --first-install` explicitly to import the included
    images, generate fresh secrets, install baseline patches and start the services.
