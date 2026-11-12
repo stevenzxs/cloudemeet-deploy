@@ -149,6 +149,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `tools/prepare-host-control.py` | 准备可选主持人能力覆盖配置与秘密，不自动部署或重启 |
 | `tools/stage-host-control.py` | 核实插件摘要并准备插件、内部 Caddy 配置，不重启 |
 | `tools/install-host-transfer-prosody.sh` | 人工执行的Prosody插件限定安装/重启入口；必需配置缺失拒绝修改，不配置API或网关，不代表完整转让修复 |
+| `tools/repair-creator-reclaim.py` | 既有实例创建者收回配置定点修复，默认只检查；核对容器归属、挂载、插件、内部路由和API拒绝未鉴权请求，确认空闲后备份并仅重启Prosody；不更新插件/API/网关 |
+| `tests/test_repair_creator_reclaim.py` | 收回配置转换、幂等、保留秘密及管理员开关、重复配置拒绝回归，不替代运行验收 |
 | `tools/stage-host-control-web.py` | 校验业务 Web 归档并准备目录覆盖候选，不替换数据或镜像 |
 | `tools/fix-host-control-mount.py` | 修正既有候选 overlay 的 Prosody 配置挂载路径，属于写操作 |
 | `tools/enable-host-control.py` | 通过前提检查后显式打开候选能力配置，不自动重启 |
