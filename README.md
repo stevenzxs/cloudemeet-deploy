@@ -177,6 +177,12 @@ bash config/start.sh
 
 ## 5. MSI / APK
 
+### 独立离线IP证书工具
+
+证书签发、更新和回滚入口见[`cert/README.md`](cert/README.md)。可填写不同内网/外网IPv4，
+在可信机器生成证书和脚本后人工上传服务器执行；不随文档操作自动连接服务器。
+CA私钥仅留离线签发机，服务器私钥更新包须受限保管；客户端CA信任仍需另行适配。
+
 Windows 下从工作区根目录构建，源码仍在 `jitsi-meet-electron/` 和 `jm/`：
 
 ```powershell

@@ -57,6 +57,10 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `release/clients/amd64/`、`release/clients/aarch64/` | 按批次保存客户端，注明OS/ABI、版本、签名与摘要；多ABI包如实登记完整集合，不冒称单架构 |
 | `release/amd64/dependencies/`、`release/aarch64/dependencies/` | Docker/Compose等依赖安装材料，细分OS/版本，不自动安装 |
 | `config/` | 人工维护公共配置、模板及初始化/启动入口；实例秘密和数据仍在deploy根 |
+| `cert/` | 独立离线IP证书工具维护目录；生成证书及私钥不入Git，CA私钥仅留离线签发机 |
+| `cert/cert-tool.py` | 通用IPv4 SAN证书签发及敏感更新材料生成，使用已有Python/OpenSSL，不连接服务器 |
+| `cert/replace-cert.sh`、`cert/rollback-cert.sh` | 管理员人工执行的Caddy基线证书检查、备份替换/reload及回滚；不自动调用或删除CA卷 |
+| `cert/README.md`、`cert/test_cert_tool.py` | 操作前提/权限/客户端信任边界及IP/配置转换回归，不代表目标安装验证 |
 | `config/target.env` | 无固定网页入口IP的端口配置及可选MEDIA_HOST；接受本地证书告警，不接受workflow origin覆盖 |
 | `config/target.py` | 校验HTTPS/端口与可选媒体IPv4，生成本地证书占位身份、媒体参数及同源custom-config.js；保留不同的既有自定义文件并拒绝覆盖；占位PUBLIC_URL不是浏览器入口 |
 | `packages/` | 待人工整理的既有不可变服务器交付批次，不再作为新布局目标 |

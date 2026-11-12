@@ -22,6 +22,13 @@
 !/skills/
 !/tests/
 !/tools/
+!/cert/
+/cert/*
+!/cert/README.md
+!/cert/cert-tool.py
+!/cert/replace-cert.sh
+!/cert/rollback-cert.sh
+!/cert/test_cert_tool.py
 !/releases/
 /releases/*
 !/releases/11248-cm.20261110-rc2-amd64/
@@ -59,3 +66,4 @@ node_modules/
 /releases
 releases/11248-cm.20261110-rc2-amd64/registry.yaml
 releases/11248-cm.20261110-rc2-amd64/README.md
+/cert
