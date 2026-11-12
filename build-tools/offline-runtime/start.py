@@ -152,10 +152,11 @@ def main():
     config='Component "muc.meet.jitsi" "muc"\n'
     config+='host_role_check_secret = '+json.dumps(secret)+';\n'
     config+='host_transfer_participant_domain = "meet.jitsi";\n'
-    config+='host_transfer_enabled = true;\nhost_reclaim_enabled = false;\nhost_transfer_admin_recovery_enabled = false;\n'
+    config+='host_transfer_enabled = true;\nhost_reclaim_enabled = true;\nhost_transfer_admin_recovery_enabled = false;\n'
     for name,endpoint in {'host_role_check_url':'check','host_transfer_url':'rotate',
             'host_transfer_complete_url':'complete','host_transfer_status_url':'status',
-            'host_transfer_rebind_url':'rebind','host_transfer_claim_url':'claim'}.items():
+            'host_transfer_rebind_url':'rebind','host_transfer_claim_url':'claim',
+            'host_reclaim_url':'reclaim'}.items():
         config+=name+' = "https://gateway:9443/internal/host-role/v1/'+endpoint+'";\n'
     confdir=root/'data/jitsi/prosody/config/conf.d'
     confdir.mkdir(exist_ok=True)

@@ -7,6 +7,13 @@ import unittest
 
 
 class StartTests(unittest.TestCase):
+    def test_transfer_and_creator_reclaim_enabled_together(self):
+        source=(Path(__file__).parents[1]/'offline-runtime/start.py').read_text()
+        self.assertIn('host_transfer_enabled = true;',source)
+        self.assertIn('host_reclaim_enabled = true;',source)
+        self.assertIn("'host_reclaim_url':'reclaim'",source)
+        self.assertIn('host_transfer_admin_recovery_enabled = false;',source)
+
     def setUp(self):
         path=Path(__file__).parents[1]/'offline-runtime/start.py'
         spec=importlib.util.spec_from_file_location('start',path)
