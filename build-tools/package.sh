@@ -298,13 +298,17 @@ for s in ('web','prosody','jicofo','jvb'):
     configs[s]['volumes']=['./data/jitsi/'+s+':/config']
     if s!='prosody': configs[s]['depends_on']=['prosody']
 configs['prosody']['networks']['meeting']['aliases']=['xmpp.meet.jitsi']
+configs['prosody']['environment']['XMPP_MUC_MODULES']='muc_jwt_owner,muc_host_transfer'
+configs['prosody']['environment']['CLOUDMEET_HOST_CONTROL_CA']='/host-control/ca.crt'
 configs['prosody']['volumes']=['./data/jitsi/prosody/config:/config',
  './data/jitsi/storage/prosody:/var/lib/prosody',
- './data/jitsi/prosody/prosody-plugins-custom:/prosody-plugins-custom:ro']
+  './data/jitsi/prosody/prosody-plugins-custom:/prosody-plugins-custom:ro',
+  './data/host-control/ca.crt:/host-control/ca.crt:ro']
 configs['web']['environment'].update(DISABLE_HTTPS='1',ENABLE_LETSENCRYPT='0',
  ENABLE_HTTP_REDIRECT='0',NGINX_WORKER_PROCESSES='1',XMPP_BOSH_URL_BASE='http://xmpp.meet.jitsi:5280')
 configs['jvb']['ports']=['${MEDIA_PORT:?required}:${JVB_PORT:?required}/udp']
 configs['api'].update(mem_limit='384m',environment={'JITSI_TOKEN_APP_ID':'zhsz',
+ 'JITSI_ROLE_CHECK_SECRET':'${JITSI_ROLE_CHECK_SECRET:?required}',
  'JITSI_TOKEN_APP_SECRET':'${JWT_APP_SECRET:?required}','JITSI_TOKEN_DOMAIN':'meet.jitsi',
  'JITSI_MEET_DB_URL':'jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db','BANNER_LOGO_DIRECTORY':'/data/banner-logos'},
  volumes=['./data/api:/app/data','./data/logos:/data/banner-logos'])
@@ -312,7 +316,9 @@ configs['app-web'].update(depends_on=['api'],volumes=['./data/logos:/data/banner
 configs['gateway'].update(depends_on=['app-web','web'],environment={'SITE_HOST':'${SITE_HOST:?required}',
  'PUBLIC_URL':'${PUBLIC_URL:?required}'},
   ports=['${HTTPS_PORT:?required}:443','${HTTP_PORT:?required}:80'],
- volumes=['./Caddyfile:/etc/caddy/Caddyfile:ro','caddy_data:/data','caddy_config:/config'])
+  volumes=['./Caddyfile:/etc/caddy/Caddyfile:ro','caddy_data:/data','caddy_config:/config',
+           './data/host-control/gateway.crt:/host-control/gateway.crt:ro',
+           './data/host-control/gateway.key:/host-control/gateway.key:ro'])
 compose={'name':'cloudmeet-'+os.environ['BATCH'].lower().replace('_','-'),
  'services':configs,'networks':{'meeting':{}},'volumes':{'caddy_data':{},'caddy_config':{}}}
 (out/'jitsi-base.yaml').write_text(json.dumps(compose,indent=2)+'\n')
@@ -357,9 +363,9 @@ if 'custom.css' not in (out/'patches/web/custom-head.html').read_text():
     raise ValueError('Missing CSS head reference')
 if 'custom.css' not in (out/'patches/web/nginx-custom/custom-css.conf').read_text():
     raise ValueError('Missing CSS route reference')
-# Do not ship optional capabilities as though enabled baseline patches.
+# Host transfer is part of the default product; HTTP downgrade remains optional.
 manifest['patch_decisions']={name:('install' if name in verifier.PRODUCT_PATCHES else
- 'not applicable: optional host transfer/HTTP mode is disabled') for name in manifest['patches']}
+ 'not installed: documentation or optional Web/HTTP customization') for name in manifest['patches']}
 (out/'candidate.json').write_text(json.dumps(manifest,indent=2)+'\n')
 (out/'INSTALL.md').write_text('''# CloudMeet aarch64 offline package
 

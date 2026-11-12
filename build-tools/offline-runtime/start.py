@@ -17,7 +17,7 @@ def compose_command(root):
         target=importlib.util.module_from_spec(spec); spec.loader.exec_module(target)
         values=target.load_target(root/'target.env')
         secrets=target.read_env(root/'.env')
-        if set(secrets)!={'JWT_APP_SECRET','JICOFO_AUTH_PASSWORD','JVB_AUTH_PASSWORD'}:
+        if set(secrets)!={'JWT_APP_SECRET','JICOFO_AUTH_PASSWORD','JVB_AUTH_PASSWORD','JITSI_ROLE_CHECK_SECRET'}:
             raise ValueError('Instance .env must contain secrets only')
         os.environ.update(values)
     prefix=['docker','compose']
@@ -99,7 +99,8 @@ def main():
              'patches/web/custom-head.html':'data/jitsi/web/custom-head.html',
              'patches/web/custom.css':'data/jitsi/web/custom.css',
              'patches/web/nginx-custom/custom-css.conf':'data/jitsi/web/nginx-custom/custom-css.conf',
-             'patches/prosody/mod_muc_jwt_owner.lua':'data/jitsi/prosody/prosody-plugins-custom/mod_muc_jwt_owner.lua'}
+             'patches/prosody/mod_muc_jwt_owner.lua':'data/jitsi/prosody/prosody-plugins-custom/mod_muc_jwt_owner.lua',
+             'patches/prosody/mod_muc_host_transfer.lua':'data/jitsi/prosody/prosody-plugins-custom/mod_muc_host_transfer.lua'}
     for source,target in patches.items():
         destination=root/target
         if destination.exists() or destination.is_symlink():
@@ -115,6 +116,24 @@ def main():
     os.chown(root/'data/jitsi',1000,1000)
     # Only the selected image's explicit numeric identity may own Prosody storage.
     uid,gid=manifest.get('prosody_storage_owner',[1000,1000])
+    settings=dict(line.split('=',1) for line in (root/'.env').read_text().splitlines()
+                  if line and not line.startswith('#') and '=' in line)
+    secret=settings['JITSI_ROLE_CHECK_SECRET']
+    if len(secret)<32:
+        raise ValueError('Internal service secret is too short')
+    config='Component "muc.meet.jitsi" "muc"\n'
+    config+='host_role_check_secret = '+json.dumps(secret)+';\n'
+    config+='host_transfer_participant_domain = "meet.jitsi";\n'
+    config+='host_transfer_enabled = true;\nhost_reclaim_enabled = false;\nhost_transfer_admin_recovery_enabled = false;\n'
+    for name,endpoint in {'host_role_check_url':'check','host_transfer_url':'rotate',
+            'host_transfer_complete_url':'complete','host_transfer_status_url':'status',
+            'host_transfer_rebind_url':'rebind','host_transfer_claim_url':'claim'}.items():
+        config+=name+' = "https://gateway:9443/internal/host-role/v1/'+endpoint+'";\n'
+    confdir=root/'data/jitsi/prosody/config/conf.d'
+    confdir.mkdir(exist_ok=True)
+    cfg=confdir/'zz-cloudmeet-host-control.cfg.lua'
+    cfg.write_text(config)
+    cfg.chmod(0o600)
     for path in [root/'data/jitsi/storage/prosody',root/'data/jitsi/prosody',
                  *(root/'data/jitsi/storage/prosody').rglob('*'),
                  *(root/'data/jitsi/prosody').rglob('*')]:

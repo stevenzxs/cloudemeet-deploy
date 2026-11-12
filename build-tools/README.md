@@ -4,6 +4,11 @@
 
 ## 唯一正常入口
 
+本节是服务端Actions入口；Windows MSI/Android APK的独立本机构建入口为
+`clients/build-clients.cjs`，配置唯一读取`deploy/config/client.env`，先运行
+`node build-tools/clients/build-clients.cjs --target all --check`。
+版本状态证据、工具链及候选验证边界见[客户端工具说明](clients/README.md)。
+
 将本目录受控同步至部署仓库的 `build-tools/`，将 `build-package.yml` 同步至
 `.github/workflows/build-package.yml`；公开补丁仍来自部署仓库 `patches/`。
 审核并提交推送这些文件后，在 GitHub Actions 选择 **CloudMeet compile and package aarch64**：
@@ -46,3 +51,8 @@ python -B deploy/tools/check-deployment-layout.py
 
 修改受控输入后重新生成`inputs.sha256`并核对CI副本；禁止手工跳过校验。
 新工作流不调用旧诊断工作流。`build-tools-old/`和历史包保留，不作为本入口的运行依赖。
+## 主持人转让默认集成（2026-11-12）
+
+按用户确认及 `../deploy/AGENTS.md`，所有新正常部署默认开启主持人转让。`package.sh` 外置交付公开插件及引用，`offline-runtime/initialize.py` 目标生成API共享鉴权秘密和内部TLS材料，`offline-runtime/start.py` 安装插件并生成模块/接口配置。网关内部HTTPS不发布宿主端口，公网拒绝内部接口，Prosody严格验证CA。私钥及实例秘密不进镜像或包；不能以首次初始化覆盖已有实例。
+
+找回及管理员恢复仍默认关闭，必需材料或配置缺项报错，不静默降级。包级校验与部署后轮换/撤权/接收确认/恢复验收分开。当前代码仍在收尾，CI受控副本/摘要及完整回归待核对；不表示已构建或已启用。继续使用Actions原生aarch64七服务主流程，不新增补丁交付线。

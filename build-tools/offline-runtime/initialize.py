@@ -4,6 +4,26 @@ import json
 import os
 from pathlib import Path
 import secrets
+import subprocess
+
+
+def initialize_host_control(root):
+    """Generate private internal TLS material on the installation target only."""
+    out = root/'data/host-control'
+    out.mkdir(parents=True, mode=0o755)
+    def openssl(*args):
+        subprocess.run(['openssl', *args], check=True, stdout=subprocess.DEVNULL,
+                       stderr=subprocess.DEVNULL)
+    openssl('req', '-x509', '-newkey', 'rsa:3072', '-nodes', '-days', '3650',
+            '-subj', '/CN=CloudMeet Internal CA', '-keyout', str(out/'ca.key'), '-out', str(out/'ca.crt'))
+    openssl('req', '-newkey', 'rsa:3072', '-nodes', '-subj', '/CN=gateway',
+            '-keyout', str(out/'gateway.key'), '-out', str(out/'gateway.csr'))
+    (out/'cert.ext').write_text('subjectAltName=DNS:gateway\nextendedKeyUsage=serverAuth\n')
+    openssl('x509', '-req', '-in', str(out/'gateway.csr'), '-CA', str(out/'ca.crt'),
+            '-CAkey', str(out/'ca.key'), '-CAcreateserial', '-days', '365',
+            '-extfile', str(out/'cert.ext'), '-out', str(out/'gateway.crt'))
+    for path in out.iterdir():
+        path.chmod(0o644 if path.suffix == '.crt' else 0o600)
 
 
 def main():
@@ -23,11 +43,13 @@ def main():
         text = ''
     else:
         text = (root / 'server.env.example').read_text()
-    for key in ['JWT_APP_SECRET', 'JICOFO_AUTH_PASSWORD', 'JVB_AUTH_PASSWORD']:
+    subprocess.run(['openssl', 'version'], check=True, stdout=subprocess.DEVNULL)
+    for key in ['JWT_APP_SECRET', 'JICOFO_AUTH_PASSWORD', 'JVB_AUTH_PASSWORD', 'JITSI_ROLE_CHECK_SECRET']:
         text += key + '=' + secrets.token_hex(32) + '\n'
     fd = os.open(str(root / '.env'), os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
     with os.fdopen(fd, 'w') as stream:
         stream.write(text)
+    initialize_host_control(root)
     print('Fresh secrets generated. Gateway will generate a new target CA; never export its private key.')
 
 

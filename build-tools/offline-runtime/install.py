@@ -19,6 +19,7 @@ PRODUCT_PATCHES = (
     'patches/web/custom.css',
     'patches/web/nginx-custom/custom-css.conf',
     'patches/prosody/mod_muc_jwt_owner.lua',
+    'patches/prosody/mod_muc_host_transfer.lua',
 )
 
 
