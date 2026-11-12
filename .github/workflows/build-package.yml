@@ -1,0 +1,117 @@
+name: CloudMeet compile and package aarch64
+
+on:
+  push:
+    branches: [ci/arm64-smoke]
+    paths: [.github/workflows/build-package.yml]
+  workflow_dispatch:
+    inputs:
+      material_commit:
+        description: 'Reviewed deployment-material commit SHA (must equal workflow commit)'
+        required: true
+        type: string
+      version:
+        description: 'Release version (immutable batch also includes run and attempt)'
+        required: true
+        type: string
+      origin:
+        description: 'Confirmed HTTPS origin'
+        default: 'https://47.110.84.166:8443'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  actions: read
+
+env:
+  VERSION: ${{ inputs.version || '1.0.19-rc1' }}
+  BATCH: ${{ inputs.version || '1.0.19-rc1' }}-${{ github.run_id }}-${{ github.run_attempt }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, app-web, api, web, prosody, jicofo, jvb]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify exact reviewed deployment materials
+        env:
+          MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
+        run: |
+          test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
+          sha256sum -c build-tools/inputs.sha256
+      - name: Build one service from pinned source and export exact image
+        env:
+          SERVICE: ${{ matrix.service }}
+        run: bash build-tools/package.sh build "$SERVICE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: image-${{ matrix.service }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/${{ matrix.service }}/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+
+  package:
+    needs: build
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify exact reviewed deployment materials
+        env:
+          MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
+        run: |
+          test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
+          sha256sum -c build-tools/inputs.sha256
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: downloads
+      - name: Arrange current-run artifacts (no previous batch fallback)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir incoming
+          for service in gateway app-web api web prosody jicofo jvb; do
+            mv "downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" "incoming/$service"
+          done
+          python3 -B - <<'PY'
+          import json, os, pathlib, urllib.request
+          url = os.environ['GITHUB_API_URL'] + '/repos/' + os.environ['GITHUB_REPOSITORY'] + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + '/artifacts?per_page=100'
+          request = urllib.request.Request(url, headers={'Authorization': 'Bearer ' + os.environ['GH_TOKEN'], 'Accept': 'application/vnd.github+json'})
+          with urllib.request.urlopen(request, timeout=60) as response:
+              artifacts = json.load(response)['artifacts']
+          records = []
+          for service in ('gateway','app-web','api','web','prosody','jicofo','jvb'):
+              name = 'image-' + service + '-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT']
+              matches = [a for a in artifacts if a['name'] == name and not a['expired']]
+              if len(matches) != 1: raise ValueError('Missing or duplicate artifact: ' + name)
+              artifact = matches[0]
+              records.append({key: artifact.get(key) for key in ('id','name','digest','size_in_bytes','created_at')})
+          pathlib.Path('incoming/artifacts.json').write_text(json.dumps(records, indent=2) + '\n')
+          PY
+      - name: Assemble complete package and check material integrity only
+        env:
+          PUBLIC_ORIGIN: ${{ inputs.origin || 'https://47.110.84.166:8443' }}
+        run: bash build-tools/package.sh assemble
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: cloudmeet-aarch64-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            output/*.tar.gz
+            output/*.sha256
+            output/package-evidence.json
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14

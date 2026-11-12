@@ -1,0 +1,12 @@
+{
+  "services": {
+    "web": {"repository": "https://github.com/stevenzxs/jitsi-meet.git", "commit": "f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259"},
+    "app-web": {"repository": "https://github.com/stevenzxs/jitsi-meet-web.git", "commit": "784c1d004cfcea32f5316314f5979cb74aba88b0"},
+    "api": {"repository": "https://github.com/stevenzxs/jitsi-meet-api.git", "commit": "632c247064b14fe5cd9b8806ed42cb8fb45adcba"},
+    "gateway": {"repository": "https://github.com/stevenzxs/caddy.git", "commit": "0d98caea58f794f88e709b1bef2880996a471bca"},
+    "prosody": {"repository": "https://github.com/stevenzxs/jitsi-meet-prosody.git", "commit": "72b2dc8fe282cf168ff932016fda68e034860815"},
+    "jicofo": {"repository": "https://github.com/stevenzxs/jicofo.git", "commit": "48874dc526573016ca6512ebbb697911802e4c53"},
+    "jvb": {"repository": "https://github.com/stevenzxs/jvb.git", "commit": "bf271b11f795d6546f8d78dee441c67d9ba2bf6b"}
+  },
+  "lifecycle": {"repository": "https://github.com/jitsi/docker-jitsi-meet.git", "commit": "276801c7fd4233f7288ba95bd132c219852c7ac7"}
+}

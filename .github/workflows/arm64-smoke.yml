@@ -1,0 +1,85 @@
+name: ARM64 source smoke
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  candidates:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [web, app-web, api, gateway]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Unit-test candidate integrity gates
+        run: python3 -B -m unittest discover -s tests -p test_arm64_candidates.py
+      - name: Build and test pinned source
+        run: python3 tools/arm64-candidate-build.py '${{ matrix.service }}'
+      - name: Service smoke without host ports
+        run: python3 tools/arm64-candidate-smoke.py '${{ matrix.service }}'
+      - name: Retain verified candidate image
+        run: python3 tools/arm64-candidate-evidence.py '${{ matrix.service }}'
+      - name: Upload candidate image archive and identity
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arm64-image-${{ matrix.service }}-${{ github.run_id }}
+          path: |
+            arm64-candidates/*.tar.gz
+            arm64-candidates/*.json
+            arm64-candidates/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload candidate evidence only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arm64-evidence-${{ matrix.service }}-${{ github.run_id }}
+          path: |
+            arm64-evidence/*.json
+            arm64-evidence/*.txt
+          if-no-files-found: warn
+          retention-days: 14
+
+  control-plane:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Unit-test acceptance gate
+        run: python3 -B -m unittest discover -s tests -p test_arm64_integration.py
+      - name: Build full runtimes and verify XMPP operational bridge
+        run: bash tools/arm64-control-build.sh
+      - name: Retain three verified control-plane images
+        run: python3 tools/arm64-candidate-evidence.py prosody jicofo jvb
+      - name: Upload control-plane image archives and identities
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arm64-images-control-plane-${{ github.run_id }}
+          path: |
+            arm64-candidates/*.tar.gz
+            arm64-candidates/*.json
+            arm64-candidates/*.sha256
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 7
+      - name: Upload sanitized control-plane evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: arm64-control-plane-${{ github.run_id }}
+          path: |
+            arm64-evidence/*.log
+            arm64-evidence/*.json
+            arm64-evidence/*.txt
+          if-no-files-found: warn
+          retention-days: 14

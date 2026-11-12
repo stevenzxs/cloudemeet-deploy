@@ -1,0 +1,20 @@
+{
+  "run": 42967794060,
+  "attempt": 2,
+  "artifacts": [
+    {"id":13835100016,"digest":"sha256:8215bc9aa91cdb6e4db435631868308603343b6a363f426b3675028016bd8d0b"},
+    {"id":13834876212,"digest":"sha256:fcb1a3e051022267393359950865f1966decdaf0c26d59f4fb85a3c9f2eb9e9d"},
+    {"id":13834375461,"digest":"sha256:a3392b1753bd81b40d0904230fdf2819b31bd7e670b2f17a39f3a1d05bb7a07c"},
+    {"id":13834052028,"digest":"sha256:5251b2ccd5c970e4f3afd37f5d722751c4b2e33b6d92b17b9f36248337a65abb"},
+    {"id":13833782333,"digest":"sha256:5e86faa260db0d79ebba9b9547048319376e2de202aba7f2928c5e52c1cfc5a5"}
+  ],
+  "images": {
+    "api":{"image_id":"sha256:dec2ae3d0e083eb6d89e4640460b4261e33d2ff1e8223c0012a3fb757b52fed8","sha256":"d75ee04fe65d69e10ba18dc7244c5aa9091f18cd519427d644ba150582342739","size":139581480,"archive":"api.tar.gz","source":{"repository":"https://github.com/stevenzxs/jitsi-meet-api.git","commit":"632c247064b14fe5cd9b8806ed42cb8fb45adcba"}},
+    "app-web":{"image_id":"sha256:0f681c3b2ec2439a891eef71a4ff008f8b5c083d6e49643607e342dcc0df9da1","sha256":"b8340e8f341dfc88c232d8ff57efdf21794f81eba82775440d79e112f69c129b","size":31588796,"archive":"app-web.tar.gz","source":{"repository":"https://github.com/stevenzxs/jitsi-meet-web.git","commit":"784c1d004cfcea32f5316314f5979cb74aba88b0"}},
+    "gateway":{"image_id":"sha256:611a882a19ad04ee5ecdace96698ce4bae41963ed63cc9c58ea3627e736065e1","sha256":"f068c426bf7b434f9018dc48861a0206933d25c10f9bccf8540125260494da9b","size":112933155,"archive":"gateway.tar.gz","source":{"repository":"https://github.com/stevenzxs/caddy.git","commit":"0d98caea58f794f88e709b1bef2880996a471bca"}},
+    "web":{"image_id":"sha256:0ff05ca5b1787e75af5eaab721f5bc27e5e25a5026dad680416f3860fab70d27","sha256":"a3c0e420d64fac18d5c9f37b45808bd541f9e2501fd086b7caf649e1bf29a41e","size":129349766,"archive":"web.tar.gz","source":{"repository":"https://github.com/stevenzxs/jitsi-meet.git","commit":"f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259"}},
+    "jicofo":{"image_id":"sha256:0fb74b8d30df64dd73d3e03546bbff4495f668f6839dcfc062ff5439e71dc6a0","sha256":"3768ab291295668a56fbb484a96819e644c15d4dfeb24df2f7d3a071976a1dd8","size":180913418,"archive":"jicofo.tar.gz","source":{"repository":"https://github.com/stevenzxs/jicofo.git","commit":"48874dc526573016ca6512ebbb697911802e4c53"}},
+    "jvb":{"image_id":"sha256:ba83185baff1ea8d63c6ae3d12ffc5063bc5d75fe4018971628489f7e03fed37","sha256":"f031882808b70a9847937266724d890388b2847118c3fbba880ffae064ebac42","size":271918088,"archive":"jvb.tar.gz","source":{"repository":"https://github.com/stevenzxs/jvb.git","commit":"bf271b11f795d6546f8d78dee441c67d9ba2bf6b"}},
+    "prosody":{"image_id":"sha256:2214a8899babbf00aa41ed541061ee7de93a2d98b4b5665813c709293e1653fe","sha256":"f2951f2f3c4663d08bc35c7d26560a8215e86b00ac255541730088a45343e79c","size":64564429,"archive":"prosody.tar.gz","source":{"repository":"https://github.com/stevenzxs/jitsi-meet-prosody.git","commit":"72b2dc8fe282cf168ff932016fda68e034860815"}}
+  }
+}
