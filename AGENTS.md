@@ -16,7 +16,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 ## 3. 目录与唯一流程
 
 - `deploy/release/` 是唯一新增交付入口，架构名称使用 `amd64`、`aarch64`。不再建立或下载到 `deploy/debug/`。release是交付用途，不等同编译器构建模式或签名身份。
-- `release/<架构>/server/` 放编译组包及材料完整性校验通过的完整服务器包，`clients/` 放客户端构建产物并注明OS/ABI和签名，`dependencies/` 放按OS/版本区分的Docker、Compose依赖。缺必需材料的未完成候选留Actions，不作为完整包交付。完整包附构建/校验记录、INSTALL、摘要和前置条件；不以安装测试作为进入release的条件。
+- `release/<架构>/server/` 放完整服务器包，`release/<架构>/dependencies/` 放Docker、Compose依赖；客户端单独放在`release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级，并注明OS/ABI、多ABI实际集合及签名。缺必需材料的未完成候选不作为完整包交付。完整包附构建/校验记录、INSTALL、摘要和前置条件；不以安装测试作为进入release的条件。此次仅调整文档，不移动或改写已有客户端批次，其旧路径仍是实际位置。
 - 架构按产物本身而非其连接的服务器划分。客户端注明 OS/ABI；多ABI包记录实际支持集合，不冒称单架构。依赖在 dependencies 下按目标OS/版本和组件版本区分，记录来源、摘要、安装前提及验证状态；有安装材料不等于该平台安装通过，不授权覆盖已有引擎。
 - 目录调整：用户明确授权删除deploy/debug及全部内容，不迁移其中候选包和证据。旧 `packages/`、`history/`、`artifacts/`、`releases/`、根 `clients/` 和 `offline-packs/` 不在此次删除范围。现有工具可能仍输出旧路径，不能声称已完成工具迁移；发现旧debug输出须先停用，不得重建目录。
 - `config/` 用于人工维护公共配置，现有 `artifacts/nginx.conf` 尚未迁入；旧 `releases/` 为镜像候选登记、`offline-packs/` 为既有引擎材料，均不是另一条正式交付主线。
@@ -53,7 +53,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `release/` | 完整部署包交付根；材料/摘要校验不代表安装运行结果 |
 | `release/amd64/`、`release/aarch64/` | 按产物实际架构组织正式交付 |
 | `release/amd64/server/`、`release/aarch64/server/` | 完整服务器部署包，按批次保存，不原地改包 |
-| `release/amd64/clients/`、`release/aarch64/clients/` | 注明OS/ABI、版本、签名与摘要的客户端交付包 |
+| `release/clients/` | 客户端独立交付根，与release/amd64、release/aarch64同级 |
+| `release/clients/amd64/`、`release/clients/aarch64/` | 按批次保存客户端，注明OS/ABI、版本、签名与摘要；多ABI包如实登记完整集合，不冒称单架构 |
 | `release/amd64/dependencies/`、`release/aarch64/dependencies/` | Docker/Compose等依赖安装材料，细分OS/版本，不自动安装 |
 | `config/` | 人工维护公共配置、模板及初始化/启动入口；实例秘密和数据仍在deploy根 |
 | `config/target.env` | 无固定网页入口IP的端口配置及可选MEDIA_HOST；接受本地证书告警，不接受workflow origin覆盖 |
@@ -314,7 +315,7 @@ flowchart TD
 - 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；已恢复四项配置读取和候选构建编排，须先执行--check。版本转换约定替代旧历史证据/预留计数方案，不变更历史包或既有记录。工具回归通过不代表真实编译或包级验证完成。
 - 每批核对完整 origin、实际 MSI/APK 版本和摘要、包内入口及目标公开 CA。新地址不会自动配置 CA 信任。Electron 按准确 origin 限定信任；Android 按主机限定，保留已有端点策略，不打包私钥。
 - 实测 APK signing certificate、MSI/内嵌程序实际签名与有效性；旧 manifest 固定文案和文件名不是签名证据。签名改变字节后重新计算最终摘要。
-- 客户端交付进入 `deploy/release/<架构>/clients/<批次>/`，明确OS/ABI、签名、版本和摘要；不再设置debug交付树。恢复后的构建器将未验证候选保留于本机Temp/opencode/cloudmeet-clients-*，不自动晋级release；历史history/client-builds不作为新输出入口。编译打包不自动安装设备应用或清数据。
+- 客户端新增交付进入 `deploy/release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级，明确OS/ABI、签名、版本和摘要；不再设置debug交付树。已有批次仍按其实际旧路径引用，不因文档变更宣称已迁移。恢复后的构建器将未验证候选保留于本机Temp/opencode/cloudmeet-clients-*，不自动晋级release；历史history/client-builds不作为新输出入口。编译打包不自动安装设备应用或清数据。
 
 ## 9. 记录与能力边界
 

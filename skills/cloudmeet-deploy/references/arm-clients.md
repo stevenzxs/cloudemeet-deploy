@@ -43,4 +43,6 @@ Electron 需要 WiX v3、SDK/.NET 和合法 OpenVPN payload；Android 需要 JDK
 
 WiX自动依次识别WIX/bin、WIX本身的便携目录、PATH、默认v3.14/v3.11目录；先检查已有工具，勿重复安装或全局修改环境。编译器candle.exe和链接器light.exe均须可用。预检查通过不证明完整工具链可完成编译。
 
-唯一新增交付位置为 `deploy/release/<架构>/clients/<批次>/`，按客户端自身OS/ABI归类，多ABI如实登记，明确签名及已验范围。恢复的本机构建器将候选、日志和build.json保留于Temp/opencode/cloudmeet-clients-*，不另建debug目录、不再输出旧history/client-builds、不自动晋级release。build.json记录编译状态与产物摘要，但不自动验证二进制版本、包内origin/ABI或签名，交付前须分别核验。旧材料不自动移动或删除。MSI安装升级、VPN、卸载须隔离环境验收，不自动卸载开发机旧版本；安装运行与真实会议分别报告。
+预检查和新批次build.json的deliveryRoot应为工作区`deploy/release/clients`，用于核对正式交付根；它不是已交付状态，也不触发自动创建、晋级或移动。实际候选路径仍看candidate字段，历史build.json不可原地修改。
+
+唯一新增交付位置为`deploy/release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级，按客户端自身OS/ABI归类，多ABI如实登记，明确签名及已验范围。已有批次保留实际旧路径，不因文档更新声称已迁移。恢复的本机构建器将候选、日志和build.json保留于Temp/opencode/cloudmeet-clients-*，不另建debug目录、不再输出旧history/client-builds、不自动晋级release。build.json记录编译状态与产物摘要，但不自动验证二进制版本、包内origin/ABI或签名，交付前须分别核验。旧材料不自动移动或删除。MSI安装升级、VPN、卸载须隔离环境验收，不自动卸载开发机旧版本；安装运行与真实会议分别报告。

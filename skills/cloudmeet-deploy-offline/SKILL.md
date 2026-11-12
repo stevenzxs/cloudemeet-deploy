@@ -5,7 +5,7 @@ description: Use when producing CloudMeet / Jitsi offline deployment bundles for
 
 # CloudMeet 离线部署包产出技能
 
-目录约定：仅从 `deploy/release/<amd64|aarch64>/{server,clients,dependencies}/` 交付。完整包通过材料/架构/配置引用/摘要校验即可输出release，附INSTALL、来源与前置条件；不要求安装测试。缺必需材料的候选留Actions。不得重建deploy/debug，不删除其他历史材料；工具尚未全面适配，完整规范仅由deploy/AGENTS.md负责。
+目录约定：服务端及依赖从`deploy/release/<amd64|aarch64>/{server,dependencies}/`交付，客户端独立从`deploy/release/clients/<架构>/<批次>/`交付，clients与amd64、aarch64同级。完整包通过材料/架构/配置引用/摘要校验即可输出release，附INSTALL、来源与前置条件；不要求安装测试。不得重建deploy/debug，不删除其他历史材料，已有批次不因文档更新而迁移。完整规范仅由deploy/AGENTS.md负责。
 
 按 **收集打包参数 → 生成内容清单 → 用户确认 → 逐工件获取/构建并报告 → 组装校验 → 交付报告** 执行。历史实例只是排坑证据，不是默认地址、平台或内容。本次仅要求编写方案/评估时不执行构建，也不连接任何服务器。
 
@@ -15,7 +15,7 @@ description: Use when producing CloudMeet / Jitsi offline deployment bundles for
 
 编译、打包、部署的唯一规范源为 `deploy/AGENTS.md`，完整要求均在该文件。本技能及后续 references 仅提供操作方法、示例和排坑资料，不新增或覆盖规范；入口登记和 README 只提供实现清单与材料导航。
 
-- 唯一新增交付入口为 `deploy/release/<架构>/{server,clients,dependencies}/`，合格包随附reports证据；候选留Actions。旧packages/history/clients仅历史或内部实现，不作为新增交付入口。构建工具在build-tools，服务端按已批准Actions原生架构路线执行，本机不启动Docker或用WSL组包；客户端工具仍在Windows。
+- 新增服务端/依赖入口为`deploy/release/<架构>/{server,dependencies}/`，客户端入口为`deploy/release/clients/<架构>/<批次>/`。旧packages/history及deploy根clients仅历史或内部实现。构建工具在build-tools，服务端按已批准Actions原生架构路线执行，本机不启动Docker或用WSL组包；客户端工具仍在Windows。
 - 开始时记录目标OS/架构/origin、来源、服务/补丁/客户端范围和终点；用户已确认项不重复提问。“继续到可安装”意味着连续完成整批验证，非每小步请求继续。
 - 从当前源码构建=工作区应用源码+公开依赖/基镜像；不扩展为所有依赖源码重编译。记录实际commit/dirty、基镜像、依赖与产物身份；保留原env/锁文件，不运行audit fix、不擅升依赖、不以发布应用镜像替代源码构建。
 - 只做当前里程碑。安全扫描发现问题如实列风险，不自动进入无限CVE/软件包整改；新高风险工作或具体阻塞才询问，其他独立工作继续推进。

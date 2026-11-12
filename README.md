@@ -13,8 +13,9 @@
 ```text
 deploy/
 ├─ release/
-│  ├─ amd64/{server,clients,dependencies}/
-│  └─ aarch64/{server,clients,dependencies}/
+│  ├─ clients/<架构>/<批次>/       # 客户端独立交付根，注明OS/ABI
+│  ├─ amd64/{server,dependencies}/
+│  └─ aarch64/{server,dependencies}/
 └─ config/
 ```
 
@@ -186,7 +187,7 @@ node build-tools/clients/build-clients.cjs --target all --env-file deploy/config
 node --test build-tools/clients/tests/*.test.cjs
 ```
 
-唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。统一入口已恢复，Android versionCode自动从配置版本转换，无需历史证据，详见[工具说明](../build-tools/clients/README.md)。候选输出到本机Temp/opencode/cloudmeet-clients-*，不自动晋级交付；逐项验证后新客户端交付仍按产物架构放入 `deploy/release/<架构>/clients/<批次>/`，实际签名必须检查产物，不能信任固定文案。
+唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。统一入口已恢复，Android versionCode自动从配置版本转换，无需历史证据，详见[工具说明](../build-tools/clients/README.md)。候选输出到本机Temp/opencode/cloudmeet-clients-*，不自动晋级交付；新客户端交付放入`deploy/release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级。此前1.0.19-20261112-143033批次仍在原架构目录下的clients中，本轮仅改文档、未移动包。实际签名必须检查产物，不能信任固定文案。
 
 发布版本唯一读取`deploy/config/client.env`的`CLIENT_VERSION`，当前填写`1.0.19`；Electron产品版本和Android versionName共用该值。Android versionCode按`major×1000+minor×100+patch`转换，本次为`1019`；minor限定0..9、patch限定0..99。相同版本得到相同code，不自动递增，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译；不自动卸载或清数据。构建记录保留实际版本和versionCode。
 

@@ -5,7 +5,7 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 # CloudMeet 交互式部署技能
 
-目录约定（2026-11-11）：仅从 `deploy/release/<amd64|aarch64>/{server,clients,dependencies}/` 交付；`deploy/config/` 为公共配置目标。未完成候选留在Actions临时工作区及有期限artifact，不下载到本地交付树，不通过改状态或改目录放行。用户已授权删除 `deploy/debug/` 全部内容、不迁移其中材料；不得重建。其他旧材料不在删除范围，工具输出尚未全面适配。完整规范仅由 deploy/AGENTS.md 负责。
+目录约定：服务端及依赖从`deploy/release/<amd64|aarch64>/{server,dependencies}/`交付，客户端从`deploy/release/clients/<架构>/<批次>/`交付，clients与amd64、aarch64同级。`deploy/config/`为公共配置目标。不得重建deploy/debug，不删除或改写其他历史材料；已有客户端批次并未因文档更新而迁移。完整规范仅由deploy/AGENTS.md负责。
 
 按 **收集部署参数 → 解释服务和补丁 → 用户确认方案 → 逐服务部署并报告进度 → 关键测试及结果报告** 执行。历史实例只是排坑证据，不是默认地址、平台或部署方案。本次仅要求编写文档/计划时不连接或部署。
 
@@ -14,7 +14,7 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 编译、打包、部署的唯一规范源为 `deploy/AGENTS.md`，完整要求均在该文件。本技能及后续 references 仅提供操作方法、示例和排坑资料，不新增或覆盖规范；入口登记和 README 只提供实现清单与材料导航。
 
 执行规范完整集中在 `deploy/AGENTS.md`；根 AGENTS 的环境保护要求仍遵守，README 仅导航材料，无需靠其他文档补全规范。维护源 `deploy/skills/cloudmeet-deploy/`，安装副本同步使用。
-交付按产物自身架构使用 `amd64` 或 `aarch64`，不是按客户端连接的服务器分类：合格服务器包进 `deploy/release/<架构>/server/<批次>/`，客户端进同级 `clients/<批次>/`，Docker/Compose等依赖进 `dependencies/<OS及版本>/<组件版本>/`。服务器包附INSTALL、摘要、前置条件及reports证据；客户端明确OS/ABI、签名及已验范围，多ABI如实登记。release是交付用途，不等同编译模式、签名或自动获得资格。
+交付按产物自身架构使用amd64或aarch64，不按客户端连接的服务器分类：服务器包进`deploy/release/<架构>/server/<批次>/`，依赖进`deploy/release/<架构>/dependencies/<OS及版本>/<组件版本>/`，客户端独立进`deploy/release/clients/<架构>/<批次>/`。服务器包附INSTALL、摘要及前置条件；客户端明确OS/ABI、签名及已验范围，多ABI如实登记。release是交付用途，不等同编译模式、签名或自动获得资格。
 执行前核对工具真实输出；旧debug输出先停用，不能因旧脚本仍在写入而重建目录或改存release。旧 packages/history/artifacts/releases/根clients/offline-packs 留待用户人工整理，不自动删除或迁移，历史内部构建输出不当作新增交付入口。本次同步不声称构建器已适配。人工公共配置目标位置为 deploy/config，旧配置仍在原位；工具在 build-tools，技能维护源在 deploy/skills。
 用户已确认的目标、origin、架构、源码来源和范围不反复问；按请求的里程碑完成整批验证，不每小步停下。源码构建允许公开依赖/基镜像，保留原env/锁文件和实际来源记录，不擅自拓展CVE整改或依赖升级。
 打包按deploy/AGENTS.md第6节执行：编译/复用、组包、材料完整性校验、输出release包；不准备测试环境，不将安装/运行测试作为出包条件。打包完成不等于目标已安装或媒体验收通过。下文实际部署与验收操作仅适用另行要求的部署任务，不属于打包流程。
@@ -30,6 +30,7 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 - `build-tools/clients/build-clients.cjs`已恢复四项配置读取及候选构建编排，先执行--check。WiX从WIX/bin、WIX便携目录、PATH及默认v3安装目录识别，不因默认目录不存在就要求重装。预检查通过不证明真实编译、签名或安装通过，不绕过统一入口和锁。
 - 服务端无固定IP模式只让页面/信令跟随请求入口，不负责客户端首次寻址。接受浏览器证书告警不等于Electron/Android自动接受证书；分别检查限定信任策略，不全局关闭证书校验。
 - 构建与签名步骤见[客户端参考](references/arm-clients.md)；只更新文档不触发构建、安装、服务器操作或占用版本。
+- 客户端脚本的deliveryRoot应指向`deploy/release/clients`，与release/amd64、release/aarch64同级；candidate仍是临时候选目录。不得把deliveryRoot字段当作已交付证据，不自动移动历史安装包或修改历史manifest。
 
 实际部署前先询问以下项目。用户本次已明确的值直接复述确认，只补问缺项，不从历史环境或本机 `.env` 代替用户决定。仅编写交付文档或更新技能时，不要求SSH账号或清理选择，也不连接服务器；缺失的规模、拓扑或单价列为待确认，先形成带假设的草案：
 
