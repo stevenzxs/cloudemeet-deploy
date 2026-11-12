@@ -96,7 +96,7 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 | `config/docker-compose.yml` | 网关、业务 Web/API 以及 Jitsi 环境覆盖；必须在根基础配置之后合并 |
 | `config/jitsi-base.yaml` | 官方 Jitsi Web、Prosody、Jicofo、JVB 四组件定义 |
 | `config/jitsi.env` | Jitsi 非秘密配置、资源参数和私有管理端口 |
-| `config/Caddyfile` | 公共网关模板：私有CA、统一路由、内部接口阻断及PUBLIC_URL参数化重定向 |
+| `config/Caddyfile` | 无固定IP的HTTPS模板：本地私有CA兜底证书、通配路由、内部接口阻断，HTTP返回426 |
 | `config/init.py` | 首次创建deploy根的数据目录和随机秘密，拒绝覆盖已有 `.env` |
 | `config/start.sh` | 固定deploy项目根，复制持久补丁、校验并启动，不删除数据、不隐式拉镜像 |
 | `patches/` | 品牌、CSS 和主持人角色插件的部署副本 |
