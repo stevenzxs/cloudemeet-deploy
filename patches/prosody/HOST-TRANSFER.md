@@ -1,4 +1,4 @@
-# Optional host transfer deployment
+# Host transfer: default product integration and historical maintenance
 
 ## Versioned sources and boundaries
 
@@ -7,9 +7,22 @@
 - Sanitized business Web IQ errors: stevenzxs/jitsi-meet-web commit `784c1d0`.
 - API baseline `632c247` already implements durable rotation/claim/ack/recovery. Inject `JITSI_ROLE_CHECK_SECRET`; do not claim Java changes are necessary without evidence.
 
-Default templates do not enable transfer. Ordinary JWT owner mapping is not this feature. Never replace rotation/revocation with an ordinary moderator grant. Administrator recovery remains off.
+As explicitly approved on 2026-11-12, all new normal deployments enable host transfer by default through the formal package and shared offline runtime, not a separate patch overlay. This policy is defined in deploy/AGENTS.md. Ordinary JWT owner mapping is not this feature; never replace rotation/revocation with an ordinary moderator grant. Creator reclaim and administrator recovery remain off. Existing packages and servers are not automatically updated.
 
-## Incremental procedure
+The current local implementation is still being completed and verified; this document does not claim an Actions build or target runtime has passed. The normal chain is build-tools/package.sh → offline-runtime/initialize.py → offline-runtime/start.py: deliver public plugins, generate the internal service secret and private TLS material on target, inject the secret into API, expose HTTPS only on the container network, and configure Prosody module loading, strict trust and authenticated endpoints. Missing required materials/configuration must fail, not silently disable transfer. Packaging validates materials only; rotation, revocation, acknowledgement and recovery acceptance remain separate.
+
+## Historical incremental procedure (not the normal new-deployment entry)
+
+Preparation now discovers the container UID/GID and preserves existing XMPP_MUC_MODULES;
+root service identities require explicit review. The API secret is generated server-side
+in mode0600 host-control/api.env and shared with the Prosody candidate configuration.
+The internal gateway listener has no published Compose port, validates the private
+certificate chain, and allows only the named internal POST routes. Preparation keeps
+transfer/reclaim disabled until backend verification. Staging preserves the existing
+Caddyfile inode/public certificate configuration and checks both plugin destinations
+before copying. Backup includes source-images.yaml/target configuration when present;
+registry.yaml is optional for source-built packages. These are preparation tools,
+not an automatically executed deployment or a complete fresh-package integration.
 
 1. Check actual instance origin/project/Compose/digests and idle conferences. Run `python3 tools/backup-host-control.py --root <instance> --project <project>`. It preserves config/plugins/container identities and creates an integrity-checked SQLite backup. Backup is server-only mode0700 and contains secrets.
 2. Run `python3 tools/prepare-host-control.py --root <instance> --prosody-container <container>`. Existing output refuses overwrite. It generates strict private TLS, an independent service secret and an initially disabled overlay in `host-control/`. Confirm API port9000 and context `/mapi` against runtime.
