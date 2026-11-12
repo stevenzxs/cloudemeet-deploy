@@ -20,11 +20,14 @@
 SITE_DOMAIN=<客户端实际访问的外层IP或域名，不含协议和端口>
 SITE_SCHEME=https
 SITE_PORT=<外层访问端口>
+CLIENT_VERSION=<三段数字发布版本>
 ```
 
 MSI/APK共用此入口；不得从服务端target.env、.env、旧client.env、进程环境或源码默认值覆盖/回退。无效或缺项必须拒绝打包。服务端通配监听不代替客户端首次寻址。
 
-**当前阻塞：**`build-tools/clients/build-clients.cjs`及`release-version.json`缺失，以下是恢复并接通配置后的命令，不是当前已可执行的入口。不得绕过统一版本分配直接运行Forge/Gradle充当正式发布。
+CLIENT_VERSION为唯一发布版本来源，按原值用于Electron产品版本和Android versionName；不自动递增补丁号，不从release-version.json或环境变量覆盖。Android versionCode不是versionName，必须核对历史记录并保持递增；缺证据不重置、不猜测。构建manifest记录两者。实例具体版本读取配置文件，不在本参考中设默认值。
+
+**当前阻塞：**`build-tools/clients/build-clients.cjs`缺失，以下是恢复并接通四项配置及Android versionCode状态后的命令，不是当前已可执行的入口。不得绕过统一构建入口直接运行Forge/Gradle充当正式发布。
 
 恢复后在工作区根运行：
 

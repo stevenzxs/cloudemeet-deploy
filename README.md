@@ -188,9 +188,9 @@ node --test build-tools/clients/tests/*.test.cjs
 
 唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。当前统一构建工具及版本状态文件缺失，须恢复并接通配置后才能打包。原工具内部输出路径为 `deploy/history/client-builds/<批次>/`；新客户端交付仍按产物架构放入 `deploy/release/<架构>/clients/<批次>/`，实际签名必须检查产物，不能信任固定文案。
 
-Release 统一使用此入口：每次实际构建在锁内将 `release-version.json` 的补丁号加一（1.0.0 → 1.0.1 → 1.0.2），同一批次 Electron 和 Android 共享该版本。Android versionCode 按时间值与上次值+1取大者，保持递增。`--check` 不占版本；失败构建已占版本不回退，批次 release.json 保留分配记录。请保留此状态文件，不手动回退或在多台构建机各自维护计数。
+发布版本唯一读取`deploy/config/client.env`的`CLIENT_VERSION`，当前填写`1.0.19`；Electron产品版本和Android versionName共用该值。按配置原值构建，不自动递增补丁号，不以`release-version.json`覆盖发布版本。此约定替代旧自动递增方案。Android versionCode仍须依据历史已发布记录保持递增，不能直接填写1.0.19或在状态未知时从头计数；构建记录必须保留实际版本和versionCode。仅修改文档/配置不占用versionCode、不重写历史发布记录。
 
-构建期间 Electron package.json 临时注入版本并恢复；Android 用 Gradle 参数注入，不改默认 appVersion。直接运行 Forge/npm make/Gradle 不经过统一计数，因此发布包不要绕过本入口。Debug 构建不递增此计数。
+恢复构建器后应在构建期间向Electron package.json临时注入CLIENT_VERSION并恢复；Android用Gradle参数注入versionName和经核对递增的versionCode，不改源码默认appVersion。不得绕过统一入口直接运行Forge/npm make/Gradle充当正式发布；当前配置尚未接入缺失的构建器。
 
 Electron 需 WiX v3、有效 OpenVPN payload；Android 需 JDK 17、SDK/Build Tools 35、项目 NDK 及依赖。脚本临时修改源码入口配置并在正常结束时恢复；禁止并发构建或删除活动锁。强制中断后先检查配置恢复情况。
 

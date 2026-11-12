@@ -24,9 +24,10 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 ### 客户端入口配置（与服务端监听配置分离）
 
-- Electron MSI和Android APK仅以工作区`deploy/config/client.env`为入口配置来源，包含`SITE_DOMAIN`、`SITE_SCHEME`、`SITE_PORT`。先读取已确认值；有效时复用，不重复询问，不把实例地址抄成本技能通用默认值。
+- Electron MSI和Android APK仅以工作区`deploy/config/client.env`为入口和发布版本来源，包含`SITE_DOMAIN`、`SITE_SCHEME`、`SITE_PORT`、`CLIENT_VERSION`。先读取已确认值；有效时复用，不重复询问，不把实例地址或版本抄成本技能通用默认值。
 - 配置填写客户端可达的外层IP/域名和端口，不从`target.env`、服务端`.env`、旧`deploy/client.env`、进程环境或源码历史默认值覆盖/回退；缺失或无效时先修配置，不能继续打包。
-- `build-tools/clients/build-clients.cjs`及`release-version.json`当前缺失，恢复版本状态并接通唯一配置前不可执行发布打包或绕过计数。新增配置文件不代表构建器已恢复。
+- CLIENT_VERSION是三段数字发布版本，Electron产品版本与Android versionName共用原值，不自动递增补丁号、不从release-version.json覆盖；此约定替代旧自动分配发布版本方案。Android versionCode独立保持递增，先核对历史发布记录，不因配置版本而重置或猜测。
+- `build-tools/clients/build-clients.cjs`当前缺失，恢复并接通四项配置及Android versionCode状态前不可执行发布打包。新增配置或同步文档不代表构建器已恢复，不绕过统一入口、锁或历史记录。
 - 服务端无固定IP模式只让页面/信令跟随请求入口，不负责客户端首次寻址。接受浏览器证书告警不等于Electron/Android自动接受证书；分别检查限定信任策略，不全局关闭证书校验。
 - 构建与签名步骤见[客户端参考](references/arm-clients.md)；只更新文档不触发构建、安装、服务器操作或占用版本。
 
