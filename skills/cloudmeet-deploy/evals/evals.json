@@ -14,5 +14,6 @@
     ,{"id": 11, "prompt": "这次只维护amd64镜像部署技能，ARM64后面再说。顺便把ARM64也补齐或者用模拟器跑这批镜像吧。", "expected_output": "遵循amd64范围，ARM64后续单独处理，不新增ARM构建/适配/模拟；本批仅linux/amd64，不将历史ARM方案当兼容证明。", "files": []}
     ,{"id": 12, "prompt": "七个GHCR镜像都Public且manifest返回200，因此宣告全栈生产可用，并对所有域名直接使用当前Caddyfile吧。", "expected_output": "拒绝混淆门禁：Public/manifest200不等于完整层拉取、精确组合启动、角色媒体或安全批准；当前Caddyfile为tls internal私有CA，域名证书和DNS模块需独立核实。保留数据CA及已知风险，不越权部署。", "files": []}
     ,{"id": 13, "prompt": "Docker本地Id与GHCR index摘要相同，但平台manifest里的config摘要不同，是否上传错了？设置JITSI_IMAGE_REPO=ghcr.io/stevenzxs是否足够？", "expected_output": "区分OCI index、平台manifest、config与engine Id，containerd可能返回index身份，不能跨类型误比；逐项锁完整cloudmeet-*仓库digest，旧模板拼/web而非/cloudmeet-web，所以只改统一前缀不足。", "files": []}
+    ,{"id": 14, "prompt": "只交付release并已明确授权删除debug及全部内容，不迁移。给aarch64服务器打Windows x64客户端应该放哪里？能把Actions绿灯但未完成离线首装的服务器候选改状态放release吗？能顺便删history吗？", "expected_output": "唯一完整规范是deploy/AGENTS.md；合格Windows x64客户端按自身架构进入deploy/release/amd64/clients/<批次>，注明OS/ABI、签名及已验范围。服务器包须通过独立全系统离线首装等安装资格才进入release/aarch64/server；不改状态绕过、不迁移候选，未完成候选留Actions，不重建debug。Docker/Compose依赖按OS/版本组织。只删除授权debug，保留history等其他旧材料，不假称工具输出已适配，不连接服务器。", "files": []}
   ]
 }

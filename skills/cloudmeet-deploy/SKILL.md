@@ -5,14 +5,19 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 # CloudMeet 交互式部署技能
 
+目录约定（2026-11-11）：仅从 `deploy/release/<amd64|aarch64>/{server,clients,dependencies}/` 交付；`deploy/config/` 为公共配置目标。未完成候选留在Actions临时工作区及有期限artifact，不下载到本地交付树，不通过改状态或改目录放行。用户已授权删除 `deploy/debug/` 全部内容、不迁移其中材料；不得重建。其他旧材料不在删除范围，工具输出尚未全面适配。完整规范仅由 deploy/AGENTS.md 负责。
+
 按 **收集部署参数 → 解释服务和补丁 → 用户确认方案 → 逐服务部署并报告进度 → 关键测试及结果报告** 执行。历史实例只是排坑证据，不是默认地址、平台或部署方案。本次仅要求编写文档/计划时不连接或部署。
 
 ## 0. 工作区入口与执行边界
 
-先读取根 `AGENTS.md`、`deploy/AGENTS.md`、`deploy/README.md`，本技能细则不覆盖工作区当前事实。维护源 `deploy/skills/cloudmeet-deploy/`，安装副本同步使用。
-交付只进 `deploy/`：`packages/` 是完整服务器包、`history/` 是证据、`clients/` 是验收客户端、`skills/` 是维护源；工具在 `build-tools/`，不重建根级历史/技能目录。
+编译、打包、部署的唯一规范源为 `deploy/AGENTS.md`，完整要求均在该文件。本技能及后续 references 仅提供操作方法、示例和排坑资料，不新增或覆盖规范；入口登记和 README 只提供实现清单与材料导航。
+
+执行规范完整集中在 `deploy/AGENTS.md`；根 AGENTS 的环境保护要求仍遵守，README 仅导航材料，无需靠其他文档补全规范。维护源 `deploy/skills/cloudmeet-deploy/`，安装副本同步使用。
+交付按产物自身架构使用 `amd64` 或 `aarch64`，不是按客户端连接的服务器分类：合格服务器包进 `deploy/release/<架构>/server/<批次>/`，客户端进同级 `clients/<批次>/`，Docker/Compose等依赖进 `dependencies/<OS及版本>/<组件版本>/`。服务器包附INSTALL、摘要、前置条件及reports证据；客户端明确OS/ABI、签名及已验范围，多ABI如实登记。release是交付用途，不等同编译模式、签名或自动获得资格。
+执行前核对工具真实输出；旧debug输出先停用，不能因旧脚本仍在写入而重建目录或改存release。旧 packages/history/artifacts/releases/根clients/offline-packs 留待用户人工整理，不自动删除或迁移，历史内部构建输出不当作新增交付入口。本次同步不声称构建器已适配。人工公共配置目标位置为 deploy/config，旧配置仍在原位；工具在 build-tools，技能维护源在 deploy/skills。
 用户已确认的目标、origin、架构、源码来源和范围不反复问；按请求的里程碑完成整批验证，不每小步停下。源码构建允许公开依赖/基镜像，保留原env/锁文件和实际来源记录，不擅自拓展CVE整改或依赖升级。
-材料齐备、可安装、目标已安装、客户端/媒体验收四个状态不可混淆。服务器包可安装须独立全系统无外网首装、空store导入和控制面验收证据；目标实装须目标证据；完整验收还需目标新CA客户端及真实多端媒体。报告实际完成门禁/路径/阻塞，不编造百分比，不把已知风险标已接受。
+打包按deploy/AGENTS.md第6节执行：编译/复用、组包、材料完整性校验、输出release包；不准备测试环境，不将安装/运行测试作为出包条件。打包完成不等于目标已安装或媒体验收通过。下文实际部署与验收操作仅适用另行要求的部署任务，不属于打包流程。
 离线包使用包内 `INSTALL.md` 的实测入口，不套用根级在线模板或临时联网补包。客户端用目标新CA公开根，不用测试VM CA、不带私钥。不因打包/本地归并擅自SSH、停止、删除或切换任何服务器；破坏性目标操作仍须下文精确二次确认。
 
 ## 1. 首先询问部署选择
@@ -54,7 +59,7 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 输出脱敏部署清单（后续命令只能使用本清单的值，不拼入历史地址）：
 
 ```yaml
-target: { ssh_host: <主机>, ssh_port: <端口>, os: <系统>, arch: <amd64|arm64> }
+target: { ssh_host: <主机>, ssh_port: <端口>, os: <系统>, arch: <amd64|aarch64> }
 access: { mode: <domain|ip>, scheme: <https|http>, host: <域名或IP>, port: <端口> }
 public_origin: <scheme://host:port，省略默认端口>
 jitsi_origin: <明确的origin，通常与public_origin相同>
@@ -65,6 +70,9 @@ release: <源码版本或每服务镜像digest>
 deploy_dir: <部署目录>
 compose_project: <本次项目名>
 services: <本次部署服务、复用服务、排除服务>
+artifact_usage: release # 仅合格交付；未完成候选留Actions，不填本地交付路径
+artifact_arch: <产物自身架构，不从服务器架构推断客户端架构>
+actual_output: <核对当前工具后的实际路径，不能假称已迁移>
 ```
 
 秘密不放进清单/聊天/客户端/镜像。不要打印完整 `.env`、`docker inspect` 或带秘密的 Compose 展开结果，校验优先 `config --quiet`。
@@ -146,11 +154,15 @@ HTTP模式普通浏览器缺安全上下文不当应用故障；仅在明确批�
 
 ## 7. 最终交付与历史参考
 
+本批Docker包不包含宿主操作系统，不要求麒麟ISO。包级安装资格不作为编译打包门禁；宿主兼容性前提写入INSTALL，不能仅凭发行版名称宣称兼容。具体材料缺失/已知不兼容应修复或明确报告，不虚构已适配。
+
+“打包release”仅执行第6节流程，复用适用镜像，组装配置/补丁/依赖/安装工具和说明，校验最终归档及下载副本摘要，报告实际release路径。无安装/运行测试环节。现有READY拒绝逻辑需单独修复，不手改状态或以文档宣称已完成。本文不表示现有工具已适配。
+
 交付：本次入口/架构/源码或镜像来源；逐服务动作和最终状态；**实际打过哪些补丁、哪些跳过及原因**；关键测试表和证据；备份与回滚位置；失败/未验项及下一步。构建成功、部署成功、会议验收通过分别表述。
 
 ### 打包交付文档（默认随批次输出）
 
-客户端Release打包、服务端部署包或方案交付时，读取 [交付文档与报价规范](references/delivery-documents.md)，在本次批次目录的 `delivery/` 下实际生成以下四类资料，不只在聊天中描述：
+客户端Release打包、服务端部署包或方案交付时，可使用 [交付文档与报价编写方法](references/delivery-documents.md)，在本次实际批次目录的 `delivery/` 下生成范围内资料，不只在聊天中描述。统一要求仅来自 deploy/AGENTS.md 与用户明确交付范围，本参考不另立规范：
 
 1. `部署硬件资源与防火墙端口.xlsx`：参数假设、规模资源、节点分工、带宽测算、端口规则、证书加密、验收依据等独立工作表；不得沿用旧表三列混排。
 2. `部署架构图.mmd` 和 `部署架构说明.md`，工具可用时同时生成可直接查看的 SVG/PNG：体现内外网、边界防火墙、负载均衡的有无、证书/TLS终止位置、内部加密与媒体实际路径。现状与建议扩展分开，不能虚构高可用。
