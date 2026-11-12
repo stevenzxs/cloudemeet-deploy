@@ -1,4 +1,45 @@
-# CloudMeet 独立部署目录
+# CloudMeet 部署资料统一入口
+
+编译、打包、部署的完整统一规范唯一由 [AGENTS.md](AGENTS.md) 负责，无需跳转其他文档补全规则。本页仅作材料导航和状态说明，不是第二份规范。本目录不是一个可以直接上传启动的通用产品包。
+
+## 先选材料身份，不选另一条部署线
+
+编译打包仅含：确认批次 → 编译/复用 → 组包 → 材料完整性校验 → 输出release包。不要求测试环境、麒麟ISO或安装运行测试；包不含宿主操作系统。流程及流程图见AGENTS.md第6节，不表示安装器/工作流已经适配或已有新包。
+
+“打包release”以实际包、完整材料、摘要校验和本地路径交付为终点；不将后续测试作为出包条件。安装器仍只会REFUSED属于实现缺陷，不能隐去或靠篡改状态解决。
+
+### 唯一新增交付布局
+
+```text
+deploy/
+├─ release/
+│  ├─ amd64/{server,clients,dependencies}/
+│  └─ aarch64/{server,clients,dependencies}/
+└─ config/
+```
+
+只交付release：server放编译组包及材料完整性校验通过的完整包（不要求安装测试），clients按自身OS/ABI和已验范围交付，dependencies按OS/版本分类。未完成候选保留在Actions；完整包附材料校验及来源证据。config是人工公共配置目标位置。
+
+### 统一Actions入口（2026-11-11脚本优化）
+
+- 维护源：`../build-tools/build-package.yml`、`../build-tools/package.sh`；CI入口：`.github/workflows/build-package.yml`。
+- 手动指定版本及受审材料commit，原生aarch64矩阵完整编译七服务，再仅收集同run/attempt镜像组包；不回退旧镜像。
+- 统一版本下分别记录源码commit、真实镜像ID、基础镜像及归档摘要；包内携带Compose和公共首次安装核心，已有Docker为明确前提。
+- 本轮为本地脚本优化，尚未推送或运行新的Actions，没有新部署包；安装/服务/客户端/媒体均未因此验收。旧workflow保留手动诊断，不自动push触发。
+- 业务Web本批使用same-origin构建参数，工作区默认118 `.env`不变；包内记录实际覆盖。用法见`../build-tools/README.md`。
+
+用户已授权删除debug及全部候选/证据，不迁移到release。原有packages、history、artifacts、releases、clients、offline-packs保留原位，不在本次清理范围。工具输出尚未全面适配；下方旧路径仅导航历史材料。编译、打包、部署要求仅由AGENTS.md负责。
+
+| 需求 | 查找位置 | 限制 |
+|---|---|---|
+| 已验证服务器包 | `packages/<批次>/INSTALL.md` | 仅按包内限定的系统、架构、origin 与验收状态使用 |
+| 构建/实例证据 | `history/` | 不是默认安装入口，不改历史字节 |
+| 镜像候选 | `releases/` | 不是离线安装包 |
+| 客户端构建 | `../build-tools/clients/README.md` | 输出先进入 history，按实际验收状态交付 |
+| 补丁和实例增量 | `patches/`、`tools/`、`tests/` | 不替代完整产品部署 |
+| 安装器/组包器维护 | `tools/check-deployment-layout.py` 内的实现清单 | 登记不等于放行，规范仅在 AGENTS.md |
+
+**2026-11-11 风险隔离：**`../build-tools/kylin-arm64/install.py` 与 `assemble-kylin-arm64-wsl.py` 漏装产品补丁，使用 no-auth 基线，禁止继续作为产品交付路径。旧包与七镜像构建证据保留；构建通过不代表产品部署一致。跨架构公共安装核心尚未完成，不能宣称已统一运行逻辑。
 
 ## 源码版本管理
 
@@ -11,12 +52,12 @@
 本文及技能中的工作区相对路径描述多仓库布局；单独克隆本仓库不会自动获得相邻源码、构建工具或历史交付包。
 补丁修改需与测试、部署说明一起提交，发布证据记录提交ID及实际产物摘要；源码提交不代表部署或媒体验收完成。
 
-> **这是唯一交付入口。**先读 [执行约束](AGENTS.md)。可安装包在 `packages/`；构建、实例与验收证据在 `history/`；技能维护源在 `skills/`；验收后的客户端在 `clients/`。构建工具仍在 `../build-tools/`，Linux中间产物留在WSL。本页下方根级模板流程仍含在线拉取，不是离线包安装入口。
+> 本页仅作导航，唯一规范是AGENTS.md。新增交付只用release；旧材料未迁移。服务器编译组包沿用已确认Actions原生aarch64路线，本机不使用Docker。下方根级模板流程不是离线包安装入口。
 
 ```text
 deploy/
 ├─ packages/   完整可安装服务器包（不可原地改包）
-├─ clients/    验收后的 MSI/APK（当前新CA客户端尚未生成）
+├─ clients/    MSI/APK，以各批实际验收状态为准
 ├─ history/    原 delivery-history，完整保留历史字节
 ├─ skills/     cloudmeet-deploy 与 cloudmeet-deploy-offline 维护源
 └─ 根级配置/patches/artifacts/tools/tests：现有模板与工具，暂保留位置
@@ -52,12 +93,12 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 
 | 文件 | 用途 |
 |---|---|
-| `docker-compose.yml` | 网关、业务 Web/API 以及 Jitsi 环境覆盖；必须与基础配置一起使用 |
-| `jitsi-base.yaml` | 官方 Jitsi Web、Prosody、Jicofo、JVB 四组件定义 |
-| `jitsi.env` | Jitsi 非秘密配置、资源参数和私有管理端口 |
-| `Caddyfile` | IP HTTPS 私有 CA、统一路由及内部接口阻断 |
-| `init.py` | 首次创建目录和随机秘密，拒绝覆盖已有 `.env` |
-| `start.sh` | 复制持久补丁、修正公开文件权限、校验并启动，不删除数据、不隐式拉镜像 |
+| `config/docker-compose.yml` | 网关、业务 Web/API 以及 Jitsi 环境覆盖；必须在根基础配置之后合并 |
+| `config/jitsi-base.yaml` | 官方 Jitsi Web、Prosody、Jicofo、JVB 四组件定义 |
+| `config/jitsi.env` | Jitsi 非秘密配置、资源参数和私有管理端口 |
+| `config/Caddyfile` | 公共网关模板：私有CA、统一路由、内部接口阻断及PUBLIC_URL参数化重定向 |
+| `config/init.py` | 首次创建deploy根的数据目录和随机秘密，拒绝覆盖已有 `.env` |
+| `config/start.sh` | 固定deploy项目根，复制持久补丁、校验并启动，不删除数据、不隐式拉镜像 |
 | `patches/` | 品牌、CSS 和主持人角色插件的部署副本 |
 | `artifacts/nginx.conf` | 业务 Web/API 路由配置 |
 | `../build-tools/clients/` | MSI/APK 构建工具已迁出；不属于服务器交付材料 |
@@ -68,7 +109,9 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 
 当前可执行基线是 **IP + HTTPS + Caddy 私有 CA**，业务代码由本地源码构建，Jitsi 使用官方镜像。基础镜像支持何种平台须检查 manifest；不是将本地业务 ARM 镜像当作通用包。域名公共证书、DNS-01、HTTP 测试需另行审查实例配置，不能把本基线称为已覆盖全部模式。
 
-## 2. 部署流程
+## 2. 过渡模板参考（不是通用安装入口）
+
+以下命令仅解释根级模板原有调用关系。新交付必须使用上方包级入口及治理规范，不能直接照抄本节代替离线安装与产品验收。
 
 ### 参数与授权
 
@@ -90,16 +133,18 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 
 ```bash
 # 在实际部署目录执行；仅首次初始化，参数为本次批准的 IP。
-python3 init.py <approved-ip>
+python3 config/init.py
 
 # 所有操作使用同一组参数，不省略 -f 让未知 override 自动生效。
-docker compose --env-file jitsi.env --env-file .env \
-  -f jitsi-base.yaml -f docker-compose.yml config --quiet
-docker compose --env-file jitsi.env --env-file .env \
-  -f jitsi-base.yaml -f docker-compose.yml pull
+target_exports=$(python3 -B config/target.py config/target.env)
+eval "$target_exports"
+docker compose --project-directory "$PWD" --env-file config/jitsi.env --env-file .env \
+  -f config/jitsi-base.yaml -f config/docker-compose.yml config --quiet
+docker compose --project-directory "$PWD" --env-file config/jitsi.env --env-file .env \
+  -f config/jitsi-base.yaml -f config/docker-compose.yml pull
 
 # 先检查所有镜像实际架构、摘要及端口；再执行启动。
-bash start.sh
+bash config/start.sh
 ```
 
 七个服务：`gateway`（TLS/入口）、`app-web`（业务页面）、`api`（业务/JWT/SQLite）、`web`（Jitsi 页面/信令）、`prosody`（XMPP/角色）、`jicofo`（会议协调）、`jvb`（媒体）。本配置 `web` 不是业务 Web。
@@ -141,7 +186,7 @@ node build-tools/clients/build-clients.cjs --target all --env-file deploy/client
 node --test build-tools/clients/tests/*.test.cjs
 ```
 
-先检查输出的完整 origin。默认仅读取 `deploy/client.env`，不隐式读取服务端 `.env`。构建输出到工作区 `delivery-history/client-builds/<批次>/`，包含 MSI、测试签名 APK、日志及 manifest/SHA256；旧批次也已迁入该位置。详见 [构建工具说明](../build-tools/clients/README.md)。
+先检查输出的完整 origin。默认仅读取 `deploy/client.env`，不隐式读取服务端 `.env`。构建输出到工作区 `deploy/history/client-builds/<批次>/`，包含 MSI、APK、日志及 manifest/SHA256；实际签名必须检查产物，不能信任固定文案。详见 [构建工具说明](../build-tools/clients/README.md)。
 
 Release 统一使用此入口：每次实际构建在锁内将 `release-version.json` 的补丁号加一（1.0.0 → 1.0.1 → 1.0.2），同一批次 Electron 和 Android 共享该版本。Android versionCode 按时间值与上次值+1取大者，保持递增。`--check` 不占版本；失败构建已占版本不回退，批次 release.json 保留分配记录。请保留此状态文件，不手动回退或在多台构建机各自维护计数。
 
@@ -149,7 +194,7 @@ Release 统一使用此入口：每次实际构建在锁内将 `release-version.
 
 Electron 需 WiX v3、有效 OpenVPN payload；Android 需 JDK 17、SDK/Build Tools 35、项目 NDK 及依赖。脚本临时修改源码入口配置并在正常结束时恢复；禁止并发构建或删除活动锁。强制中断后先检查配置恢复情况。
 
-新入口的私有 CA 必须先适配源码信任策略，不能认为换 `client.env` 就会自动信任。Android 默认入口为构建期配置。APK 当前 Debug 签名仅测试；MSI 是否签名应实测报告。MSI 安装/升级/VPN/卸载须在隔离 Windows 测试机验收，不自动在开发机卸载旧版。
+新入口的私有 CA 必须先适配源码信任策略，不能认为换 `client.env` 就会自动信任。Android 默认入口为构建期配置。APK/MSI 签名身份与有效性均须实测报告，不依据文件名或旧清单判定。MSI 安装/升级/VPN/卸载须在隔离 Windows 测试机验收，不自动在开发机卸载旧版。
 
 ## 6. 验收与回滚
 

@@ -1,7 +1,13 @@
 {
+    auto_https disable_redirects
     skip_install_trust
     # TLS clients commonly omit SNI for literal IPs; select this site's IP cert.
     default_sni {$SITE_HOST}
+}
+
+# PUBLIC_URL includes the external HTTPS port, not the container port.
+http://{$SITE_HOST} {
+    redir {$PUBLIC_URL}{uri} permanent
 }
 
 https://{$SITE_HOST} {

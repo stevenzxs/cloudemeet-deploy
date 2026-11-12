@@ -1,3 +1,4 @@
+# Use --project-directory pointing to deploy/ to preserve data and mount paths.
 services:
     # Frontend
     web:
@@ -8,8 +9,8 @@ services:
             - /run:size=16M,mode=1750,exec
             - /tmp:size=16M,mode=1777,noexec
         ports:
-            - '${HTTP_PORT}:8000'
-            - '${HTTPS_PORT}:8443'
+            - '${JITSI_HTTP_BIND}:8000'
+            - '${JITSI_HTTPS_BIND}:8443'
         volumes:
             - ${CONFIG}/web:/config:Z
             - ${CONFIG}/storage/web:/storage:Z

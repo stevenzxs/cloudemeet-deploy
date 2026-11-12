@@ -28,7 +28,7 @@
 
 ## 2. 必须适配的运行配置
 
-根 `deploy/jitsi-base.yaml` 与 `deploy/docker-compose.yml` 是过渡模板，不是本批完整registry部署入口。为本次目标生成独立最终Compose或经过验证的override；检查合并结果，而非仅检查源文件。
+`deploy/config/jitsi-base.yaml` 与 `deploy/config/docker-compose.yml` 是过渡模板，使用deploy根作为project-directory，不是本批完整registry部署入口。为本次目标生成独立最终Compose或经过验证的override；检查合并结果，而非仅检查源文件。
 
 1. **七个完整image引用**：逐项替换并锁digest。现有模板拼出`<repo>/web`，本批名为`<repo>/cloudmeet-web`，只设置JITSI_IMAGE_REPO无法正确映射。不得静默保留官方11146应用镜像。
 2. **API**：镜像ENTRYPOINT已是`java -XX:MaxRAMPercentage=65 -jar /app/app.jar`。删除旧Compose `command`（合并结果为null/无额外命令），去掉`./artifacts/app.jar:/app/app.jar`；保留`/app/data` SQLite及`/data/banner-logos`会标挂载和匹配的JWT/DB环境。旧命令会追加到ENTRYPOINT，旧JAR挂载会遮盖已发布产物。

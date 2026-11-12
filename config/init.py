@@ -1,15 +1,15 @@
 """Initialize a dedicated IP/private-CA deployment without deleting any files."""
 from pathlib import Path
-import ipaddress
+from target import load_target
 import secrets
 import sys
 
-root = Path(__file__).resolve().parent
-host = str(ipaddress.ip_address(sys.argv[1]))
+root = Path(__file__).resolve().parents[1]
+load_target(root / 'config/target.env')
 env = root / '.env'
 if env.exists():
     raise SystemExit('Refusing to overwrite existing .env')
-text = f'SITE_HOST={host}\nPUBLIC_URL=https://{host}\nJVB_ADVERTISE_IPS={host}\nJITSI_IMAGE_VERSION=stable-11146-2\n'
+text = ''
 for key in ('JWT_APP_SECRET', 'JICOFO_AUTH_PASSWORD', 'JVB_AUTH_PASSWORD'):
     text += f'{key}={secrets.token_hex(32)}\n'
 with env.open('x', encoding='utf-8') as stream:
