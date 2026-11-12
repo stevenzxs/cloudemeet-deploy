@@ -13,6 +13,8 @@ description: Use when producing CloudMeet / Jitsi offline deployment bundles for
 
 ## 0. 固定交付边界与防跑偏
 
+工具唯一维护源现为部署仓库内deploy/build-tools。工作流、组包器、配置、补丁在同一提交锁定并经inputs.sha256检查；不再从工作区外目录同步CI副本。包构建仍只走批准的Actions原生架构路线，目录迁移不授权运行构建或操作服务器。
+
 按2026-11-12用户确认及deploy/AGENTS.md，所有新正常部署默认开启主持人转让，不再作为可选补丁询问。正式组包及公共安装核心成套交付插件/引用，目标生成API共享鉴权秘密与内部TLS材料；内部端口不发布，严格验证CA，私钥不入镜像/包。缺项失败，不静默关闭或降级普通moderator。找回及管理员恢复不默认开启。材料校验与部署后轮换/撤权/确认/恢复验收分开，后者不是出包门禁。历史overlay不是新部署入口；当前实现仍在集成，不表示已有Actions或目标验证通过。
 
 编译、打包、部署的唯一规范源为 `deploy/AGENTS.md`，完整要求均在该文件。本技能及后续 references 仅提供操作方法、示例和排坑资料，不新增或覆盖规范；入口登记和 README 只提供实现清单与材料导航。

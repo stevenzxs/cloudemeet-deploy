@@ -23,11 +23,11 @@ deploy/
 
 ### 统一Actions入口（2026-11-11脚本优化）
 
-- 维护源：`../build-tools/build-package.yml`、`../build-tools/package.sh`；CI入口：`.github/workflows/build-package.yml`。
+- 维护源：`build-tools/build-package.yml`、`build-tools/package.sh`；CI入口：`.github/workflows/build-package.yml`。
 - 手动指定版本及受审材料commit，原生aarch64矩阵完整编译七服务，再仅收集同run/attempt镜像组包；不回退旧镜像。
 - 统一版本下分别记录源码commit、真实镜像ID、基础镜像及归档摘要；包内携带Compose和公共首次安装核心，已有Docker为明确前提。
 - 本轮为本地脚本优化，尚未推送或运行新的Actions，没有新部署包；安装/服务/客户端/媒体均未因此验收。旧workflow保留手动诊断，不自动push触发。
-- 业务Web本批使用same-origin构建参数，工作区默认118 `.env`不变；包内记录实际覆盖。用法见`../build-tools/README.md`。
+- 业务Web本批使用same-origin构建参数，工作区默认118 `.env`不变；包内记录实际覆盖。用法见`build-tools/README.md`。
 
 用户已授权删除debug及全部候选/证据，不迁移到release。原有packages、history、artifacts、releases、clients、offline-packs保留原位，不在本次清理范围。工具输出尚未全面适配；下方旧路径仅导航历史材料。编译、打包、部署要求仅由AGENTS.md负责。
 
@@ -36,11 +36,11 @@ deploy/
 | 已验证服务器包 | `packages/<批次>/INSTALL.md` | 仅按包内限定的系统、架构、origin 与验收状态使用 |
 | 构建/实例证据 | `history/` | 不是默认安装入口，不改历史字节 |
 | 镜像候选 | `releases/` | 不是离线安装包 |
-| 客户端构建 | `../build-tools/clients/README.md` | 输出先进入 history，按实际验收状态交付 |
+| 客户端构建 | `build-tools/clients/README.md` | 输出先进入 history，按实际验收状态交付 |
 | 补丁和实例增量 | `patches/`、`tools/`、`tests/` | 不替代完整产品部署 |
 | 安装器/组包器维护 | `tools/check-deployment-layout.py` 内的实现清单 | 登记不等于放行，规范仅在 AGENTS.md |
 
-**2026-11-11 风险隔离：**`../build-tools/kylin-arm64/install.py` 与 `assemble-kylin-arm64-wsl.py` 漏装产品补丁，使用 no-auth 基线，禁止继续作为产品交付路径。旧包与七镜像构建证据保留；构建通过不代表产品部署一致。跨架构公共安装核心尚未完成，不能宣称已统一运行逻辑。
+**2026-11-11 风险隔离：**`build-tools/kylin-arm64/install.py` 与 `assemble-kylin-arm64-wsl.py` 漏装产品补丁，使用 no-auth 基线，禁止继续作为产品交付路径。旧包与七镜像构建证据保留；构建通过不代表产品部署一致。跨架构公共安装核心尚未完成，不能宣称已统一运行逻辑。
 
 ## 源码版本管理
 
@@ -102,9 +102,9 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 | `config/start.sh` | 固定deploy项目根，复制持久补丁、校验并启动，不删除数据、不隐式拉镜像 |
 | `patches/` | 品牌、CSS 和主持人角色插件的部署副本 |
 | `artifacts/nginx.conf` | 业务 Web/API 路由配置 |
-| `../build-tools/clients/` | MSI/APK 构建工具已迁出；不属于服务器交付材料 |
+| `build-tools/clients/` | MSI/APK 构建工具已迁出；不属于服务器交付材料 |
 | `client.env.example` | 客户端专用入口模板，不携带服务端秘密 |
-| `../build-tools/clients/tests/` | 客户端构建脚本测试，已迁出 |
+| `build-tools/clients/tests/` | 客户端构建脚本测试，已迁出 |
 | `skills/cloudmeet-deploy/` | 交互式部署技能维护源 |
 | `skills/cloudmeet-deploy-offline/` | 离线打包技能维护源，与工作区规范共同读取 |
 
@@ -193,7 +193,7 @@ node build-tools/clients/build-clients.cjs --target all --env-file deploy/config
 node --test build-tools/clients/tests/*.test.cjs
 ```
 
-唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。统一入口已恢复，Android versionCode自动从配置版本转换，无需历史证据，详见[工具说明](../build-tools/clients/README.md)。候选输出到本机Temp/opencode/cloudmeet-clients-*，不自动晋级交付；新客户端交付放入`deploy/release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级。此前1.0.19-20261112-143033批次仍在原架构目录下的clients中，本轮仅改文档、未移动包。实际签名必须检查产物，不能信任固定文案。
+唯一客户端入口配置为 `deploy/config/client.env`，当前为 `https://47.96.221.94:8443`。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。统一入口已恢复，Android versionCode自动从配置版本转换，无需历史证据，详见[工具说明](build-tools/clients/README.md)。候选输出到本机Temp/opencode/cloudmeet-clients-*，不自动晋级交付；新客户端交付放入`deploy/release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级。此前1.0.19-20261112-143033批次仍在原架构目录下的clients中，本轮仅改文档、未移动包。实际签名必须检查产物，不能信任固定文案。
 
 发布版本唯一读取`deploy/config/client.env`的`CLIENT_VERSION`，当前填写`1.0.19`；Electron产品版本和Android versionName共用该值。Android versionCode按`major×1000+minor×100+patch`转换，本次为`1019`；minor限定0..9、patch限定0..99。相同版本得到相同code，不自动递增，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译；不自动卸载或清数据。构建记录保留实际版本和versionCode。
 
@@ -226,3 +226,6 @@ WiX已支持从WIX/bin、WIX便携目录、PATH及默认v3.14/v3.11目录自动�
 依据[统一规范](AGENTS.md)，所有新正常部署默认开启主持人转让，由正式build-tools组包及公共安装核心完整接入API内部鉴权、仅容器网络内部HTTPS和Prosody插件/撤权配置，不另走补丁包安装。秘密及CA私钥在目标生成；找回及管理员恢复仍默认关闭。
 
 当前代码仍在集成，完整回归及CI受控输入同步未完成，未生成新包或修改47服务器。材料检查不代表运行验收。历史增量维护步骤见[转让说明](patches/prosody/HOST-TRANSFER.md)，不是新部署入口。
+## 构建工具入口迁移
+
+`build-tools/`现已位于本部署仓库内，取代原工作区外目录及CI分支人工同步副本。正式工作流为`.github/workflows/build-package.yml`，同一提交锁定脚本、配置与补丁。工作区根执行测试使用`deploy/build-tools/tests`，客户端入口为`deploy/build-tools/clients/build-clients.cjs`。旧worktree保留但不再作为维护源。

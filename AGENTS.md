@@ -104,34 +104,34 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 本批47服务端业务Web使用源码已有same-origin配置能力，构建容器显式设置`VITE_JITSI_SERVER=same-origin`并记录覆盖；不修改工作区默认`.env`的118地址。此为已确认47部署包的实例配置，不改变118默认发布与客户端验收要求。
 
-下列 `../build-tools/` 是工作区维护源；CI 分支中的 `build-tools/` 是逐文件摘要一致的受控副本，工作流从该副本执行，不是另一套架构专属安装实现。
+下列 `build-tools/` 均相对deploy仓库根，是纳入同一Git仓库的唯一维护源。用户已将工作区外build-tools移入deploy；不再维护或人工同步CI分支副本。`.github/workflows/build-package.yml` 为实际工作流，`build-tools/build-package.yml` 为须字节一致的维护模板；Actions从同一确定提交检出build-tools、config和patches并校验inputs.sha256。旧worktree和历史副本保留，不作新维护源。
 
 | 路径 | 作用 |
 |---|---|
-| `../build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
-| `../build-tools/README.md` | 统一入口参数、artifact内容、已有Docker依赖契约及辅助检查方法；非另一份规范 |
-| `../build-tools/clients/build-clients.cjs` | Windows MSI/Android统一候选构建入口；显式读取config/client.env，提供只读预检查、锁、临时配置恢复及产物摘要，不自动晋级交付 |
-| `../build-tools/clients/core.cjs` | 严格四项配置校验、版本到Android整数转换、WiX路径识别与锁/临时文件恢复公共实现 |
-| `../build-tools/clients/README.md`、`../build-tools/clients/.gitignore` | 客户端工具操作说明及本机锁/旧状态文件忽略边界，非并列规范 |
-| `../build-tools/clients/tests/core.test.cjs`、`../build-tools/clients/tests/cli.test.cjs` | 配置、版本转换、WiX发现、独占锁/恢复、候选收集和只读预检查回归，不替代实际构建或安装验收 |
+| `build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
+| `build-tools/README.md` | 统一入口参数、artifact内容、已有Docker依赖契约及辅助检查方法；非另一份规范 |
+| `build-tools/clients/build-clients.cjs` | Windows MSI/Android统一候选构建入口；显式读取config/client.env，提供只读预检查、锁、临时配置恢复及产物摘要，不自动晋级交付 |
+| `build-tools/clients/core.cjs` | 严格四项配置校验、版本到Android整数转换、WiX路径识别与锁/临时文件恢复公共实现 |
+| `build-tools/clients/README.md`、`build-tools/clients/.gitignore` | 客户端工具操作说明及本机锁/旧状态文件忽略边界，非并列规范 |
+| `build-tools/clients/tests/core.test.cjs`、`build-tools/clients/tests/cli.test.cjs` | 配置、版本转换、WiX发现、独占锁/恢复、候选收集和只读预检查回归，不替代实际构建或安装验收 |
 | `../docs/plans/2026-11-12-client-builder.md` | 统一客户端构建工具实施计划，历史设计选择由当前第8节覆盖，非规范源 |
-| `../build-tools/migration/test_deploy_governance.py` | 当前目录登记与打包边界回归，不依赖旧构建脚本 |
-| `../build-tools/build-package.yml`、`.github/workflows/build-package.yml` | 手动原生aarch64七服务矩阵及组包；显式核对材料SHA，无registry写入及服务器操作 |
-| `../build-tools/inputs.sha256` | 当前编排、Dockerfile、公共安装核心、公开补丁和Caddy模板的受审摘要；同步后核对，不代表构建成功 |
-| `../build-tools/sources.json` | 七服务和生命周期源码完整提交锁定；与当前工作区身份核对 |
-| `../build-tools/docker/web.Dockerfile`、`app-web.Dockerfile`、`api.Dockerfile`、`gateway.Dockerfile` | 四个应用产物镜像配方；相对同一docker目录列名，不是独立编排 |
-| `../build-tools/docker/prosody-core.Dockerfile`、`prosody-service.Dockerfile`、`java-service.Dockerfile` | Prosody源码及Jicofo/JVB运行镜像配方 |
-| `../build-tools/templates/nginx.conf` | app-web静态路由维护副本，来源为原受控CI模板，不恢复已移除的artifacts目录 |
-| `../build-tools/offline-runtime/install.py` | 只读材料/镜像归档/产品鉴权契约校验；PACKAGED不要求虚构运行资格 |
-| `../build-tools/offline-runtime/deploy.py` | 用户显式首次安装时检查宿主、导入精确镜像、调用初始化与启动；不下载安装Docker |
-| `../build-tools/offline-runtime/initialize.py` | 首次安装生成新秘密，拒绝既有env/data |
-| `../build-tools/offline-runtime/start.py` | 首次安装准备品牌/CSS/角色补丁与数据权限，使用包内Compose无build/pull启动 |
-| `../build-tools/tests/test_package.py` | 无Docker脚本回归、嵌入Python语法与归档身份校验；不纳入产品安装/运行验收 |
-| `../build-tools/tests/test_target_config.py` | 单一主机派生、无效配置拒绝及初始化仅生成秘密/拒绝覆盖回归 |
+| `build-tools/migration/test_deploy_governance.py` | 当前目录登记与打包边界回归，不依赖旧构建脚本 |
+| `build-tools/build-package.yml`、`.github/workflows/build-package.yml` | 手动原生aarch64七服务矩阵及组包；显式核对材料SHA，无registry写入及服务器操作 |
+| `build-tools/inputs.sha256` | 当前编排、Dockerfile、公共安装核心、公开补丁和Caddy模板的受审摘要；同步后核对，不代表构建成功 |
+| `build-tools/sources.json` | 七服务和生命周期源码完整提交锁定；与当前工作区身份核对 |
+| `build-tools/docker/web.Dockerfile`、`app-web.Dockerfile`、`api.Dockerfile`、`gateway.Dockerfile` | 四个应用产物镜像配方；相对同一docker目录列名，不是独立编排 |
+| `build-tools/docker/prosody-core.Dockerfile`、`prosody-service.Dockerfile`、`java-service.Dockerfile` | Prosody源码及Jicofo/JVB运行镜像配方 |
+| `build-tools/templates/nginx.conf` | app-web静态路由维护副本，来源为原受控CI模板，不恢复已移除的artifacts目录 |
+| `build-tools/offline-runtime/install.py` | 只读材料/镜像归档/产品鉴权契约校验；PACKAGED不要求虚构运行资格 |
+| `build-tools/offline-runtime/deploy.py` | 用户显式首次安装时检查宿主、导入精确镜像、调用初始化与启动；不下载安装Docker |
+| `build-tools/offline-runtime/initialize.py` | 首次安装生成新秘密，拒绝既有env/data |
+| `build-tools/offline-runtime/start.py` | 首次安装准备品牌/CSS/角色补丁与数据权限，使用包内Compose无build/pull启动 |
+| `build-tools/tests/test_package.py` | 无Docker脚本回归、嵌入Python语法与归档身份校验；不纳入产品安装/运行验收 |
+| `build-tools/tests/test_target_config.py` | 单一主机派生、无效配置拒绝及初始化仅生成秘密/拒绝覆盖回归 |
 | `../docs/plans/2026-11-12-target-config.md` | 统一目标配置及目录迁移收尾计划，非另一规范源 |
-| `../build-tools/tests/test_offline_installer.py`、`test_offline_start.py`、`test_offline_deploy.py` | 公共安装核心无Docker单元回归；后两个相对同一tests目录，所有宿主变更均mock，不执行安装 |
+| `build-tools/tests/test_offline_installer.py`、`test_offline_start.py`、`test_offline_deploy.py` | 公共安装核心无Docker单元回归；后两个相对同一tests目录，所有宿主变更均mock，不执行安装 |
 | `../docs/plans/2026-11-11-actions-package-rewrite.md` | 本次收敛实施计划，非另立规范 |
-| `../build-tools/migration/STATUS.md` | 当前脚本收敛进度与未运行边界；历史记录仍保留原处 |
+| `build-tools/migration/STATUS.md` | 当前脚本收敛进度与未运行边界；历史记录仍保留原处 |
 
 | 路径 | 作用 |
 |---|---|
@@ -324,7 +324,7 @@ flowchart TD
 
 ## 9. 记录与能力边界
 
-- 在工作区根执行只读布局检查：`python -B deploy/tools/check-deployment-layout.py`；治理回归：`python -B -m unittest discover -s build-tools/migration -p test_deploy_governance.py`；当前服务端编排与目录回归：在Linux/WSL辅助环境执行`python3 -B -m unittest discover -s build-tools/tests -p 'test_*.py'`（不运行Docker）。原客户端目录回归随用户整理保留于build-tools-old，客户端不属本轮脚本范围，不因本轮服务端检查宣称客户端入口已迁移恢复。
+- 在工作区根执行只读布局检查：`python -B deploy/tools/check-deployment-layout.py`；治理回归：`python -B -m unittest discover -s deploy/build-tools/migration -p test_deploy_governance.py`；当前服务端编排与目录回归：在Linux/WSL辅助环境执行`python3 -B -m unittest discover -s deploy/build-tools/tests -p 'test_*.py'`（不运行Docker）。原客户端目录回归随用户整理保留于build-tools-old，客户端不属本轮脚本范围，不因本轮服务端检查宣称客户端入口已迁移恢复。
 - 文档维护检查不属于部署包的安装/运行测试，不为文档变更运行安装/部署命令。若现有只读入口仍将完整性与READY资格混在一起，应报告实现差异，不篡改状态伪称已经适配。
 - 布局检查只识别 deploy/build-tools 中规定命名的入口/Compose，不检测任意改名脚本、嵌入命令或 worktree；尚未接 CI/分支保护，不能阻止直接运行旧脚本。公共安装核心、独立产品契约校验及包级负例门禁尚未全部完成，不得声称不可绕过或全平台已统一。
 - 逐项报告通过/失败/阻塞/未验证与证据，不给虚构百分比，不把安装资格当生产安全或媒体验收。未解决 CVE 不标已接受。

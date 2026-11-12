@@ -11,6 +11,8 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 ## 0. 工作区入口与执行边界
 
+工具已迁入deploy/build-tools并纳入部署仓库，作为唯一维护源。Actions从同一提交读取.github/workflows/build-package.yml、build-tools、config和patches，不再手工同步CI分支副本。在工作区根使用deploy/build-tools/clients/build-clients.cjs；业务源码仍位于deploy同级。历史worktree不作新维护源。
+
 按2026-11-12用户确认及deploy/AGENTS.md，所有新正常部署默认开启主持人转让，不再询问可选启用。正式build-tools及公共安装核心成套接入API内部鉴权、仅容器网络内部HTTPS、Prosody插件/模块/接口/在线撤权；缺项失败，不降级为普通moderator。秘密与CA私钥仅目标生成，内部端口不发布；找回及管理员恢复不默认开启。打包检查材料，轮换/撤权/确认/恢复验收另列。历史overlay不作为新部署主流程；当前代码仍在集成，不表示已构建或已有服务器启用。
 
 编译、打包、部署的唯一规范源为 `deploy/AGENTS.md`，完整要求均在该文件。本技能及后续 references 仅提供操作方法、示例和排坑资料，不新增或覆盖规范；入口登记和 README 只提供实现清单与材料导航。

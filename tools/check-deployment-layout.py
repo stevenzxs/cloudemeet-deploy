@@ -11,9 +11,9 @@ CATALOG = {'schema_version': 1, 'routes': [
      'paths': ['deploy/config/init.py', 'deploy/config/start.sh', 'deploy/config/docker-compose.yml',
                 'deploy/config/jitsi-base.yaml']},
     {'id': 'offline-runtime', 'state': 'candidate', 'product_delivery_allowed': False,
-      'paths': ['build-tools/offline-runtime/install.py', 'build-tools/offline-runtime/start.py',
-                'build-tools/offline-runtime/initialize.py', 'build-tools/offline-runtime/deploy.py',
-                'build-tools/package.sh']},
+      'paths': ['deploy/build-tools/offline-runtime/install.py', 'deploy/build-tools/offline-runtime/start.py',
+                'deploy/build-tools/offline-runtime/initialize.py', 'deploy/build-tools/offline-runtime/deploy.py',
+                'deploy/build-tools/package.sh']},
 ]}
 
 

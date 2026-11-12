@@ -22,6 +22,8 @@
 !/skills/
 !/tests/
 !/tools/
+!/build-tools/
+!/.github/
 !/cert/
 /cert/*
 !/cert/README.md
