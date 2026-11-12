@@ -13,6 +13,7 @@
 - `origin`：默认 `https://47.110.84.166:8443`；HTTP重定向8080、媒体UDP10000。
 
 工作流只读仓库，不需要SSH或registry秘密，不自动发布镜像。每次run/attempt完整编译七服务；
+当前CI分支尚未进入默认分支，首次启动使用限定push触发：仅ci/arm64-smoke分支修改新workflow文件时运行，默认版本1.0.19-rc1、材料SHA为该提交、origin为已确认47入口；其他修改不自动构建。
 失败则无最终包，不跨run/attempt补旧镜像。**重跑请选择全部jobs**，不能仅重跑失败job后混用旧attempt。
 Docker build中的依赖和构建层缓存允许复用，但输出应用镜像必须由本批build步骤产生。
 

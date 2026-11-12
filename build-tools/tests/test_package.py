@@ -11,7 +11,8 @@ class PackageTests(unittest.TestCase):
     def test_single_manual_workflow_builds_all_seven_services(self):
         workflow = (ROOT / 'build-tools/build-package.yml').read_text(encoding='utf-8')
         self.assertIn('workflow_dispatch:', workflow)
-        self.assertNotRegex(workflow, r'(?m)^  push:')
+        self.assertIn('branches: [ci/arm64-smoke]', workflow)
+        self.assertIn('paths: [.github/workflows/build-package.yml]', workflow)
         self.assertIn('service: [gateway, app-web, api, web, prosody, jicofo, jvb]', workflow)
         self.assertIn('runs-on: ubuntu-24.04-arm', workflow)
         self.assertIn('needs: build', workflow)

@@ -1,6 +1,9 @@
 name: CloudMeet compile and package aarch64
 
 on:
+  push:
+    branches: [ci/arm64-smoke]
+    paths: [.github/workflows/build-package.yml]
   workflow_dispatch:
     inputs:
       material_commit:
@@ -22,8 +25,8 @@ permissions:
   actions: read
 
 env:
-  VERSION: ${{ inputs.version }}
-  BATCH: ${{ inputs.version }}-${{ github.run_id }}-${{ github.run_attempt }}
+  VERSION: ${{ inputs.version || '1.0.19-rc1' }}
+  BATCH: ${{ inputs.version || '1.0.19-rc1' }}-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   build:
@@ -40,7 +43,7 @@ jobs:
           persist-credentials: false
       - name: Verify exact reviewed deployment materials
         env:
-          MATERIAL_COMMIT: ${{ inputs.material_commit }}
+          MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
           sha256sum -c build-tools/inputs.sha256
@@ -67,7 +70,7 @@ jobs:
           persist-credentials: false
       - name: Verify exact reviewed deployment materials
         env:
-          MATERIAL_COMMIT: ${{ inputs.material_commit }}
+          MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
           sha256sum -c build-tools/inputs.sha256
@@ -100,7 +103,7 @@ jobs:
           PY
       - name: Assemble complete package and check material integrity only
         env:
-          PUBLIC_ORIGIN: ${{ inputs.origin }}
+          PUBLIC_ORIGIN: ${{ inputs.origin || 'https://47.110.84.166:8443' }}
         run: bash build-tools/package.sh assemble
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
