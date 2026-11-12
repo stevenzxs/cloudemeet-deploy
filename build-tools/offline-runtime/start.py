@@ -33,6 +33,35 @@ def compose_command(root):
     return command
 
 
+def validate_initialized_data(root):
+    """Only the exact TLS bootstrap output may precede first service startup."""
+    data=root/'data'
+    if data.is_symlink():
+        raise ValueError('Symlink in initialized data')
+    if not data.exists():
+        return
+    expected={'ca.key','ca.crt','ca.srl','gateway.key','gateway.csr','cert.ext','gateway.crt'}
+    control=data/'host-control'
+    if (not data.is_dir() or {p.name for p in data.iterdir()}!={'host-control'}
+            or control.is_symlink() or not control.is_dir()
+            or {p.name for p in control.iterdir()}!=expected):
+        raise ValueError('First-start refuses existing business data or incomplete TLS bootstrap')
+    for p in control.iterdir():
+        if p.is_symlink() or not p.is_file() or p.stat().st_size==0:
+            raise ValueError('Unsafe internal TLS file: '+p.name)
+        if p.suffix!='.crt' and p.stat().st_mode & 0o077:
+            raise ValueError('Internal private material permissions too open: '+p.name)
+    def openssl(*args):
+        result=subprocess.run(['openssl',*args],check=True,stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+        return result.stdout
+    openssl('verify','-CAfile',str(control/'ca.crt'),'-purpose','sslserver',
+            '-verify_hostname','gateway',str(control/'gateway.crt'))
+    for cert,key in [('ca.crt','ca.key'),('gateway.crt','gateway.key')]:
+        if openssl('x509','-in',str(control/cert),'-pubkey','-noout')!=openssl(
+                'pkey','-in',str(control/key),'-pubout'):
+            raise ValueError('Internal certificate/private key mismatch: '+cert)
+
+
 def require_instance(root):
     manifest=json.loads((root/'candidate.json').read_text())
     if manifest.get('status') not in ('READY_FOR_INSTALL', 'PACKAGED'):
@@ -41,8 +70,7 @@ def require_instance(root):
         raise ValueError('Initialize fresh instance first')
     if (root/'.env').stat().st_mode & 0o077:
         raise ValueError('Instance secrets must not be group/world accessible')
-    if (root/'data').exists() or (root/'data').is_symlink():
-        raise ValueError('First-start refuses existing data; use a separately reviewed resume procedure')
+    validate_initialized_data(root)
     return manifest
 
 

@@ -40,4 +40,24 @@ class StartTests(unittest.TestCase):
             self.assertTrue((root/'data/jitsi/web').is_dir())
             with self.assertRaises(ValueError): self.module.safe_directory(root,'../outside')
 
+    def test_initialization_then_first_start_preserves_internal_identity(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            path=Path(__file__).parents[1]/'offline-runtime/initialize.py'
+            spec=importlib.util.spec_from_file_location('initialize',path)
+            initialize=importlib.util.module_from_spec(spec); spec.loader.exec_module(initialize)
+            initialize.initialize_host_control(root)
+            (root/'candidate.json').write_text(json.dumps({'status':'PACKAGED'}))
+            (root/'.env').write_text('secret=preserved\n'); (root/'.env').chmod(0o600)
+            before={p.name:p.read_bytes() for p in (root/'data/host-control').iterdir()}
+            self.module.require_instance(root)
+            self.assertEqual(before,{p.name:p.read_bytes() for p in (root/'data/host-control').iterdir()})
+            with self.subTest('business data rejected'):
+                (root/'data/api').mkdir()
+                with self.assertRaises(ValueError): self.module.require_instance(root)
+                (root/'data/api').rmdir()
+            with self.subTest('missing key rejected'):
+                (root/'data/host-control/gateway.key').unlink()
+                with self.assertRaises(ValueError): self.module.require_instance(root)
+
 if __name__=='__main__': unittest.main()
