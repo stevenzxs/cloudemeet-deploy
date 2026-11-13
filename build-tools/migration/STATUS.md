@@ -1,5 +1,12 @@
 # 当前执行记录
 
+## 2026-11-13 amd64打包适配
+
+- 用户批准统一入口支持原生amd64，提交推送并触发Actions，终点为下载材料校验后的完整包；不操作服务器、不发布镜像。
+- workflow按architecture选择原生runner，脚本统一派生镜像平台、Java/Go、Compose和包/安装器架构。
+- 核对Jitsi stable-11248索引03a73ca2…包含原ARM子manifest48f5eb97…及amd64子manifest88283823…；Debian/nginx固定索引均有amd64，不复用ARM应用镜像。
+- 当前仅无Docker辅助回归；真实构建run及下载结果待后续记录，未声明安装或媒体通过。
+
 ## 2026-11-12 首次安装TLS目录与启动保护冲突修复
 
 - initialize生成data/host-control后，旧start拒绝任何data目录，正常首次安装因此自相矛盾。新增真实OpenSSL生成→首次启动前置检查回归，修复前复现拒绝。

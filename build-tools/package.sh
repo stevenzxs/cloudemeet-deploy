@@ -13,7 +13,14 @@ esac
 : "${BATCH:?Set BATCH to version/run/attempt identity}"
 [[ $VERSION =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$ ]] || die 'Invalid version'
 [[ $BATCH =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,110}$ ]] || die 'Invalid batch'
-[[ $(uname -m) == aarch64 ]] || die 'Native aarch64 runner required'
+TARGET_ARCH=${TARGET_ARCH:-arm64}
+case "$TARGET_ARCH" in
+    arm64) HOST_ARCH=aarch64; PACKAGE_ARCH=aarch64; COMPOSE_ARCH=aarch64 ;;
+    amd64) HOST_ARCH=x86_64; PACKAGE_ARCH=amd64; COMPOSE_ARCH=x86_64 ;;
+    *) die 'Unsupported target architecture' ;;
+esac
+[[ $(uname -m) == "$HOST_ARCH" ]] || die "Native $HOST_ARCH runner required"
+export TARGET_ARCH HOST_ARCH PACKAGE_ARCH COMPOSE_ARCH
 : "${GITHUB_RUN_ID:?Run through GitHub Actions}"
 : "${GITHUB_RUN_ATTEMPT:?Missing workflow attempt}"
 : "${GITHUB_SHA:?Missing workflow commit}"
@@ -61,22 +68,26 @@ build_service() (
     export BASE_RECORDS="$bases"
     resolve_base() {
         local ref=$1 resolved
-        docker pull --platform linux/arm64 "$ref" >&2
+        docker pull --platform "linux/$TARGET_ARCH" "$ref" >&2
         docker image inspect "$ref" | python3 -c '
 import json, os, sys
 i=json.load(sys.stdin)[0]
-assert (i["Os"],i["Architecture"]) == ("linux","arm64"), "Wrong base platform"
+assert (i["Os"],i["Architecture"]) == ("linux",os.environ['TARGET_ARCH']), "Wrong base platform"
 with open(os.environ["BASE_RECORDS"],"a") as f:
     f.write(json.dumps({"requested":sys.argv[1],"id":i["Id"],"digests":i["RepoDigests"]})+"\n")
 print(i["RepoDigests"][0])' "$ref"
     }
-    lifecycle_base=ghcr.io/jitsi/base@sha256:48f5eb97cdb15306f4ae0f1d924f6485f3f514d6781aeb86e36601a67aa73781
+    lifecycle_base=ghcr.io/jitsi/base@sha256:03a73ca2e924e5770b9a0aa3f120c0907eb120142a48ef7f37be9764c6f94575
     debian_base=debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
     labels=(--label "org.opencontainers.image.version=$VERSION"
         --label "org.opencontainers.image.revision=$SOURCE_COMMIT"
         --label "io.cloudmeet.batch=$BATCH" --label "io.cloudmeet.service=$service"
         --label "io.cloudmeet.deployment=$deployment_commit")
-    java17=${JAVA_HOME_17_ARM64:-/usr/lib/jvm/temurin-17-jdk-arm64}
+    if [[ $TARGET_ARCH == arm64 ]]; then
+        java17=${JAVA_HOME_17_ARM64:-/usr/lib/jvm/temurin-17-jdk-arm64}
+    else
+        java17=${JAVA_HOME_17_X64:-/usr/lib/jvm/temurin-17-jdk-amd64}
+    fi
     case "$service" in
         web|app-web)
             builder=$(resolve_base node:24-trixie)
@@ -85,7 +96,7 @@ print(i["RepoDigests"][0])' "$ref"
             build_env=()
             # This approved instance package follows its host origin, never the 118 default.
             [[ $service != app-web ]] || build_env=(-e VITE_JITSI_SERVER=same-origin)
-            docker run --rm --platform linux/arm64 --user "$(id -u):$(id -g)" \
+            docker run --rm --platform "linux/$TARGET_ARCH" --user "$(id -u):$(id -g)" \
                 -e HOME=/tmp "${build_env[@]}" -v "$source:/src" -w /src "$builder" bash -euc "$command"
             if [[ $service == app-web ]]; then
                 runtime=$(resolve_base nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311)
@@ -117,17 +128,17 @@ print(i["RepoDigests"][0])' "$ref"
         gateway)
             runtime=$(resolve_base "$debian_base")
             builder=$(resolve_base golang:1.27-trixie)
-            docker run --rm --platform linux/arm64 --user "$(id -u):$(id -g)" \
-                -e HOME=/tmp -e GOPATH=/tmp/go -e GOCACHE=/tmp/go-cache \
+            docker run --rm --platform "linux/$TARGET_ARCH" --user "$(id -u):$(id -g)" \
+                -e HOME=/tmp -e GOPATH=/tmp/go -e GOCACHE=/tmp/go-cache -e GOARCH="$TARGET_ARCH" \
                 -v "$source:/src" -w /src "$builder" bash -euc \
-                'export GOTOOLCHAIN=local; go mod download; go mod verify; CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -p 2 -trimpath -o caddy-candidate ./cmd/caddy'
+                'export GOTOOLCHAIN=local; go mod download; go mod verify; CGO_ENABLED=0 GOOS=linux go build -p 2 -trimpath -o caddy-candidate ./cmd/caddy'
             cp "$source/caddy-candidate" "$context/caddy"
             ;;
         prosody)
             resolve_base "$lifecycle_base" > /dev/null
             resolve_base "$debian_base" > /dev/null
             # Intermediate tag is unique to this batch and can never be an older fallback.
-            docker build --platform linux/arm64 --progress plain \
+            docker build --platform "linux/$TARGET_ARCH" --progress plain \
                 -f "$tools/docker/prosody-core.Dockerfile" -t "cloudmeet-build/prosody-core:$BATCH" "$source"
             mkdir -p "$source/runtime-downloads"
             curl -fLsS --retry 3 https://raw.githubusercontent.com/aiq/basexx/v0.4.1/lib/basexx.lua -o "$source/runtime-downloads/basexx.lua"
@@ -135,7 +146,7 @@ print(i["RepoDigests"][0])' "$ref"
             (cd "$source/runtime-downloads"; printf '%s\n' \
                 '6f8241efd8ea7affafdd00f433c317ed88151d87089b13ae4f94a421d4789445  basexx.lua' \
                 '72de901ac081bf927640e367b52146a18ed4f628eab7880dd32f1a6442b9fe6f  inspect.lua' | sha256sum -c -)
-            docker build --platform linux/arm64 --progress plain "${labels[@]}" \
+            docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
                 --build-arg "PROSODY_CORE=cloudmeet-build/prosody-core:$BATCH" \
                 -f "$tools/docker/prosody-service.Dockerfile" -t "cloudmeet/prosody:$BATCH" "$source"
             ;;
@@ -153,14 +164,14 @@ print(i["RepoDigests"][0])' "$ref"
             [[ ${#jars[@]} == 1 ]] || die 'Expected one application jar'
             mv "$(dirname "${jars[0]}")" "$context/distribution"
             cp -a "$work/lifecycle/$service/rootfs" "$context/rootfs"
-            docker build --platform linux/arm64 --progress plain "${labels[@]}" \
+            docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
                 --build-arg "SERVICE=$service" -f "$tools/docker/java-service.Dockerfile" \
                 -t "cloudmeet/$service:$BATCH" "$context"
             ;;
     esac
     case "$service" in
         web|app-web|api|gateway)
-            docker build --platform linux/arm64 --progress plain "${labels[@]}" \
+            docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
                 --build-arg "RUNTIME_BASE=$runtime" --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" \
                 -f "$tools/docker/$service.Dockerfile" -t "cloudmeet/$service:$BATCH" "$context"
             ;;
@@ -177,7 +188,7 @@ work, out, sourcefile = map(pathlib.Path, sys.argv[1:])
 service = os.environ['SERVICE']
 info = json.loads((work/'image.json').read_text())[0]
 labels = info['Config']['Labels']
-assert (info['Os'], info['Architecture']) == ('linux', 'arm64'), 'Wrong image architecture'
+assert (info['Os'], info['Architecture']) == ('linux', os.environ['TARGET_ARCH']), 'Wrong image architecture'
 assert labels['io.cloudmeet.batch'] == os.environ['BATCH'], 'Batch identity mismatch'
 assert labels['org.opencontainers.image.revision'] == os.environ['SOURCE_COMMIT'], 'Source identity mismatch'
 archive = out/(service+'.tar.gz')
@@ -197,7 +208,7 @@ record={'service':service,'version':os.environ['VERSION'],'batch':os.environ['BA
                                   ('package-lock.json','.env','pom.xml','go.mod','go.sum')
                                   if (work/'source'/p).is_file()},
         'tag':'cloudmeet/'+service+':'+os.environ['BATCH'],'image_id':info['Id'],
-         'platform':'linux/arm64','archive':archive.name,'bytes':archive.stat().st_size,
+          'platform':'linux/'+os.environ['TARGET_ARCH'],'archive':archive.name,'bytes':archive.stat().st_size,
          'runtime_user':info['Config'].get('User',''),
         'sha256':digest(archive),'bases':[json.loads(line) for line in (work/'bases.jsonl').read_text().splitlines()],
         'context_sha256':{p.relative_to(work/'context').as_posix():digest(p)
@@ -212,14 +223,14 @@ assemble_package() {
     eval "$target_exports"
     PUBLIC_ORIGIN=$PUBLIC_URL
     export PUBLIC_ORIGIN HTTP_PORT MEDIA_PORT
-    output="$repo/output/cloudmeet-$BATCH-aarch64"
+    output="$repo/output/cloudmeet-$BATCH-$PACKAGE_ARCH"
     [[ ! -e $output ]] || die 'Output batch already exists'
     mkdir -p "$output/bin" "$output/images" "$output/provenance"
     # Nothing is uploaded from staging if any later check fails.
     printf '%s\n' '{"status":"ASSEMBLING_NOT_COMPLETE"}' > "$output/candidate.json"
     # Official Compose, version-locked and checked against the official checksum.
     compose_version=v2.39.4
-    compose_url="https://github.com/docker/compose/releases/download/$compose_version/docker-compose-linux-aarch64"
+    compose_url="https://github.com/docker/compose/releases/download/$compose_version/docker-compose-linux-$COMPOSE_ARCH"
     curl -fLsS --retry 3 "$compose_url" -o "$output/bin/docker-compose"
     curl -fLsS --retry 3 "$compose_url.sha256" -o "$output/provenance/compose.sha256"
     expected=$(awk '{print $1}' "$output/provenance/compose.sha256")
@@ -266,7 +277,7 @@ for s in services:
             or record['run_id']!=os.environ['GITHUB_RUN_ID'] or record['attempt']!=os.environ['GITHUB_RUN_ATTEMPT']):
         raise ValueError('Batch identity mismatch: '+s)
     if record['source']!=sources['services'][s]: raise ValueError('Source identity mismatch: '+s)
-    if record['platform']!='linux/arm64' or record['archive']!=s+'.tar.gz': raise ValueError('Wrong platform/archive')
+    if record['platform']!='linux/'+os.environ.get('TARGET_ARCH','arm64') or record['archive']!=s+'.tar.gz': raise ValueError('Wrong platform/archive')
     archive=repo/'incoming'/s/record['archive']
     if archive.stat().st_size!=record['bytes'] or digest(archive)!=record['sha256']:
         raise ValueError('Archive integrity failure: '+s)
@@ -332,7 +343,7 @@ caddy=(repo/'config/Caddyfile').read_text()
 manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
  'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
  'workflow_commit':os.environ['GITHUB_SHA'],
- 'architecture':'arm64','target_profile':'linux-aarch64-existing-engine','origin':origin.rstrip('/'),
+  'architecture':os.environ.get('TARGET_ARCH','arm64'),'target_profile':'linux-'+os.environ.get('PACKAGE_ARCH','aarch64')+'-existing-engine','origin':origin.rstrip('/'),
  'entry_mode':'request-origin-local-certificate',
  'prosody_storage_owner':[1000,1000],
  'deployment_commit':os.environ['DEPLOYMENT_COMMIT'],
@@ -342,7 +353,7 @@ manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION
  'compose':{'file':'bin/docker-compose','sha256':digest(out/'bin/docker-compose'),
             'url':os.environ['COMPOSE_URL'],'version':os.environ['COMPOSE_VERSION']},
  'patches':{p.relative_to(out).as_posix():digest(p) for p in (out/'patches').rglob('*') if p.is_file()},
- 'requires':['Existing Linux aarch64 Docker Engine (27.3.1 baseline; actual host prerequisite not checked)',
+  'requires':['Existing Linux '+os.environ.get('PACKAGE_ARCH','aarch64')+' Docker Engine (27.3.1 baseline; actual host prerequisite not checked)',
              'Python >=3.7, root for installation, working cgroups/storage/network, correct system clock',
              'Free TCP '+str(https_port)+'/'+str(http_port)+' and UDP '+str(media_port),
              '4 GiB RAM recommended; lower-memory host compatibility is not established'],
@@ -399,7 +410,7 @@ After initialization the delivery checksum inventory intentionally no longer rep
 the mutable instance; do not rerun first-install verification as an upgrade procedure.
 Publishing later must load these same archives and tag/push without recompiling.
 Registry manifest digest is distinct from Docker image config ID; record both.
-''')
+'''.replace('aarch64', os.environ.get('HOST_ARCH','aarch64')).replace('ARM64', os.environ.get('TARGET_ARCH','arm64').upper()))
 for path in out.rglob('*'):
     if path.is_file() and (path.name=='.env' or path.suffix in ('.key','.pfx','.p12')
                            or b'-----BEGIN PRIVATE KEY-----' in (path.read_bytes() if path.stat().st_size<2_000_000 else b'')):

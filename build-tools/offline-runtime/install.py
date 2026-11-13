@@ -81,7 +81,8 @@ def verify_image_archive(archive, record):
         if 'sha256:' + hashlib.sha256(raw).hexdigest() != record['image_id']:
             raise ValueError('Image archive config mismatch')
         config = json.loads(raw)
-        if config['architecture'] != 'arm64' or config['os'] != 'linux':
+        expected_platform = record.get('platform', 'linux/arm64')
+        if expected_platform not in ('linux/arm64', 'linux/amd64') or 'linux/' + config['architecture'] != expected_platform or config['os'] != 'linux':
             raise ValueError('Image archive platform mismatch')
         labels = config.get('config', {}).get('Labels', {})
         expected = {'io.cloudmeet.batch': record['batch'],
@@ -128,7 +129,7 @@ def require_ready(manifest):
         raise ValueError('Incomplete candidate; installation refused')
     if manifest.get('status') == 'PACKAGED':
         compose = manifest.get('compose', {})
-        if (manifest.get('package_contract') != 1 or manifest.get('architecture') != 'arm64'
+        if (manifest.get('package_contract') != 1 or manifest.get('architecture') not in ('arm64', 'amd64')
                 or compose.get('file') != 'bin/docker-compose'
                 or not re.fullmatch('[0-9a-f]{64}', compose.get('sha256', ''))
                 or not manifest.get('requires')
@@ -144,6 +145,10 @@ def require_ready(manifest):
         raise ValueError('Duplicate service image identities')
 
 def require_target(os_release,architecture,profile='ubuntu-22.04-amd64'):
+    if profile == 'linux-amd64-existing-engine':
+        if architecture != 'x86_64' or platform.system() != 'Linux':
+            raise ValueError('Linux x86_64 with existing Docker is required')
+        return
     if profile == 'linux-aarch64-existing-engine':
         if architecture != 'aarch64' or platform.system() != 'Linux':
             raise ValueError('Linux aarch64 with existing Docker is required')

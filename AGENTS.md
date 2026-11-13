@@ -199,6 +199,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 4. 源码编译与来源
 
+2026-11-13用户批准新增amd64交付：沿用唯一package.sh及同一workflow，以architecture输入选择ubuntu-24.04原生amd64或ubuntu-24.04-arm原生arm64；完整重编七服务。允许提交推送本次必要适配并调度amd64构建，下载校验至release/amd64/server；不授权registry发布、服务器操作或安装/运行测试。Jitsi base使用stable-11248多架构索引固定摘要，ARM子manifest保持原身份。
+
 ### 4.1 构建平台与职责（不得隐式切换）
 
 - 本次47 aarch64交付及其后续镜像发布：服务器源码编译、镜像构建、补丁集成回归、镜像导出、部署包组装及包级校验统一在 **GitHub Actions原生aarch64 runner** 执行。工作流须校验并记录runner实际架构、run ID/attempt、workflow与部署材料提交、每个源码提交。amd64批次使用明确选定的匹配平台；未确认路线不得自行推断。

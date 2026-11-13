@@ -1,4 +1,4 @@
-FROM ghcr.io/jitsi/base@sha256:48f5eb97cdb15306f4ae0f1d924f6485f3f514d6781aeb86e36601a67aa73781
+FROM ghcr.io/jitsi/base@sha256:03a73ca2e924e5770b9a0aa3f120c0907eb120142a48ef7f37be9764c6f94575
 ARG SERVICE
 USER root
 RUN apt-dpkg-wrap apt-get update && apt-dpkg-wrap apt-get install -y --no-install-recommends openjdk-21-jre-headless curl dnsutils iproute2 jq libpcap0.8 && apt-cleanup

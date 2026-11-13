@@ -56,3 +56,11 @@ python -B deploy/tools/check-deployment-layout.py
 按用户确认及 `../AGENTS.md`，所有新正常部署默认开启主持人转让。`package.sh` 外置交付公开插件及引用，`offline-runtime/initialize.py` 目标生成API共享鉴权秘密和内部TLS材料，`offline-runtime/start.py` 安装插件并生成模块/接口配置。网关内部HTTPS不发布宿主端口，公网拒绝内部接口，Prosody严格验证CA。私钥及实例秘密不进镜像或包；不能以首次初始化覆盖已有实例。
 
 找回及管理员恢复仍默认关闭，必需材料或配置缺项报错，不静默降级。包级校验与部署后轮换/撤权/接收确认/恢复验收分开。当前代码仍在收尾，CI受控副本/摘要及完整回归待核对；不表示已构建或已启用。继续使用Actions原生aarch64七服务主流程，不新增补丁交付线。
+# Native architecture selection (2026-11-13)
+
+The single workflow accepts `architecture: amd64|arm64` (default arm64).
+amd64 uses native ubuntu-24.04; arm64 uses native ubuntu-24.04-arm.
+`TARGET_ARCH` controls the runner check, image platform, Java/Go toolchain,
+bundled Compose, archive identity and Linux existing-engine target profile.
+No emulation, local Docker, registry publication or target installation is part of packaging.
+The Jitsi stable-11248 base is pinned to its multiarch index; its ARM child remains unchanged.

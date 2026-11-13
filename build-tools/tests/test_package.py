@@ -8,6 +8,15 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PackageTests(unittest.TestCase):
+    def test_native_architecture_contract(self):
+        script = (ROOT/'build-tools/package.sh').read_text()
+        self.assertIn('amd64) HOST_ARCH=x86_64; PACKAGE_ARCH=amd64; COMPOSE_ARCH=x86_64', script)
+        self.assertNotIn('--platform linux/arm64', script)
+        self.assertNotIn('GOARCH=arm64 go build', script)
+        for name in ('java-service.Dockerfile', 'prosody-service.Dockerfile'):
+            self.assertIn('03a73ca2e924e5770b9a0aa3f120c0907eb120142a48ef7f37be9764c6f94575',
+                          (ROOT/'build-tools/docker'/name).read_text())
+
     def test_render_command_preserves_validated_target_environment(self):
         import os
         import shutil
@@ -54,7 +63,8 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         self.assertIn('branches: [ci/arm64-smoke]', workflow)
         self.assertIn('paths: [.github/workflows/build-package.yml]', workflow)
         self.assertIn('service: [gateway, app-web, api, web, prosody, jicofo, jvb]', workflow)
-        self.assertIn('runs-on: ubuntu-24.04-arm', workflow)
+        self.assertIn("inputs.architecture == 'amd64'", workflow)
+        self.assertIn('options: [arm64, amd64]', workflow)
         self.assertIn('needs: build', workflow)
         self.assertIn('github.run_attempt', workflow)
         self.assertNotIn('run-id:', workflow)
@@ -69,7 +79,7 @@ PUBLIC_ORIGIN=$PUBLIC_URL
             self.assertNotIn(forbidden, script)
         for required in ['build_service', 'assemble_package', 'org.opencontainers.image.version',
                          'io.cloudmeet.batch', 'SOURCE_COMMIT', 'sha256sum', 'docker save',
-                         'docker-compose-linux-aarch64', 'PACKAGED', 'Batch identity mismatch',
+                         'docker-compose-linux-$COMPOSE_ARCH', 'PACKAGED', 'Batch identity mismatch',
                          'Source identity mismatch', 'Archive integrity failure']:
             self.assertIn(required, script)
 
@@ -136,7 +146,10 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         with self.assertRaises(ValueError):
             verifier.require_ready({'status': 'INCOMPLETE_NOT_FOR_INSTALL'})
 
-    def test_assembly_python_contract_with_synthetic_materials(self):
+    def test_amd64_assembly_python_contract(self):
+        self.test_assembly_python_contract_with_synthetic_materials('amd64')
+
+    def test_assembly_python_contract_with_synthetic_materials(self, architecture='arm64'):
         """Execute embedded generator on tiny fake archives; no Docker/product build."""
         import hashlib
         import io
@@ -173,11 +186,11 @@ PUBLIC_ORIGIN=$PUBLIC_URL
                 labels = {'io.cloudmeet.batch': 'test-123-1', 'io.cloudmeet.service': service,
                           'io.cloudmeet.deployment': 'd' * 40, 'org.opencontainers.image.version': 'test',
                           'org.opencontainers.image.revision': sources['services'][service]['commit']}
-                raw = json.dumps({'architecture': 'arm64', 'os': 'linux',
+                raw = json.dumps({'architecture': architecture, 'os': 'linux',
                                   'config': {'Labels': labels, 'User': '1000:1000'}}).encode()
                 record = {'batch': 'test-123-1', 'version': 'test', 'run_id': '123', 'attempt': '1',
                           'deployment_commit': 'd' * 40, 'service': service, 'source': sources['services'][service],
-                          'platform': 'linux/arm64', 'tag': 'cloudmeet/' + service + ':test-123-1',
+                          'platform': 'linux/'+architecture, 'tag': 'cloudmeet/' + service + ':test-123-1',
                           'archive': service + '.tar.gz', 'image_id': 'sha256:' + hashlib.sha256(raw).hexdigest(),
                           'runtime_user': '1000:1000'}
                 archive = directory / record['archive']
@@ -194,11 +207,15 @@ PUBLIC_ORIGIN=$PUBLIC_URL
                    'HTTP_PORT': '8080', 'MEDIA_PORT': '10000', 'VERSION': 'test', 'BATCH': 'test-123-1',
                    'GITHUB_RUN_ID': '123', 'GITHUB_RUN_ATTEMPT': '1', 'GITHUB_SHA': 'd' * 40,
                    'DEPLOYMENT_COMMIT': 'd' * 40, 'COMPOSE_URL': 'https://example.invalid/fixture',
-                   'COMPOSE_VERSION': 'fixture'}
+                    'COMPOSE_VERSION': 'fixture', 'TARGET_ARCH': architecture,
+                    'PACKAGE_ARCH': 'amd64' if architecture=='amd64' else 'aarch64',
+                    'HOST_ARCH': 'x86_64' if architecture=='amd64' else 'aarch64'}
             with patch.dict(os.environ, env), patch.object(sys, 'argv', ['fixture', str(repo)]):
                 exec(compile(block, 'assembly-fixture', 'exec'), {})
             manifest = json.loads((out / 'candidate.json').read_text())
             self.assertEqual(manifest['status'], 'PACKAGED')
+            self.assertEqual(manifest['architecture'], architecture)
+            self.assertEqual(manifest['target_profile'], 'linux-'+env['PACKAGE_ARCH']+'-existing-engine')
             target_spec = __import__('importlib.util', fromlist=['util']).spec_from_file_location('fixture_target', repo/'config/target.py')
             target_module = __import__('importlib.util', fromlist=['util']).module_from_spec(target_spec)
             target_spec.loader.exec_module(target_module)

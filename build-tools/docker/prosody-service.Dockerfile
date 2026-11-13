@@ -1,5 +1,5 @@
 ARG PROSODY_CORE
-FROM ghcr.io/jitsi/base@sha256:48f5eb97cdb15306f4ae0f1d924f6485f3f514d6781aeb86e36601a67aa73781 AS lifecycle
+FROM ghcr.io/jitsi/base@sha256:03a73ca2e924e5770b9a0aa3f120c0907eb120142a48ef7f37be9764c6f94575 AS lifecycle
 FROM ${PROSODY_CORE}
 USER root
 COPY --from=lifecycle /command/ /command/

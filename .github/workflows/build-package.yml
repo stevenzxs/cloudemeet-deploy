@@ -1,4 +1,4 @@
-name: CloudMeet compile and package aarch64
+name: CloudMeet compile and package
 
 on:
   push:
@@ -14,18 +14,25 @@ on:
         description: 'Release version (immutable batch also includes run and attempt)'
         required: true
         type: string
+      architecture:
+        description: 'Native target architecture'
+        required: true
+        default: arm64
+        type: choice
+        options: [arm64, amd64]
 
 permissions:
   contents: read
   actions: read
 
 env:
+  TARGET_ARCH: ${{ inputs.architecture || 'arm64' }}
   VERSION: ${{ inputs.version || '1.0.19-rc1' }}
   BATCH: ${{ inputs.version || '1.0.19-rc1' }}-${{ github.run_id }}-${{ github.run_attempt }}
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 120
     strategy:
       fail-fast: false
@@ -56,7 +63,7 @@ jobs:
 
   package:
     needs: build
-    runs-on: ubuntu-24.04-arm
+    runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 40
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
@@ -100,7 +107,7 @@ jobs:
         run: bash build-tools/package.sh assemble
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: cloudmeet-aarch64-${{ github.run_id }}-${{ github.run_attempt }}
+          name: cloudmeet-${{ inputs.architecture == 'amd64' && 'amd64' || 'aarch64' }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: |
             output/*.tar.gz
             output/*.sha256
