@@ -51,6 +51,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `.git/` | 部署维护仓库 Git 元数据，不作交付材料、不手工整理内部文件 |
 | `.worktrees/` | 独立工作树及其分支实现，不移动、不按缓存删除，不枚举内部副本 |
 | `release/` | 完整部署包交付根；材料/摘要校验不代表安装运行结果 |
+| `release/install-docker.sh` | 用户批准的本地Docker 27.3.1 ARM64离线首次安装入口；同目录tgz固定SHA校验，拒绝已有Docker/containerd/数据，安装systemd服务；不自动执行、不联网、不代表宿主安装验证 |
+| `tests/test_install_docker.py` | Docker离线入口Bash语法与模拟拒绝路径回归；不执行真实安装或启动daemon |
 | `release/amd64/`、`release/aarch64/` | 按产物实际架构组织正式交付 |
 | `release/amd64/server/`、`release/aarch64/server/` | 完整服务器部署包，按批次保存，不原地改包 |
 | `release/clients/` | 客户端独立交付根，与release/amd64、release/aarch64同级 |
@@ -61,6 +63,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `cert/cert-tool.py` | 通用IPv4 SAN证书签发及敏感更新材料生成，使用已有Python/OpenSSL，不连接服务器 |
 | `cert/replace-cert.sh`、`cert/rollback-cert.sh` | 管理员人工执行的Caddy基线证书检查、备份替换/reload及回滚；不自动调用或删除CA卷 |
 | `cert/replace-fixed-cert.sh` | 已切换固定标签原生JSON且启动参数一致的实例外部换证入口；校验、版本化备份及失败恢复，保持内部证书引用；不迁移实例、不重建容器 |
+| `cert/restart-verify-gateway.sh` | 换证后人工维护助手维护源；issue自动复制入新更新包并纳入摘要；显式--apply校验旧Caddyfile入口并仅重启指定gateway，用同目录ca.crt严格验证HTTPS及2xx响应；不执行换证/首装，不适用固定JSON入口，不修改已有更新包摘要 |
 | `cert/README.md`、`cert/test_cert_tool.py` | 操作前提/权限/客户端信任边界及IP/配置转换回归，不代表目标安装验证 |
 | `config/target.env` | 无固定网页入口IP的端口配置及可选MEDIA_HOST；接受本地证书告警，不接受workflow origin覆盖 |
 | `config/target.py` | 校验HTTPS/端口与可选媒体IPv4，生成本地证书占位身份、媒体参数及同源custom-config.js；保留不同的既有自定义文件并拒绝覆盖；占位PUBLIC_URL不是浏览器入口 |
