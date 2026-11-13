@@ -59,7 +59,12 @@ def host_os():
             (line.split('=',1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)}
 
 
-def deploy(root,verifier,runner=subprocess.run):
+def deploy(root,verifier,runner=subprocess.run,verify_origin=None):
+    certificate=None
+    if verify_origin is not None:
+        spec=importlib.util.spec_from_file_location('target_certificate',root/'certificate.py')
+        certificate=importlib.util.module_from_spec(spec);spec.loader.exec_module(certificate)
+        certificate.preflight(root,verify_origin)
     verifier.verify_checksums(root)
     manifest=json.loads((root/'candidate.json').read_text())
     verifier.require_ready(manifest)
@@ -97,18 +102,23 @@ def deploy(root,verifier,runner=subprocess.run):
         check_local_identity(json.loads(local.stdout)[0],identity,architecture,root/'images'/archives[service]['file'])
     runner([sys.executable,'-B',str(root/'initialize.py')],check=True,timeout=30)
     runner([sys.executable,'-B',str(root/'start.py'),'--start'],check=True,timeout=180)
+    if certificate is not None:
+        spec=importlib.util.spec_from_file_location('instance_start',root/'start.py')
+        start=importlib.util.module_from_spec(spec);spec.loader.exec_module(start)
+        certificate.activate(root,verify_origin,start.compose_command(root))
     print('First-start commands completed. Target CA/TLS, signaling, clients and media must still be accepted.')
 
 
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--first-install',action='store_true',required=True)
-    parser.parse_args()
+    parser.add_argument('--verify-origin',required=True)
+    args=parser.parse_args()
     root=Path(__file__).resolve().parent
     spec=importlib.util.spec_from_file_location('package_verifier',root/'install.py')
     verifier=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)
-    deploy(root,verifier)
+    deploy(root,verifier,verify_origin=args.verify_origin)
 
 
 if __name__=='__main__':

@@ -8,6 +8,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 2. 批次范围与授权
 
+- 用户批准目标侧证书组合方案：Actions不接收或分发cert/cert.tar.gz及私钥；同目录交付通用server归档/摘要、setup.py/摘要，管理员另行安全拷贝固定cert.tar.gz。setup显式--server-package和必填--verify-origin，安全解压到全新目录，暂存证书后调用deploy.py --first-install --verify-origin。宿主变更前验证证书摘要、链/期限/主机及密钥匹配；启动后仅替换对外证书、保留内部TLS、仅重启gateway，以给定CA严格验证入口/cm/desktop/的2xx且不跟随重定向。失败保留秘密和数据，不自动清理重装；新安装能力不追改历史包。
+
 - 开始一次批次时记录目标 OS、架构、完整 origin（协议/主机/端口）、媒体地址与端口、安装路径、源码或镜像来源、服务/补丁/客户端范围及终点。复用已确认选择，不反复询问。
 - 七服务为 gateway、app-web、api、web（Jitsi）、prosody、jicofo、jvb。不得用“七镜像构建成功”代替完整产品配置。
 - amd64、arm64 共用产品要求；架构差异限镜像、工具、依赖及经验证的平台参数。不能默默关闭鉴权、丢弃品牌或角色能力。缩减功能的测试包必须获得明确范围授权，不得当作正常产品交付。
@@ -60,7 +62,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `release/amd64/dependencies/`、`release/aarch64/dependencies/` | Docker/Compose等依赖安装材料，细分OS/版本，不自动安装 |
 | `config/` | 人工维护公共配置、模板及初始化/启动入口；实例秘密和数据仍在deploy根 |
 | `cert/` | 独立离线IP证书工具维护目录；生成证书及私钥不入Git，CA私钥仅留离线签发机 |
-| `cert/cert-tool.py` | 通用IPv4 SAN证书签发及敏感更新材料生成，使用已有Python/OpenSSL，不连接服务器 |
+| `cert/cert-tool.py` | 通用IPv4 SAN证书签发及敏感更新材料生成，issue同时输出同名tar.gz与外部sha256，复读归档核对成员内容、固定归档权限且拒绝CA私钥及覆盖；使用已有Python/OpenSSL，不连接服务器 |
 | `cert/replace-cert.sh`、`cert/rollback-cert.sh` | 管理员人工执行的Caddy基线证书检查、备份替换/reload及回滚；不自动调用或删除CA卷 |
 | `cert/replace-fixed-cert.sh` | 已切换固定标签原生JSON且启动参数一致的实例外部换证入口；校验、版本化备份及失败恢复，保持内部证书引用；不迁移实例、不重建容器 |
 | `cert/restart-verify-gateway.sh` | 换证后人工维护助手维护源；issue自动复制入新更新包并纳入摘要；显式--apply校验旧Caddyfile入口并仅重启指定gateway，用同目录ca.crt严格验证HTTPS及2xx响应；不执行换证/首装，不适用固定JSON入口，不修改已有更新包摘要 |
@@ -113,6 +115,9 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | 路径 | 作用 |
 |---|---|
 | `build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
+| `build-tools/setup.py` | 目标侧组合入口，校验server摘要、安全解压新目录，暂存管理员旁置cert.tar.gz并预检，调用公共首装；Actions独立输出脚本和摘要，不带私钥 |
+| `build-tools/offline-runtime/certificate.py` | 公共目标证书安全解包/摘要、SAN及链/密钥预检，对外换证、仅重启gateway与严格HTTPS响应验证；不执行证书包脚本 |
+| `build-tools/tests/test_certificate.py` | origin拒绝规则、证书归档路径及CA私钥拒绝、可选本机证书清单回归，不连接服务器 |
 | `build-tools/README.md` | 统一入口参数、artifact内容、已有Docker依赖契约及辅助检查方法；非另一份规范 |
 | `build-tools/clients/build-clients.cjs` | Windows MSI/Android统一候选构建入口；显式读取config/client.env，提供只读预检查、锁、临时配置恢复及产物摘要，不自动晋级交付 |
 | `build-tools/clients/core.cjs` | 严格四项配置校验、版本到Android整数转换、WiX路径识别与锁/临时文件恢复公共实现 |

@@ -58,6 +58,19 @@ python -B deploy/tools/check-deployment-layout.py
 找回及管理员恢复仍默认关闭，必需材料或配置缺项报错，不静默降级。包级校验与部署后轮换/撤权/接收确认/恢复验收分开。当前代码仍在收尾，CI受控副本/摘要及完整回归待核对；不表示已构建或已启用。继续使用Actions原生aarch64七服务主流程，不新增补丁交付线。
 # Native architecture selection (2026-11-13)
 
+## Target-side private certificate input
+
+Actions outputs setup.py and setup.py.sha256 alongside the server archive and its checksum.
+Do not upload cert.tar.gz to Git/Actions. Copy it securely beside those files on target.
+After checking both SHA256 sidecars, run:
+`sudo python3 -B setup.py --server-package <server.tar.gz> --verify-origin https://<host>:<port>`.
+setup refuses an existing installation directory. It stages cert.tar.gz and cert/ without
+changing the original package SHA256SUMS; the verifier permits only exact certificate
+members matching the checked archive. Certificate SAN, expiry, chain and key are checked
+before image imports. After startup only gateway is restarted; strict TLS/2xx verification
+uses ca.crt and the explicit origin. Failures preserve secrets/data for manual recovery.
+No automatic retry of first-install, target cleanup or server operations during packaging.
+
 The single workflow accepts `architecture: amd64|arm64` (default arm64).
 amd64 uses native ubuntu-24.04; arm64 uses native ubuntu-24.04-arm.
 `TARGET_ARCH` controls the runner check, image platform, Java/Go toolchain,

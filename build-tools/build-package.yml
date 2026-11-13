@@ -112,6 +112,8 @@ jobs:
             output/*.tar.gz
             output/*.sha256
             output/package-evidence.json
+            output/setup.py
+            output/setup.py.sha256
           compression-level: 0
           if-no-files-found: error
           retention-days: 14

@@ -120,7 +120,27 @@ def verify_checksums(root):
         if actual!=digest:
             raise ValueError('Checksum mismatch: '+name)
     expected={p.relative_to(root).as_posix() for p in root.rglob('*') if p.is_file() and p!=root/'SHA256SUMS'}
-    if expected!=seen:
+    additions=expected-seen
+    if additions:
+        if 'cert.tar.gz' not in additions or any(name!='cert.tar.gz' and not name.startswith('cert/') for name in additions):
+            raise ValueError('Unlisted package files')
+        import importlib.util
+        allowed={'cert.tar.gz'}
+        spec=importlib.util.spec_from_file_location('target_certificate',root/'certificate.py')
+        module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
+        import tempfile
+        with tempfile.TemporaryDirectory() as tmp:
+            staged=Path(tmp)/'cert'
+            module.unpack_certificate(root/'cert.tar.gz',staged)
+            for path in staged.iterdir():
+                name='cert/'+path.name
+                allowed.add(name)
+                actual=root/name
+                if not actual.is_file() or actual.is_symlink() or actual.read_bytes()!=path.read_bytes():
+                    raise ValueError('Target certificate staging mismatch')
+        if additions!=allowed:
+            raise ValueError('Unlisted package files')
+    if seen-expected:
         raise ValueError('Unlisted package files')
     return len(seen)
 

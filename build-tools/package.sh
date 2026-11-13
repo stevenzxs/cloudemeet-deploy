@@ -239,6 +239,8 @@ assemble_package() {
     chmod 0755 "$output/bin/docker-compose"
     "$output/bin/docker-compose" version
     cp "$tools/offline-runtime/"*.py "$output/"
+    cp "$tools/setup.py" "$repo/output/setup.py"
+    (cd "$repo/output" && sha256sum setup.py > setup.py.sha256)
     cp -a "$repo/patches" "$output/patches"
     cp "$tools/sources.json" "$output/provenance/sources.json"
     cp "$tools/inputs.sha256" "$output/provenance/deployment-inputs.sha256"
@@ -379,6 +381,16 @@ manifest['patch_decisions']={name:('install' if name in verifier.PRODUCT_PATCHES
  'not installed: documentation or optional Web/HTTP customization') for name in manifest['patches']}
 (out/'candidate.json').write_text(json.dumps(manifest,indent=2)+'\n')
 (out/'INSTALL.md').write_text('''# CloudMeet aarch64 offline package
+
+Target-side certificate installation:
+Keep this archive, its .sha256, setup.py, setup.py.sha256 and private cert.tar.gz together.
+Check both SHA256 sidecars before executing setup.py. Never upload cert.tar.gz to Actions/Git.
+sudo python3 -B setup.py --server-package <archive.tar.gz> --verify-origin https://<actual-host>:<port>
+setup refuses an existing extraction directory. Keep any initialized secrets/data after failure;
+do not rerun first-install or overwrite an existing instance. Certificate activation restarts
+only gateway and verifies strict HTTPS /cm/desktop/ with the supplied CA, without redirects.
+The target must reach this origin (including any NAT/firewall path).
+Legacy direct first-install examples below require --verify-origin and target certificate staging.
 
 Batch: '''+os.environ['BATCH']+'\nOrigin: '+origin+'''
 
