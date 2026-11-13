@@ -17,6 +17,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 3. 目录与唯一流程
 
+- 客户端目录最新用户确认覆盖下文旧架构路径：新增交付使用release/clients/windows/<x64|arm64>/<批次>/或release/clients/android/<armeabi-v7a|arm64-v8a|x86_64|universal>/<批次>/。不生成32位x86；多ABI归universal并记录实际集合。当前Windows仅实现x64，不默认新增arm64编译；历史目录不迁移。候选仍留Temp，按相同平台/架构分类，不自动晋级。
+
 - `deploy/release/` 是唯一新增交付入口，架构名称使用 `amd64`、`aarch64`。不再建立或下载到 `deploy/debug/`。release是交付用途，不等同编译器构建模式或签名身份。
 - `release/<架构>/server/` 放完整服务器包，`release/<架构>/dependencies/` 放Docker、Compose依赖；客户端单独放在`release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级，并注明OS/ABI、多ABI实际集合及签名。缺必需材料的未完成候选不作为完整包交付。完整包附构建/校验记录、INSTALL、摘要和前置条件；不以安装测试作为进入release的条件。此次仅调整文档，不移动或改写已有客户端批次，其旧路径仍是实际位置。
 - 架构按产物本身而非其连接的服务器划分。客户端注明 OS/ABI；多ABI包记录实际支持集合，不冒称单架构。依赖在 dependencies 下按目标OS/版本和组件版本区分，记录来源、摘要、安装前提及验证状态；有安装材料不等于该平台安装通过，不授权覆盖已有引擎。

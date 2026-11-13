@@ -9,6 +9,25 @@ test('Android always repackages APK while retaining dependency compilation cache
   assert.deepEqual(androidTasks(), [':app:packageRelease', '--rerun', ':app:assembleRelease']);
 });
 const { parseConfig } = require('../core.cjs');
+test('Android directories reflect actual ABI sets and exclude x86', () => {
+  const { androidLayout } = require('../build-clients.cjs');
+  assert.equal(androidLayout(['arm64-v8a']).architecture, 'arm64-v8a');
+  assert.deepEqual(androidLayout(['x86_64', 'arm64-v8a', 'arm64-v8a']).architectures, ['arm64-v8a', 'x86_64']);
+  assert.equal(androidLayout(['armeabi-v7a', 'arm64-v8a']).architecture, 'universal');
+  assert.throws(() => androidLayout(['x86']));
+  assert.throws(() => androidLayout([]));
+});
+test('platform layout creates only the architecture actually collected', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-layout-'));
+  try {
+    const src = path.join(dir, 'src'); fs.mkdirSync(src); fs.writeFileSync(path.join(src, 'client.msi'), 'fixture');
+    const dst = path.join(dir, 'candidate');
+    const result = collect(src, dst, '.msi', 0, () => ({ platform: 'windows', architecture: 'x64', architectures: ['x64'] }));
+    assert.equal(result[0].file, path.join('windows', 'x64', 'client.msi'));
+    assert.equal(result[0].deliveryDirectory, 'windows/x64/<batch>');
+    assert.equal(fs.existsSync(path.join(dst, 'windows', 'arm64')), false);
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
 test('arguments enforce the canonical configuration and reject ambiguity', () => {
   assert.equal(argumentsFor(['--target', 'electron', '--check']).target, 'electron');
   for (const args of [['--target'], ['--target', 'ios'], ['--wat'], ['--check', '--check'], ['--env-file', __filename]]) {
@@ -37,7 +56,7 @@ test('check ignores endpoint/version environment overrides and never creates bui
   const report = JSON.parse(result.stdout);
   const config = parseConfig(fs.readFileSync(path.resolve(__dirname, '../../../config/client.env'), 'utf8'));
   assert.equal(report.version, config.version); assert.equal(report.origin, config.origin);
-  assert.equal(report.versionCode, 1019);
+  assert.equal(report.versionCode, require('../core.cjs').versionCode(config.version));
   assert.equal(report.deliveryRoot, path.resolve(__dirname, '../../../release/clients'));
   assert.ok(!report.blockers.some(text => text.includes('lastVersionCode')));
   assert.ok(report.warnings.some(text => text.includes('NOT verified')));

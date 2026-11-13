@@ -55,3 +55,12 @@ release-version.json。保留独占构建锁，但不创建版本状态文件。
 WiX依次识别WIX/bin、WIX便携目录、PATH及默认v3.14/v3.11安装目录。
 当前本机PATH已提供D:\tool\wix311-binaries，无需重复安装或修改系统环境。
 这不是工具测试失败，也不代表MSI/APK已编译或安装验收。
+
+## 平台与架构目录（覆盖上述旧架构路径）
+
+正式交付使用 `release/clients/windows/<x64|arm64>/<批次>/` 或
+`release/clients/android/<armeabi-v7a|arm64-v8a|x86_64|universal>/<批次>/`。
+当前 Windows 仅构建 x64，不生成 x86；Android 读取 APK 实际 ABI，多 ABI 使用
+universal 并记录完整集合，不代表支持所有 ABI。候选使用相同平台/架构分类。
+构建临时排除 Android x86，结束恢复源码。需要 Python 3 检查 APK ZIP 成员。
+deliveryDirectory 仅记录目标模板，不自动晋级、不移动历史产物。

@@ -1,5 +1,11 @@
 # 当前执行记录
 
+## 客户端平台/架构目录
+
+- 用户批准clients按windows或android，再按实际架构/ABI和批次分类；排除32位x86，Windows目前仍仅构建x64。
+- 候选收集记录平台、实际ABI与交付目录模板；Android临时移除x86过滤并在结束恢复源文件，APK通过Python标准库读取真实lib ABI，多ABI使用universal且记录集合。不移动历史产物，不触发编译或自动晋级。
+- 修正既有预检查测试硬编码1019，改为按当前配置版本派生，保留用户client.env不动。
+
 ## setup解压执行权限修复
 
 - rc6目标首装在Compose检查前失败：setup按.sh后缀赋执行位，错误将bin/docker-compose解压为0644。改为依据归档任意执行位映射0755，否则0644，不继承setuid/setgid/sticky或写权限。

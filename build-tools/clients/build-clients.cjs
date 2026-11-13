@@ -76,7 +76,21 @@ function androidTasks() {
   return [':app:packageRelease', '--rerun', ':app:assembleRelease'];
 }
 
-function collect(source, destination, extension, started) {
+function androidLayout(abis) {
+  const actual = [...new Set(abis)].sort();
+  const supported = ['armeabi-v7a', 'arm64-v8a', 'x86_64'];
+  if (!actual.length || actual.some(abi => !supported.includes(abi))) throw Error('Unsupported or missing APK ABI (x86 is excluded)');
+  return { platform: 'android', architectures: actual, architecture: actual.length === 1 ? actual[0] : 'universal' };
+}
+
+function inspectApk(file) {
+  const script = 'import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); print(json.dumps(sorted({n.split("/")[1] for n in z.namelist() if n.startswith("lib/") and n.endswith(".so") and len(n.split("/"))==3})))';
+  const result = spawnSync('python', ['-B', '-c', script, file], { encoding: 'utf8', windowsHide: true });
+  if (result.error || result.status !== 0) throw Error('Python 3 with zipfile is required to inspect APK ABIs');
+  return androidLayout(JSON.parse(result.stdout));
+}
+
+function collect(source, destination, extension, started, layoutFor) {
   const results = [];
   const walk = dir => {
     if (!fs.existsSync(dir)) return;
@@ -85,9 +99,12 @@ function collect(source, destination, extension, started) {
       if (entry.isSymbolicLink()) throw Error('Artifact links are not allowed');
       if (entry.isDirectory()) walk(file);
       else if (entry.name.endsWith(extension) && fs.statSync(file).mtimeMs >= started) {
-        const relative = path.relative(source, file); const output = path.join(destination, relative);
+        const layout = layoutFor ? layoutFor(file) : null;
+        const relative = path.relative(source, file);
+        const output = layout ? path.join(destination, layout.platform, layout.architecture, relative) : path.join(destination, relative);
         fs.mkdirSync(path.dirname(output), { recursive: true }); fs.copyFileSync(file, output);
-        results.push({ file: path.relative(path.dirname(destination), output), bytes: fs.statSync(output).size,
+        results.push({ file: path.relative(layout ? destination : path.dirname(destination), output),
+          ...(layout ? { ...layout, deliveryDirectory: path.posix.join(layout.platform, layout.architecture, '<batch>') } : {}), bytes: fs.statSync(output).size,
           sha256: crypto.createHash('sha256').update(fs.readFileSync(output)).digest('hex') });
       }
     }
@@ -131,7 +148,8 @@ async function build(options, config, report) {
           delete buildEnv.WIX;
           run(process.execPath, [path.join(project, 'node_modules/@electron-forge/cli/dist/electron-forge.js'), 'make', '--platform=win32', '--arch=x64'], project,
             buildEnv, path.join(candidate, 'electron.log'));
-          manifest.artifacts.push(...collect(path.join(project, 'out/make/unified/x64'), path.join(candidate, 'electron'), '.msi', started));
+          manifest.artifacts.push(...collect(path.join(project, 'out/make/unified/x64'), candidate, '.msi', started,
+            () => ({ platform: 'windows', architecture: 'x64', architectures: ['x64'] })));
         });
       }
       if (options.target !== 'electron') {
@@ -142,6 +160,11 @@ async function build(options, config, report) {
         const started = Date.now();
         const changes = [[path.join(project, 'react/features/cloudmeet/deployment.json'), JSON.stringify({ origin: config.origin }, null, 4) + '\n'],
           [restrictions, xml.replace('android:key="SERVER_URL"', `android:key="SERVER_URL" android:defaultValue="${config.origin}"`)]];
+        const gradle = path.join(project, 'android/app/build.gradle');
+        const gradleText = fs.readFileSync(gradle, 'utf8');
+        const filters = "abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'";
+        if (!gradleText.includes(filters)) throw Error('Unexpected Android ABI filters; refusing implicit architecture change');
+        changes.push([gradle, gradleText.replace(filters, "abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'")]);
         if (ca) {
           const trust = path.join(project, 'android/app/src/main/res/xml/network_security_config.xml');
           changes.push([trust, androidTrust(fs.readFileSync(trust, 'utf8'), config.values.SITE_DOMAIN)],
@@ -149,7 +172,7 @@ async function build(options, config, report) {
         }
         await withFiles(changes, async () => {
           run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'], path.join(project, 'android'), env, path.join(candidate, 'android.log'));
-          manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), path.join(candidate, 'android'), '.apk', started));
+          manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });
       }
       manifest.status = 'compiled-candidate-unverified';
@@ -168,4 +191,4 @@ async function main() {
   if (!options.check) await build(options, config, report);
 }
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { argumentsFor, preflight, collect, androidTasks };
+module.exports = { argumentsFor, preflight, collect, androidTasks, androidLayout };
