@@ -2,6 +2,8 @@
 
 ## 2026-11-13 amd64打包适配
 
+- 首次run43360382722失败：基础镜像校验内Python使用单引号环境变量键，被外层Shell单引号吞掉而NameError；七服务尚未编译，组包跳过。修正双引号并新增真实Shell管道回归；新run完整重编，不复用失败批次产物。
+
 - 用户批准统一入口支持原生amd64，提交推送并触发Actions，终点为下载材料校验后的完整包；不操作服务器、不发布镜像。
 - workflow按architecture选择原生runner，脚本统一派生镜像平台、Java/Go、Compose和包/安装器架构。
 - 核对Jitsi stable-11248索引03a73ca2…包含原ARM子manifest48f5eb97…及amd64子manifest88283823…；Debian/nginx固定索引均有amd64，不复用ARM应用镜像。

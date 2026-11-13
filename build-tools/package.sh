@@ -72,7 +72,7 @@ build_service() (
         docker image inspect "$ref" | python3 -c '
 import json, os, sys
 i=json.load(sys.stdin)[0]
-assert (i["Os"],i["Architecture"]) == ("linux",os.environ['TARGET_ARCH']), "Wrong base platform"
+assert (i["Os"],i["Architecture"]) == ("linux",os.environ["TARGET_ARCH"]), "Wrong base platform"
 with open(os.environ["BASE_RECORDS"],"a") as f:
     f.write(json.dumps({"requested":sys.argv[1],"id":i["Id"],"digests":i["RepoDigests"]})+"\n")
 print(i["RepoDigests"][0])' "$ref"

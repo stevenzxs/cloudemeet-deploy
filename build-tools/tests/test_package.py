@@ -8,6 +8,22 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PackageTests(unittest.TestCase):
+    def test_base_inspection_python_survives_shell_quoting(self):
+        import os
+        import subprocess
+        import tempfile
+        script = (ROOT/'build-tools/package.sh').read_text()
+        command = script.split('docker image inspect "$ref" | ', 1)[1].split('\n    }', 1)[0]
+        for arch in ('amd64', 'arm64'):
+            with tempfile.TemporaryDirectory() as directory:
+                result = subprocess.run(['bash', '-c', 'ref=fixture; '+command],
+                    input=json.dumps([{'Os':'linux','Architecture':arch,'Id':'sha256:fixture',
+                                       'RepoDigests':['fixture@sha256:abc']}]),
+                    env=dict(os.environ, TARGET_ARCH=arch, BASE_RECORDS=directory+'/bases'),
+                    text=True, capture_output=True)
+                self.assertEqual(result.returncode, 0, result.stderr)
+                self.assertEqual(result.stdout.strip(), 'fixture@sha256:abc')
+
     def test_native_architecture_contract(self):
         script = (ROOT/'build-tools/package.sh').read_text()
         self.assertIn('amd64) HOST_ARCH=x86_64; PACKAGE_ARCH=amd64; COMPOSE_ARCH=x86_64', script)
