@@ -40,11 +40,11 @@ def validate_initialized_data(root):
         raise ValueError('Symlink in initialized data')
     if not data.exists():
         return
-    expected={'ca.key','ca.crt','ca.srl','gateway.key','gateway.csr','cert.ext','gateway.crt'}
+    expected={'ca.key','ca.crt','gateway.key','gateway.csr','cert.ext','gateway.crt'}
     control=data/'host-control'
     if (not data.is_dir() or {p.name for p in data.iterdir()}!={'host-control'}
             or control.is_symlink() or not control.is_dir()
-            or {p.name for p in control.iterdir()}!=expected):
+            or {p.name for p in control.iterdir()} not in (expected,expected|{'ca.srl'})):
         raise ValueError('First-start refuses existing business data or incomplete TLS bootstrap')
     for p in control.iterdir():
         if p.is_symlink() or not p.is_file() or p.stat().st_size==0:
@@ -87,6 +87,19 @@ def safe_directory(root,relative):
     return current
 
 
+def validate_local_images(root,manifest):
+    """Share config/manifest identity semantics with the import entry."""
+    spec=importlib.util.spec_from_file_location('image_identity',root/'deploy.py')
+    identity_check=importlib.util.module_from_spec(spec); spec.loader.exec_module(identity_check)
+    for service,(tag,identity) in manifest['images'].items():
+        info=json.loads(subprocess.check_output(['docker','image','inspect',tag]))[0]
+        record=manifest['image_archives'][service]
+        if Path(record['file']).name!=record['file']:
+            raise ValueError('Unsafe image archive path')
+        identity_check.check_local_identity(info,identity,manifest.get('architecture','amd64'),
+                                            root/'images'/record['file'])
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--start',action='store_true',required=True)
@@ -98,10 +111,7 @@ def main():
     spec.loader.exec_module(verifier)
     verifier.require_ready(manifest)
     # Validate exact locally imported identities before creating any data.
-    for service,(tag,identity) in manifest['images'].items():
-        info=json.loads(subprocess.check_output(['docker','image','inspect',tag]))[0]
-        if info['Id']!=identity or info['Os']!='linux' or info['Architecture']!=manifest.get('architecture','amd64'):
-            raise ValueError('Local image mismatch: '+service)
+    validate_local_images(root,manifest)
     command=compose_command(root)
     rendered=json.loads(subprocess.check_output(command+['config','--format','json'],stderr=subprocess.PIPE))
     # Independent product requirements before creating data or launching services.

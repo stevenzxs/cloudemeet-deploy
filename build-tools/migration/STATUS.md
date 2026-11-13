@@ -1,5 +1,11 @@
 # 当前执行记录
 
+## 2026-11-13 首启TLS清单与镜像校验补全
+
+- rc4已导入七镜像并生成秘密，首启因OpenSSL未保留ca.srl被误拒绝；start.py现在允许该序列号辅助文件缺省，仍要求六项TLS材料、权限、证书链/主机及公私钥匹配，拒绝额外文件及业务数据。
+- start.py镜像检查复用deploy.py归档绑定身份逻辑，消除上一修复遗漏的第二处config-ID假设；不放宽架构或身份链。
+- 用户要求继续修复；延续提交推送/Actions范围，新amd64版本1.0.19-rc5完整七服务；不原地修改rc4历史包、不清除115的.env/data、不执行远端恢复。rc4恢复需另交付经校验维护材料与明确操作，不可重跑first-install或直接覆盖新包。
+
 ## 2026-11-13 Docker 29/containerd安装身份修复
 
 - 115只读排查证实：Docker 29.7.2/containerd镜像存储的inspect.Id为OCI manifest摘要77be4963…，归档manifest引用批准config bc64fc9b…；包摘要、平台、Config与RootFS一致，旧安装器误将manifest摘要与config摘要比较。
