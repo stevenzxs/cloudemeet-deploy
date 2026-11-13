@@ -53,6 +53,29 @@ class DeployTests(unittest.TestCase):
             self.mod.check_local_identity({'Id':'sha256:approved','Os':'linux','Architecture':'amd64'},
                                           'sha256:approved', 'arm64')
 
+    def test_containerd_manifest_identity_is_bound_to_archive_config(self):
+        import hashlib
+        import io
+        import tarfile
+        raw=json.dumps({'schemaVersion':2,'config':{'digest':'sha256:approved'}}).encode()
+        digest='sha256:'+hashlib.sha256(raw).hexdigest()
+        with tempfile.TemporaryDirectory() as tmp:
+            archive=Path(tmp)/'image.tar.gz'
+            with tarfile.open(archive,'w:gz') as tar:
+                member=tarfile.TarInfo('blobs/sha256/'+digest.split(':')[1]); member.size=len(raw)
+                tar.addfile(member,io.BytesIO(raw))
+                index=json.dumps({'manifests':[{'digest':digest}]}).encode()
+                member=tarfile.TarInfo('index.json'); member.size=len(index)
+                tar.addfile(member,io.BytesIO(index))
+            info={'Id':digest,'Os':'linux','Architecture':'amd64'}
+            self.mod.check_local_identity(info,'sha256:approved','amd64',archive)
+            with self.assertRaises(ValueError):
+                self.mod.check_local_identity(info,'sha256:other','amd64',archive)
+            with self.assertRaises(ValueError):
+                self.mod.check_local_identity(dict(info,Id='sha256:wrong'),'sha256:approved','amd64',archive)
+            with self.assertRaises(ValueError):
+                self.mod.check_local_identity(info,'sha256:approved','arm64',archive)
+
     def test_archive_set_missing_prevents_any_load(self):
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)

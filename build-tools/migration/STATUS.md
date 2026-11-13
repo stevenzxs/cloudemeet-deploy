@@ -1,5 +1,11 @@
 # 当前执行记录
 
+## 2026-11-13 Docker 29/containerd安装身份修复
+
+- 115只读排查证实：Docker 29.7.2/containerd镜像存储的inspect.Id为OCI manifest摘要77be4963…，归档manifest引用批准config bc64fc9b…；包摘要、平台、Config与RootFS一致，旧安装器误将manifest摘要与config摘要比较。
+- 公共deploy.py保留传统config-ID检查，同时允许经过归档index成员、manifest内容SHA256及其config引用验证的manifest-ID；前置已有标签与导入后均调用同一校验。错误ID、错误config、错误架构仍拒绝。
+- 用户授权修代码、提交推送与启动新amd64 Actions；完整重编七服务，不修改历史包、不在服务器安装。新版本1.0.19-rc4，无固定网页IP及既有引擎前提保持不变；运行/媒体兼容性仍未验。
+
 ## 2026-11-13 amd64打包适配
 
 - 首次run43360382722失败：基础镜像校验内Python使用单引号环境变量键，被外层Shell单引号吞掉而NameError；七服务尚未编译，组包跳过。修正双引号并新增真实Shell管道回归；新run完整重编，不复用失败批次产物。
