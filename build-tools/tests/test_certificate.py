@@ -43,8 +43,12 @@ class CertificateTests(unittest.TestCase):
             with tarfile.open(archive,'w:gz') as tar:
                 info=tarfile.TarInfo('server/deploy.py');info.size=1
                 tar.addfile(info,io.BytesIO(b'x'))
+                info=tarfile.TarInfo('server/bin/docker-compose');info.size=1;info.mode=0o6755
+                tar.addfile(info,io.BytesIO(b'x'))
             Path(str(archive)+'.sha256').write_text(hashlib.sha256(archive.read_bytes()).hexdigest()+'  server.tar.gz\n')
-            self.assertEqual((setup.extract_server(archive)/'deploy.py').read_bytes(),b'x')
+            extracted=setup.extract_server(archive)
+            self.assertEqual((extracted/'deploy.py').read_bytes(),b'x')
+            self.assertEqual((extracted/'bin/docker-compose').stat().st_mode & 0o7777,0o755)
             with self.assertRaises(FileExistsError): setup.extract_server(archive)
             Path(str(archive)+'.sha256').write_text('0'*64+'  server.tar.gz\n')
             with self.assertRaises(ValueError): setup.extract_server(archive)

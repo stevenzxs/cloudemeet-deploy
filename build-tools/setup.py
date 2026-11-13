@@ -35,7 +35,9 @@ def extract_server(archive):
             else:
                 destination.parent.mkdir(parents=True,exist_ok=True)
                 with tar.extractfile(member) as source,destination.open('xb') as output: shutil.copyfileobj(source,output)
-                destination.chmod(0o755 if destination.suffix=='.sh' else 0o644)
+                # Preserve executable intent for extensionless binaries as well as
+                # scripts, never archive setuid/setgid/sticky or writable bits.
+                destination.chmod(0o755 if member.mode & 0o111 else 0o644)
     return root
 
 
