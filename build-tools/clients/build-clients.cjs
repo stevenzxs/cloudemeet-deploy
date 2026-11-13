@@ -116,8 +116,7 @@ function collect(source, destination, extension, started, layoutFor) {
 
 async function build(options, config, report) {
   return withLock(lock, async () => {
-    const candidate = fs.mkdtempSync(path.join(process.env.LOCALAPPDATA
-      ? path.join(process.env.LOCALAPPDATA, 'Temp/opencode') : os.tmpdir(), 'cloudmeet-clients-'));
+    const candidate = createCandidate();
     const manifest = { ...report, status: 'building', candidate, started: new Date().toISOString(), artifacts: [] };
     const save = () => fs.writeFileSync(path.join(candidate, 'build.json'), JSON.stringify(manifest, null, 2) + '\n');
     const env = { ...process.env, CLOUDMEET_BUILD_MODE: 'release' };
@@ -182,6 +181,12 @@ async function build(options, config, report) {
   });
 }
 
+function createCandidate(base = process.env.LOCALAPPDATA
+  ? path.join(process.env.LOCALAPPDATA, 'Temp/opencode') : os.tmpdir()) {
+  fs.mkdirSync(base, { recursive: true });
+  return fs.mkdtempSync(path.join(base, 'cloudmeet-clients-'));
+}
+
 async function main() {
   const options = argumentsFor(process.argv.slice(2));
   const config = parseConfig(fs.readFileSync(canonical, 'utf8'));
@@ -191,4 +196,4 @@ async function main() {
   if (!options.check) await build(options, config, report);
 }
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { argumentsFor, preflight, collect, androidTasks, androidLayout };
+module.exports = { argumentsFor, preflight, collect, androidTasks, androidLayout, createCandidate };

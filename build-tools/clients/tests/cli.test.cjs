@@ -9,6 +9,16 @@ test('Android always repackages APK while retaining dependency compilation cache
   assert.deepEqual(androidTasks(), [':app:packageRelease', '--rerun', ':app:assembleRelease']);
 });
 const { parseConfig } = require('../core.cjs');
+test('candidate creation tolerates a missing temporary parent directory', () => {
+  const { createCandidate } = require('../build-clients.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-parent-'));
+  try {
+    const base = path.join(dir, 'missing', 'opencode');
+    const candidate = createCandidate(base);
+    assert.equal(path.dirname(candidate), base);
+    assert.ok(fs.statSync(candidate).isDirectory());
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
 test('Android directories reflect actual ABI sets and exclude x86', () => {
   const { androidLayout } = require('../build-clients.cjs');
   assert.equal(androidLayout(['arm64-v8a']).architecture, 'arm64-v8a');
