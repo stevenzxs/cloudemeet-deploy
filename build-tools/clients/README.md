@@ -58,6 +58,17 @@ WiX依次识别WIX/bin、WIX便携目录、PATH及默认v3.14/v3.11安装目录�
 
 ## 平台与架构目录（覆盖上述旧架构路径）
 
+## 打包交付终点（覆盖旧候选不晋级说明）
+
+正常构建依次完成最终包检查及自动交付，Temp不再作为成功终点。
+MSI管理解包后核对实际版本、PE架构、内嵌入口/公开CA以及MSI和主程序签名状态；
+APK使用SDK工具核对版本、真实ABI、签名和打包资源中的入口/CA。
+必需检查缺失或失败即报阻塞；未签名MSI明确记录，异常签名拒绝。
+通过后复制到release/clients/<平台>/<架构或ABI>/<批次>，生成证据、说明及SHA256SUMS。
+交付目录拒绝覆盖。设备安装、线上TLS与会议媒体验收不属于打包门禁。
+检查依赖Windows Installer管理解包、PowerShell、Python和Android SDK的
+apkanalyzer/aapt/apksigner；管理解包仅展开MSI，不安装应用。
+
 正式交付使用 `release/clients/windows/<x64|arm64>/<批次>/` 或
 `release/clients/android/<armeabi-v7a|arm64-v8a|x86_64|universal>/<批次>/`。
 当前 Windows 仅构建 x64，不生成 x86；Android 读取 APK 实际 ABI，多 ABI 使用

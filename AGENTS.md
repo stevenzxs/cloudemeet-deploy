@@ -331,6 +331,9 @@ flowchart TD
 
 ## 8. 客户端编译与签名
 
+- 最新客户端打包终点覆盖下文旧“候选不晋级”约定：正常命令必须完成编译、最终包版本/平台ABI/内嵌入口和公开CA/签名状态检查，复制到release/clients/<平台>/<架构或ABI>/<批次>，复核副本摘要并输出记录和实际路径；必需检查失败明确报阻塞。临时目录仅中间态。未签名MSI如实记录，异常签名拒绝；安装、真实入口TLS及会议媒体验收不是打包门槛。
+- `build-tools/clients/verify-package.cjs`负责最终MSI管理解包、PE/版本/配置及签名，APK最终资源/ABI/版本/签名及公开CA；工具缺失报阻塞。`build-tools/clients/delivery.cjs`负责全批检查前置、不可覆盖交付及摘要说明；`build-tools/clients/tests/delivery.test.cjs`负责交付拒绝及防覆盖回归，不安装应用。
+
 - 唯一客户端入口及发布版本配置源为 `deploy/config/client.env`，包含 SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION，MSI/APK均须显式读取；不从服务端target.env、.env、旧client.env、环境变量或源码历史默认值覆盖/回退。缺项、无效入口或无效版本拒绝构建。CLIENT_VERSION使用三段数字版本，Electron产品版本与Android versionName保持一致；按配置原值使用，不自动递增补丁号。Android versionCode自动按major×1000+minor×100+patch转换，1.0.19对应1019；minor限定0..9、patch限定0..99，越界拒绝Android构建。相同版本得到相同code，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译，不自动卸载或清数据。构建记录保留版本及versionCode，不并发构建或删除活动锁。
 - 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；已恢复四项配置读取和候选构建编排，须先执行--check。版本转换约定替代旧历史证据/预留计数方案，不变更历史包或既有记录。工具回归通过不代表真实编译或包级验证完成。
 - 每批核对完整 origin、实际 MSI/APK 版本和摘要、包内入口及目标公开 CA。新地址不会自动配置 CA 信任。Electron 按准确 origin 限定信任；Android 按主机限定，保留已有端点策略，不打包私钥。

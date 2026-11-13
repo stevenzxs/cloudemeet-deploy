@@ -174,8 +174,15 @@ async function build(options, config, report) {
           manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });
       }
-      manifest.status = 'compiled-candidate-unverified';
-      manifest.acceptance = 'Not promoted: inspect actual versions, embedded origin, ABI, signatures and certificate trust before delivery.';
+      manifest.status = 'checking-packages'; save();
+      for (const artifact of manifest.artifacts) {
+        const scratch = fs.mkdtempSync(path.join(candidate, 'inspection-'));
+        artifact.checks = require('./verify-package.cjs').verifyPackage(
+          path.join(candidate, artifact.file), artifact, config, ca, root, scratch);
+      }
+      manifest.deliveries = require('./delivery.cjs').deliver(manifest, report.deliveryRoot);
+      manifest.status = 'packaged-delivered';
+      manifest.acceptance = 'Package checks and delivery completed; installation, endpoint TLS and media acceptance not performed.';
       save(); console.log(JSON.stringify(manifest, null, 2));
     } catch (error) { manifest.status = 'failed'; manifest.error = error.message; save(); throw error; }
   });
