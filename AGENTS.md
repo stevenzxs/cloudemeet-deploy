@@ -11,6 +11,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 - 用户批准目标侧证书组合方案：Actions不接收或分发cert/cert.tar.gz及私钥；同目录交付通用server归档/摘要、setup.py/摘要，管理员另行安全拷贝固定cert.tar.gz。setup显式--server-package和必填--verify-origin，安全解压到全新目录，暂存证书后调用deploy.py --first-install --verify-origin。宿主变更前验证证书摘要、链/期限/主机及密钥匹配；启动后仅替换对外证书、保留内部TLS、仅重启gateway，以给定CA严格验证入口/cm/desktop/的2xx且不跟随重定向。失败保留秘密和数据，不自动清理重装；新安装能力不追改历史包。
 
 - 开始一次批次时记录目标 OS、架构、完整 origin（协议/主机/端口）、媒体地址与端口、安装路径、源码或镜像来源、服务/补丁/客户端范围及终点。复用已确认选择，不反复询问。
+- 七服务（gateway、app-web、api、web、prosody、jicofo、jvb）的**源码底版**统一为 jitsi/jitsi-meet `stable/jitsi-meet_11248`（fork `release-11248` 分支，与标签一致）；**运行镜像** `JITSI_IMAGE_VERSION=stable-11146-2`（config/jitsi.env）是官方编译产物，二者不得混用口径——业务定制一律以补丁/插件/配置挂载叠加，不用镜像版本号指称源码底版。
 - 七服务为 gateway、app-web、api、web（Jitsi）、prosody、jicofo、jvb。不得用“七镜像构建成功”代替完整产品配置。
 - amd64、arm64 共用产品要求；架构差异限镜像、工具、依赖及经验证的平台参数。不能默默关闭鉴权、丢弃品牌或角色能力。缩减功能的测试包必须获得明确范围授权，不得当作正常产品交付。
 - 仅执行用户要求的里程碑，整批验证，不每小步停下。不得顺带整改广泛 CVE、升级依赖/锁文件、清理缓存或执行无关服务器操作；风险单列，遇具体阻塞或新授权边界才询问。
