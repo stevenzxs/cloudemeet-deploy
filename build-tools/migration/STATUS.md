@@ -1,3 +1,13 @@
+## 2026-11-16 本地WSL构建批次 11248.0.1 交付并部署至 118
+
+- 用户批准路线变更：不用 Actions runner，本机 WSL 从锁定源码完整编译七服务（amd64），版本 11248.0.1，批次 11248.0.1-local-1（本地 run 标记），部署材料提交 772787c。
+- 已发布 GHCR：ghcr.io/stevenzxs/cloudmeet-<service>:11248.0.1-amd64，7 digest 与构建记录逐一相等（见 release/amd64/server/11248.0.1-local-1/ghcr-digests.txt）。
+- 组包 PASS_PACKAGE_INTEGRITY_ONLY（45 文件，864,709,048 字节，SHA256 cfaec3a69684a7453a8f246b5b33a7993e26b566af5de48cee056fc92a833b60），交付 deploy/release/amd64/server/11248.0.1-local-1/。
+- 容器化存储语义偏差（构建机与 118 均为 containerd store，inspect Id=manifest list digest）：记录 image_id 用 index digest 并新增 image_config_id；仅构建侧克隆对 install.verify_image_archive 做最小增量（接受 image_config_id），目标机包内代码零修改。inputs.sha256 已同步两次本地材料增量（target.env 的 MEDIA_HOST=118.193.36.35；install.py 增量）。
+- 118 全部 frp（frps/frpc/配置/证书/单元）已按用户指令清退；gateway 直绑 0.0.0.0:8443，JVB UDP 10000（advertise 118.193.36.35，NAT 后端 10.7.163.131）；新增 2G swap。
+- 部署：拉取路线（GHCR pull→retag→包内 initialize/start 原链）至 /opt/cloudmeet/11248.0.1，compose project cloudmeet-1124801-local-1，7 容器全 Up。
+- 验收：公网 https://118.193.36.35:8443 下 /cm/desktop 200、/cm/ 200、/mapi/actuator/health UP、会议页 200、/http-bind 200；JWT 秘密为首次生成。媒体（UDP10000 经 NAT）与客户端信任（Caddy tls internal 私有 CA）未验收，不宣称可用。
+- 旧 /opt/cloudmeet-jks 数据保留未动；未改 202 生产与其他实例。
 # 当前执行记录
 
 ## 客户端完整交付流程修复
