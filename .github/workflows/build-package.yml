@@ -20,6 +20,11 @@ on:
         default: arm64
         type: choice
         options: [arm64, amd64]
+      publish_images:
+        description: 'Explicitly approved GHCR publication of this exact batch (no deployment)'
+        required: true
+        default: false
+        type: boolean
 
 permissions:
   contents: read
@@ -59,6 +64,48 @@ jobs:
           path: output/${{ matrix.service }}/
           compression-level: 0
           if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    needs: [build, package]
+    if: github.event_name == 'workflow_dispatch' && inputs.publish_images
+    runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 60
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify reviewed materials
+        env:
+          MATERIAL_COMMIT: ${{ inputs.material_commit }}
+        run: |
+          test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
+          sha256sum -c build-tools/inputs.sha256
+          python3 -B -m unittest discover -s build-tools/tests -p test_publish.py
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: downloads
+      - name: Authenticate only to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Publish exact verified images and registry identities
+        run: python3 -B build-tools/publish.py
+      - name: Remove runner registry session
+        if: always()
+        run: docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: registry-${{ github.run_id }}-${{ github.run_attempt }}
+          path: publication/
+          if-no-files-found: warn
           retention-days: 14
 
   package:

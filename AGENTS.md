@@ -8,6 +8,9 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 2. 批次范围与授权
 
+- 2026-11-17用户批准线上整链：150 Hermes编排固定提交的Actions七服务构建/组包及显式GHCR发布，118既有amd64实例按digest更新；允许提交推送、合并本次知识库规则、安装150工具并初始化专用CA以及更新/换证。数据/秘密/CA卷与内部TLS保留；不授权清数据、跳过客户端新CA信任过渡或借用知识库专用凭据。此批准覆盖此前仅打包和47先运行后发布的批次限制，仅对本次118线上链生效，构建/发布/部署/媒体验收分别记录。
+- 证书工具与公开CA身份权威库为stevenzxs/cloudmeet-certificates；本地cert为被忽略的工作副本，150执行固定工具提交。CA私钥/密码保存在150仓库外受限目录，独立恢复备份未核验及客户端信任未准备时不得激活新CA。旧“仅离线签发”描述对本次已批准150专用在线签发不适用。
+
 - 用户批准目标侧证书组合方案：Actions不接收或分发cert/cert.tar.gz及私钥；同目录交付通用server归档/摘要、setup.py/摘要，管理员另行安全拷贝固定cert.tar.gz。setup显式--server-package和必填--verify-origin，安全解压到全新目录，暂存证书后调用deploy.py --first-install --verify-origin。宿主变更前验证证书摘要、链/期限/主机及密钥匹配；启动后仅替换对外证书、保留内部TLS、仅重启gateway，以给定CA严格验证入口/cm/desktop/的2xx且不跟随重定向。失败保留秘密和数据，不自动清理重装；新安装能力不追改历史包。
 
 - 开始一次批次时记录目标 OS、架构、完整 origin（协议/主机/端口）、媒体地址与端口、安装路径、源码或镜像来源、服务/补丁/客户端范围及终点。复用已确认选择，不反复询问。
@@ -118,6 +121,9 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | 路径 | 作用 |
 |---|---|
 | `build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
+| `build-tools/publish.py` | 已成功组包后显式发布同run七镜像；逐项校验归档、平台、源码及镜像config身份，核对远端digest，保留部分发布与未部署状态，不重编译 |
+| `build-tools/tests/test_publish.py` | 发布显式审批及registry config身份绑定回归，不冒充真实push验证 |
+| `build-tools/ONLINE-PLAN.md` | 2026-11-17线上整链实施清单及门禁/剩余证据，非独立规范 |
 | `build-tools/setup.py` | 目标侧组合入口，校验server摘要、安全解压新目录，暂存管理员旁置cert.tar.gz并预检，调用公共首装；Actions独立输出脚本和摘要，不带私钥 |
 | `build-tools/offline-runtime/certificate.py` | 公共目标证书安全解包/摘要、SAN及链/密钥预检，对外换证、仅重启gateway与严格HTTPS响应验证；不执行证书包脚本 |
 | `build-tools/tests/test_certificate.py` | origin拒绝规则、证书归档路径及CA私钥拒绝、可选本机证书清单回归，不连接服务器 |
@@ -128,7 +134,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/clients/tests/core.test.cjs`、`build-tools/clients/tests/cli.test.cjs` | 配置、版本转换、WiX发现、独占锁/恢复、候选收集和只读预检查回归，不替代实际构建或安装验收 |
 | `../docs/plans/2026-11-12-client-builder.md` | 统一客户端构建工具实施计划，历史设计选择由当前第8节覆盖，非规范源 |
 | `build-tools/migration/test_deploy_governance.py` | 当前目录登记与打包边界回归，不依赖旧构建脚本 |
-| `build-tools/build-package.yml`、`.github/workflows/build-package.yml` | 手动原生aarch64七服务矩阵及组包；显式核对材料SHA，无registry写入及服务器操作 |
+| `build-tools/build-package.yml`、`.github/workflows/build-package.yml` | 手动原生amd64/arm64七服务矩阵及组包；显式核对材料SHA，publish_images默认false，仅发布job取得packages写权限，无服务器凭据或服务器操作 |
 | `build-tools/inputs.sha256` | 当前编排、Dockerfile、公共安装核心、公开补丁和Caddy模板的受审摘要；同步后核对，不代表构建成功 |
 | `build-tools/sources.json` | 七服务和生命周期源码完整提交锁定；与当前工作区身份核对 |
 | `build-tools/docker/web.Dockerfile`、`app-web.Dockerfile`、`api.Dockerfile`、`gateway.Dockerfile` | 四个应用产物镜像配方；相对同一docker目录列名，不是独立编排 |

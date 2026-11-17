@@ -84,7 +84,9 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         self.assertIn('needs: build', workflow)
         self.assertIn('github.run_attempt', workflow)
         self.assertNotIn('run-id:', workflow)
-        self.assertNotIn('packages: write', workflow)
+        self.assertNotIn('packages: write', workflow.split('jobs:',1)[0])
+        self.assertEqual(workflow.count('packages: write'),1)
+        self.assertIn('needs: [build, package]',workflow)
         self.assertNotIn('secrets.', workflow)
         self.assertNotIn('continue-on-error', workflow)
 
