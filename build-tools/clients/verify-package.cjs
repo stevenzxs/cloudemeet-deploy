@@ -1,11 +1,11 @@
 const fs = require('node:fs');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
-const crypto = require('node:crypto');
-const sha = data => crypto.createHash('sha256').update(data).digest('hex');
+const { matchesCa } = require('./ca-config.cjs');
 function command(exe, args) {
-  if (exe.endsWith('.bat')) { args = ['/d', '/s', '/c', '"' + [exe, ...args].map(v => '"' + v.replaceAll('"', '') + '"').join(' ') + '"']; exe = process.env.ComSpec || 'cmd.exe'; }
-  const result = spawnSync(exe, args, { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+  let verbatim = false;
+  if (exe.endsWith('.bat')) { args = ['/d', '/s', '/c', '"' + [exe, ...args].map(v => '"' + v.replaceAll('"', '') + '"').join(' ') + '"']; exe = process.env.ComSpec || 'cmd.exe'; verbatim = true; }
+  const result = spawnSync(exe, args, { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024, windowsVerbatimArguments: verbatim });
   if (result.error || result.status !== 0) throw Error(`Package inspection failed: ${exe}: ${result.stderr || result.error}`);
   return result.stdout;
 }
@@ -36,7 +36,7 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
       && env.includes(`SITE_PORT=${config.values.SITE_PORT}\n`), config.origin);
     const trust = JSON.parse(asar.extractFile(asarFile, 'client-trust.json').toString());
     check('ca', trust.origin === config.origin && (ca
-      ? sha(asar.extractFile(asarFile, 'client-ca.crt')) === ca.sha256 : trust.caFile === null), ca?.sha256 || 'system trust');
+      ? matchesCa(asar.extractFile(asarFile, 'client-ca.crt'), ca) : trust.caFile === null), ca?.sha256 || 'system trust');
     const exe = files.find(p => /cloudmeet\.exe$/i.test(p));
     if (!exe) throw Error('MSI main executable missing');
     const bytes = fs.readFileSync(exe); const offset = bytes.readUInt32LE(0x3c);
@@ -55,17 +55,36 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     const signature = command(path.join(tools, 'apksigner.bat'), ['verify', '--verbose', '--print-certs', file]);
     check('signature', signature.includes('Verifies'), signature);
     const analyzer = path.join(sdk, 'cmdline-tools/latest/bin/apkanalyzer.bat');
-    const listing = command(analyzer, ['files', 'list', file]).split(/\r?\n/).map(s => s.trim().replace(/^\//, ''));
+    const scan = JSON.parse(command('python', ['-B', '-c',
+      'import zipfile,json,sys; z=zipfile.ZipFile(sys.argv[1]); o=sys.argv[2].encode(); h=sys.argv[3].encode(); r={"origin":[],"domain":[]}\n'
+      + 'for n in z.namelist():\n'
+      + '    if not n.endswith(".xml") or n=="AndroidManifest.xml": continue\n'
+      + '    d=z.read(n)\n'
+      + '    if b"SERVER_URL" in d and o in d: r["origin"].append(n)\n'
+      + '    if h in d and b"trust-anchors" in d: r["domain"].append(n)\n'
+      + 'print(json.dumps(r))', file, config.origin, config.values.SITE_DOMAIN]));
+    const readXml = name => {
+      const raw = command('python', ['-B', '-c',
+        'import zipfile,sys; sys.stdout.buffer.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]))', file, name]);
+      // apkanalyzer omits element text (e.g. <domain> values); raw member bytes keep the AXML string pool.
+      try { return command(analyzer, ['resources', 'xml', '--file', name, file]) + '\n' + raw; }
+      catch { return raw; }
+    };
     let origin = false; let domain = false;
-    for (const name of listing.filter(n => n.endsWith('.xml') && n !== 'AndroidManifest.xml')) {
-      const xml = command(analyzer, ['resources', 'xml', '--file', name, file]);
-      if (xml.includes('SERVER_URL') && xml.includes(config.origin)) origin = true;
-      if (xml.includes(config.values.SITE_DOMAIN) && xml.includes('trust-anchors')) domain = true;
-      if (origin && domain) break;
-    }
+    for (const name of scan.origin) { const xml = readXml(name); if (xml.includes('SERVER_URL') && xml.includes(config.origin)) { origin = true; break; } }
+    for (const name of scan.domain) { const xml = readXml(name); if (xml.includes(config.values.SITE_DOMAIN) && xml.includes('trust-anchors')) { domain = true; break; } }
     check('origin', origin, 'Packaged managed SERVER_URL');
     const caFound = !ca || command('python', ['-B', '-c',
-      'import zipfile,hashlib,sys; z=zipfile.ZipFile(sys.argv[1]); print(any(hashlib.sha256(z.read(n)).hexdigest()==sys.argv[2] for n in z.namelist() if not n.endswith("/") and z.getinfo(n).file_size<65536))', file, ca.sha256]).trim() === 'True';
+      'import zipfile,hashlib,sys,base64,re; z=zipfile.ZipFile(sys.argv[1]); want=sys.argv[2]; ok=False\n'
+      + 'for n in z.namelist():\n'
+      + '    i=z.getinfo(n)\n'
+      + '    if n.endswith("/") or i.file_size>=65536: continue\n'
+      + '    d=z.read(n)\n'
+      + '    m=re.search(rb"-----BEGIN CERTIFICATE-----(.*?)-----END CERTIFICATE-----", d, re.S)\n'
+      + '    try: der=base64.b64decode(re.sub(rb"\\s", b"", m.group(1))) if m else d\n'
+      + '    except Exception: continue\n'
+      + '    if hashlib.sha256(der).hexdigest()==want: ok=True; break\n'
+      + 'print(ok)', file, ca?.sha256 || '']).trim() === 'True';
     check('ca', caFound && (!ca || domain), ca?.sha256 || 'system trust');
   }
   return checks;
