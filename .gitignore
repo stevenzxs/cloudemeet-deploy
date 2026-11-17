@@ -44,6 +44,8 @@
 !.env.example
 client.env
 !/config/client.env
+!/config/client-ca.crt
+!/config/client-ca.json
 .client-build.lock
 data/
 __pycache__/
