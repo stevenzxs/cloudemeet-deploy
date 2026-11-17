@@ -31,8 +31,6 @@
 !/cert/replace-cert.sh
 !/cert/rollback-cert.sh
 !/cert/test_cert_tool.py
-!/cert/replace-fixed-cert.sh
-!/cert/restart-verify-gateway.sh
 !/releases/
 /releases/*
 !/releases/11248-cm.20261110-rc2-amd64/
@@ -70,4 +68,4 @@ node_modules/
 /releases
 releases/11248-cm.20261110-rc2-amd64/registry.yaml
 releases/11248-cm.20261110-rc2-amd64/README.md
-# cert source files are allowlisted above; generated material stays ignored.
+/cert
