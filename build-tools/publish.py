@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import time
 
 SERVICES=('gateway','app-web','api','web','prosody','jicofo','jvb')
 
@@ -23,6 +24,33 @@ def digest(path):
 
 def output(*args):
     return subprocess.check_output(args,text=True)
+
+
+def require_absent(remote):
+    probe=subprocess.run(['docker','manifest','inspect',remote],capture_output=True,text=True)
+    if probe.returncode==0:raise ValueError('Refusing existing registry tag: '+remote)
+    diagnostic=probe.stderr.strip()
+    # Authentication/transport failures never establish absence, even if another
+    # line happens to contain a generic "not found" phrase.
+    if (any(word in diagnostic.lower() for word in ('unauthorized','denied','authentication','timeout','timed out'))
+            or not any(word in diagnostic.lower() for word in ('manifest unknown','no such manifest'))):
+        raise RuntimeError('Unable to establish registry tag absence: '+remote+'; '+diagnostic[:2000])
+
+
+def push_exact(remote):
+    """Retry only the observed blob-upload failure, without replacing a manifest."""
+    for attempt in range(3):
+        result=subprocess.run(['docker','push',remote],capture_output=True,text=True)
+        print(result.stdout,end='',flush=True)
+        print(result.stderr,end='',flush=True)
+        if result.returncode==0:return
+        diagnostic=(result.stdout+'\n'+result.stderr).lower()
+        if (attempt==2 or 'unknown blob' not in diagnostic
+                or any(word in diagnostic for word in ('denied','unauthorized','authentication'))):
+            raise subprocess.CalledProcessError(result.returncode,result.args)
+        # A failed upload may have committed a manifest. Never overwrite it on retry.
+        require_absent(remote)
+        time.sleep(5*(attempt+1))
 
 
 def main():
@@ -57,15 +85,13 @@ def main():
             'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
             'status':'PUBLISHING_NOT_COMPLETE','images':{},'runtime_acceptance':'NOT_RUN'}
     destination=Path('publication');destination.mkdir()
+    (destination/'registry.json').write_text(json.dumps(result,indent=2)+'\n')
     for service,record in records.items():
         remote='ghcr.io/stevenzxs/cloudmeet-'+service+':'+batch
         # Do not overwrite an existing batch; distinguish missing from authentication/network errors.
-        probe=subprocess.run(['docker','manifest','inspect',remote],capture_output=True,text=True)
-        if probe.returncode==0: raise ValueError('Refusing existing registry tag: '+remote)
-        if not any(message in probe.stderr.lower() for message in ('manifest unknown','no such manifest','not found')):
-            raise RuntimeError('Unable to establish registry tag absence: '+remote)
+        require_absent(remote)
         subprocess.run(['docker','tag',record['tag'],remote],check=True)
-        subprocess.run(['docker','push',remote],check=True)
+        push_exact(remote)
         descriptor=json.loads(output('docker','buildx','imagetools','inspect',remote,'--format','{{json .Manifest}}'))
         registry_digest=descriptor['digest']
         if not re.fullmatch(r'sha256:[0-9a-f]{64}',registry_digest): raise ValueError('Invalid digest')
