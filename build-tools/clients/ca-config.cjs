@@ -13,6 +13,13 @@ function readCa(config, envFile) {
   return { file, pem: cert.toString(), sha256: createHash('sha256').update(cert.raw).digest('hex'), validTo: cert.validTo };
 }
 
+function matchesCa(data, ca) {
+  // Compare by certificate DER bytes so PEM line endings (LF/CRLF) never cause false mismatches.
+  if (!ca || !data) return false;
+  try { return createHash('sha256').update(new X509Certificate(data).raw).digest('hex') === ca.sha256; }
+  catch { return false; }
+}
+
 function androidTrust(xml, host) {
   if (!/^[a-zA-Z0-9.-]+$/.test(host)) throw Error('Invalid TLS host');
   const block = /<domain-config\b[^>]*>[\s\S]*?<\/domain-config>/g;
@@ -27,4 +34,4 @@ function androidTrust(xml, host) {
   if (!result.includes('</network-security-config>')) throw Error('Unexpected Android trust XML');
   return result.replace(/\s*<\/network-security-config>/, trust + '\n</network-security-config>');
 }
-module.exports = { readCa, androidTrust };
+module.exports = { readCa, androidTrust, matchesCa };
