@@ -184,6 +184,7 @@ PUBLIC_ORIGIN=$PUBLIC_URL
             tools = repo / 'build-tools'
             tools.mkdir()
             shutil.copyfile(ROOT / 'build-tools/sources.json', tools / 'sources.json')
+            shutil.copyfile(ROOT / 'build-tools/network-audit.py', tools / 'network-audit.py')
             sources = json.loads((tools / 'sources.json').read_text())
             (repo / 'config').mkdir()
             shutil.copyfile(ROOT / 'config/Caddyfile', repo / 'config/Caddyfile')
@@ -192,7 +193,18 @@ PUBLIC_ORIGIN=$PUBLIC_URL
             out = repo / 'fixture'
             out.mkdir()
             (out / 'bin').mkdir()
-            (out / 'bin/docker-compose').write_bytes(b'unit-test-fixture-not-executable')
+            # Test-only normalized renderer, no daemon or product build.
+            (out / 'bin/docker-compose').write_text(r'''#!/usr/bin/env python3
+import json, os, re, sys
+data=json.load(open(sys.argv[2]))
+def expand(value):
+    return re.sub(r'\$\{([A-Z_]+)(?::[^}]*)?\}',lambda m: os.environ.get(m[1],''),value)
+for name,cfg in data['services'].items():
+    cfg['environment']={k:expand(v) for k,v in cfg.get('environment',{}).items()}
+    cfg['ports']=[dict(zip(('published','target'),expand(p).split('/')[0].split(':')),protocol='udp' if p.endswith('/udp') else 'tcp') for p in cfg.get('ports',[])]
+print(json.dumps(data))
+''')
+            (out / 'bin/docker-compose').chmod(0o755)
             (out / 'images').mkdir()
             (out / 'provenance').mkdir()
             shutil.copytree(ROOT / 'patches', out / 'patches')

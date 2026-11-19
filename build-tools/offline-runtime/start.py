@@ -11,15 +11,38 @@ import sys
 sys.dont_write_bytecode=True
 
 
-def compose_command(root):
+def values_for_audit(root, external=None):
+    spec=importlib.util.spec_from_file_location('target_config',root/'target.py')
+    target=importlib.util.module_from_spec(spec);spec.loader.exec_module(target)
+    return target.resolve_target(root,external)
+
+
+def runtime_environment(root, external=None, preflight=False):
+    # Transport/tool selection only; never inherit arbitrary Compose interpolation
+    # variables, COMPOSE_* overrides or stale instance credentials.
+    allowed={'PATH','HOME','USER','LANG','LC_ALL','TMPDIR','SSL_CERT_FILE',
+             'DOCKER_HOST','DOCKER_CONTEXT','DOCKER_CONFIG','DOCKER_TLS_VERIFY','DOCKER_CERT_PATH'}
+    env={k:v for k,v in os.environ.items() if k in allowed}
+    spec=importlib.util.spec_from_file_location('runtime_target',root/'target.py')
+    target=importlib.util.module_from_spec(spec);spec.loader.exec_module(target)
+    env.update(target.read_env(root/'jitsi.env'))
+    env.update(target.resolve_target(root,external))
+    keys={'JWT_APP_SECRET','JICOFO_AUTH_PASSWORD','JVB_AUTH_PASSWORD','JITSI_ROLE_CHECK_SECRET'}
+    secrets={k:'PREFLIGHT_ONLY' for k in keys} if preflight else target.read_env(root/'.env')
+    if set(secrets)!=keys:
+        raise ValueError('Instance .env must contain secrets only')
+    env.update(secrets)
+    return env
+
+
+def compose_command(root, external=None):
     if (root/'target.env').is_file():
         spec=importlib.util.spec_from_file_location('target_config',root/'target.py')
         target=importlib.util.module_from_spec(spec); spec.loader.exec_module(target)
-        values=target.load_target(root/'target.env')
+        values=target.resolve_target(root,external)
         secrets=target.read_env(root/'.env')
         if set(secrets)!={'JWT_APP_SECRET','JICOFO_AUTH_PASSWORD','JVB_AUTH_PASSWORD','JITSI_ROLE_CHECK_SECRET'}:
             raise ValueError('Instance .env must contain secrets only')
-        os.environ.update(values)
     prefix=['docker','compose']
     if (root/'candidate.json').is_file():
         spec=importlib.util.spec_from_file_location('compose_verifier',root/'install.py')
@@ -103,7 +126,10 @@ def validate_local_images(root,manifest):
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--start',action='store_true',required=True)
-    parser.parse_args()
+    parser.add_argument('--target-env',type=Path,help='Explicit public instance configuration outside package')
+    args=parser.parse_args()
+    if args.target_env is not None:
+        os.environ['CLOUDMEET_TARGET_ENV']=str(args.target_env.absolute())
     root=Path(__file__).resolve().parent
     manifest=require_instance(root)
     spec=importlib.util.spec_from_file_location('package_verifier',root/'install.py')
@@ -113,9 +139,17 @@ def main():
     # Validate exact locally imported identities before creating any data.
     validate_local_images(root,manifest)
     command=compose_command(root)
-    rendered=json.loads(subprocess.check_output(command+['config','--format','json'],stderr=subprocess.PIPE))
+    runtime_env=runtime_environment(root)
+    rendered=json.loads(subprocess.check_output(command+['config','--format','json'],stderr=subprocess.PIPE,env=runtime_env))
     # Independent product requirements before creating data or launching services.
     verifier.verify_product(root, rendered)
+    if manifest.get('network_audit_required'):
+        spec=importlib.util.spec_from_file_location('network_audit',root/'network-audit.py')
+        audit_module=importlib.util.module_from_spec(spec); spec.loader.exec_module(audit_module)
+        report=audit_module.audit(root,mode='target',target=values_for_audit(root),rendered=rendered)
+        audit_module.write_report(report,root/'instance-audit/network-startup')
+        if report['errors']:
+            raise ValueError('Target network audit failed; see instance-audit/network-startup')
     if set(rendered['services'])!=set(manifest['images']):
         raise ValueError('Unexpected service set')
     for service,config in rendered['services'].items():
@@ -177,8 +211,8 @@ def main():
                  *(root/'data/jitsi/storage/prosody').rglob('*'),
                  *(root/'data/jitsi/prosody').rglob('*')]:
         os.chown(path,uid,gid)
-    subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True)
-    subprocess.run(command+['ps'],check=True)
+    subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=runtime_env)
+    subprocess.run(command+['ps'],check=True,env=runtime_env)
     print('Services started; TLS, signaling and media acceptance still required. Preserve target CA volumes.')
 
 

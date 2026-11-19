@@ -29,6 +29,8 @@ deployment_commit=$(git -C "$repo" rev-parse HEAD)
 [[ $deployment_commit == "$GITHUB_SHA" ]] || die 'Workflow commit mismatch'
 (cd "$repo"; sha256sum -c build-tools/inputs.sha256)
 export VERSION BATCH DEPLOYMENT_COMMIT="$deployment_commit"
+python3 -B "$tools/network-audit.py" --root "$repo" --mode generic \
+    --output "$repo/output/network-audit-${1}-${2:-package}/preflight"
 
 source_field() {
     python3 - "$tools/sources.json" "$1" "$2" <<'PY'
@@ -58,6 +60,9 @@ build_service() (
     mkdir -p "$work/context" "$repo/output"
     mkdir "$repo/output/$service"
     checkout_source "$service" "$work/source"
+    python3 -B "$tools/network-audit.py" --root "$repo" --source "$work/source" --service "$service" \
+        --output "$repo/output/network-audit-build-$service/source"
+    cp "$repo/output/network-audit-build-$service/source/"network-audit.* "$repo/output/$service/"
     SOURCE_COMMIT=$(source_field "$service" commit)
     export SOURCE_COMMIT SERVICE="$service"
     context=$work/context
@@ -239,6 +244,7 @@ assemble_package() {
     chmod 0755 "$output/bin/docker-compose"
     "$output/bin/docker-compose" version
     cp "$tools/offline-runtime/"*.py "$output/"
+    cp "$tools/network-audit.py" "$output/network-audit.py"
     cp "$tools/setup.py" "$repo/output/setup.py"
     (cd "$repo/output" && sha256sum setup.py > setup.py.sha256)
     cp -a "$repo/patches" "$output/patches"
@@ -286,6 +292,10 @@ for s in services:
     verifier.verify_image_archive(archive, record)
     shutil.copyfile(archive,out/'images'/record['archive'])
     shutil.copyfile(repo/'incoming'/s/(s+'.json'),out/'provenance'/(s+'.json'))
+    for audit_file in (repo/'incoming'/s).glob('network-audit.*'):
+        destination=out/'provenance'/('source-network-'+s)
+        destination.mkdir(exist_ok=True)
+        shutil.copyfile(audit_file,destination/audit_file.name)
     records[s]=record
 common={'PUBLIC_URL':'${PUBLIC_URL:?required}','XMPP_DOMAIN':'meet.jitsi','XMPP_AUTH_DOMAIN':'auth.meet.jitsi',
  'XMPP_MUC_DOMAIN':'muc.meet.jitsi','XMPP_INTERNAL_MUC_DOMAIN':'internal-muc.meet.jitsi',
@@ -343,6 +353,7 @@ shutil.copyfile(repo/'config/target.py',out/'target.py')
 caddy=(repo/'config/Caddyfile').read_text()
 (out/'Caddyfile').write_text(caddy)
 manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
+  'network_audit_required':True,
  'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
  'workflow_commit':os.environ['GITHUB_SHA'],
   'architecture':os.environ.get('TARGET_ARCH','arm64'),'target_profile':'linux-'+os.environ.get('PACKAGE_ARCH','aarch64')+'-existing-engine','origin':origin.rstrip('/'),
@@ -376,6 +387,11 @@ if 'custom.css' not in (out/'patches/web/custom-head.html').read_text():
     raise ValueError('Missing CSS head reference')
 if 'custom.css' not in (out/'patches/web/nginx-custom/custom-css.conf').read_text():
     raise ValueError('Missing CSS route reference')
+# Retain derived package input audit before checksums; rendering is checked below.
+audit_module=__import__('importlib.util').util
+spec=audit_module.spec_from_file_location('network_audit',repo/'build-tools/network-audit.py')
+network_audit=audit_module.module_from_spec(spec); spec.loader.exec_module(network_audit)
+network_audit.write_report(network_audit.audit(repo),out/'provenance/network-preflight')
 # Host transfer is part of the default product; HTTP downgrade remains optional.
 manifest['patch_decisions']={name:('install' if name in verifier.PRODUCT_PATCHES else
  'not installed: documentation or optional Web/HTTP customization') for name in manifest['patches']}
@@ -385,7 +401,7 @@ manifest['patch_decisions']={name:('install' if name in verifier.PRODUCT_PATCHES
 Target-side certificate installation:
 Keep this archive, its .sha256, setup.py, setup.py.sha256 and private cert.tar.gz together.
 Check both SHA256 sidecars before executing setup.py. Never upload cert.tar.gz to Actions/Git.
-sudo python3 -B setup.py --server-package <archive.tar.gz> --verify-origin https://<actual-host>:<port>
+sudo python3 -B setup.py --server-package <archive.tar.gz> --verify-origin https://<actual-host>:<port> --target-env /absolute/path/instance-target.env
 setup refuses an existing extraction directory. Keep any initialized secrets/data after failure;
 do not rerun first-install or overwrite an existing instance. Certificate activation restarts
 only gateway and verifies strict HTTPS /cm/desktop/ with the supplied CA, without redirects.
@@ -408,9 +424,12 @@ Packaging completion is not installation, host-compatibility or media acceptance
    `docker info` (Linux ARM64 engine), system clock, disk/RAM and port availability.
 4. Run `sha256sum -c SHA256SUMS` and `python3 -B install.py --verify-only`.
 5. Run `./bin/docker-compose version` (no system plugin installation needed).
-6. Review target.env ports and optional MEDIA_HOST. Browser signaling follows the page origin. Caddy uses a local cloudmeet.internal certificate: external IP access may require accepting certificate warnings and is not strict TLS acceptance. MEDIA_HOST empty uses JVB address discovery; NAT media reachability is not guaranteed. Initialization generates secrets only. Preserve CA volumes. Do not modify historical package bytes.
-   This batch uses the confirmed origin/ports; do not change immutable package files.
-7. Run `sudo python3 -B deploy.py --first-install` explicitly to import the included
+6. Copy target.env OUTSIDE the extracted package to an absolute instance-target.env path.
+   Set its ports and a usable explicit MEDIA_HOST. Do not change immutable package files
+   or SHA256SUMS. Browser signaling follows the page origin. The supplied certificate
+   must match --verify-origin. Static checks do not prove NAT/firewall/UDP reachability.
+7. Prefer setup.py above, or after certificate staging run
+   `sudo python3 -B deploy.py --first-install --verify-origin https://<actual-host>:<port> --target-env /absolute/path/instance-target.env` to import the included
    images, generate fresh secrets, install baseline patches and start the services.
    The command refuses existing .env/data, never builds/pulls and does not replace Docker.
    Do not re-run after partial installation by deleting data; inspect the failure first.
@@ -427,6 +446,16 @@ for path in out.rglob('*'):
     if path.is_file() and (path.name=='.env' or path.suffix in ('.key','.pfx','.p12')
                            or b'-----BEGIN PRIVATE KEY-----' in (path.read_bytes() if path.stat().st_size<2_000_000 else b'')):
         raise ValueError('Secret material in package: '+str(path))
+import subprocess
+render_env=dict(os.environ,JWT_APP_SECRET='RENDER_ONLY',JICOFO_AUTH_PASSWORD='RENDER_ONLY',
+                JVB_AUTH_PASSWORD='RENDER_ONLY',JITSI_ROLE_CHECK_SECRET='RENDER_ONLY')
+render_env.update(target)
+rendered=json.loads(subprocess.check_output([str(out/'bin/docker-compose'),'-f',
+    str(out/'jitsi-base.yaml'),'config','--format','json'],env=render_env,stderr=subprocess.PIPE))
+network_report=network_audit.audit(repo,rendered=rendered)
+network_audit.write_report(network_report,out/'provenance/network-rendered')
+network_audit.write_report(network_report,repo/'output/network-audit-assemble-package/rendered')
+if network_report['errors']: raise ValueError('Rendered network audit failed; see retained report')
 (out/'SHA256SUMS').write_text(''.join(digest(p)+'  '+p.relative_to(out).as_posix()+'\n'
  for p in sorted(out.rglob('*')) if p.is_file() and p.name!='SHA256SUMS'))
 verifier.verify_checksums(out)

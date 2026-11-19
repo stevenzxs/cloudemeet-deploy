@@ -63,7 +63,20 @@ python -B deploy/tools/check-deployment-layout.py
 Actions outputs setup.py and setup.py.sha256 alongside the server archive and its checksum.
 Do not upload cert.tar.gz to Git/Actions. Copy it securely beside those files on target.
 After checking both SHA256 sidecars, run:
-`sudo python3 -B setup.py --server-package <server.tar.gz> --verify-origin https://<host>:<port>`.
+`sudo python3 -B setup.py --server-package <server.tar.gz> --verify-origin https://<host>:<port> --target-env /absolute/path/instance-target.env`.
+Copy the packaged target.env outside the extracted package and set explicit MEDIA_HOST
+and ports there. Do not modify package bytes or checksums. deploy validates parameters
+and rendered Compose before image imports or secret initialization. Only public target
+values are inherited by initialize/start; reports are retained beside the package in
+`<package-name>-network-preflight/`. Keep that external instance file stable for the
+installation; direct start recovery must explicitly set CLOUDMEET_TARGET_ENV to the
+same absolute path. There is no automatic first-install retry or data deletion.
+Preflight/start now share a controlled environment resolver: jitsi.env, validated
+instance values and exact generated secrets, not arbitrary parent interpolation.
+The effective target fingerprint is pinned for child phases; changed values abort.
+This installer is direct-entry: verify-origin port must equal HTTPS_PORT and public
+gateway/JVB bindings must be wildcard. External proxy/port translation needs an
+explicitly reviewed contract rather than bypassing these checks.
 setup refuses an existing installation directory. It stages cert.tar.gz and cert/ without
 changing the original package SHA256SUMS; the verifier permits only exact certificate
 members matching the checked archive. Certificate SAN, expiry, chain and key are checked
@@ -77,3 +90,20 @@ amd64 uses native ubuntu-24.04; arm64 uses native ubuntu-24.04-arm.
 bundled Compose, archive identity and Linux existing-engine target profile.
 No emulation, local Docker, registry publication or target installation is part of packaging.
 The Jitsi stable-11248 base is pinned to its multiarch index; its ARM child remains unchanged.
+# Network audit (2026-11-19)
+
+`package.sh build/assemble` runs `network-audit.py` before build work. Assembly
+checks normalized Compose without starting containers, and retains JSON/Markdown
+under `output/network-audit-*/` and package `provenance/network-*`. Failed jobs
+upload separate audit artifacts. New packages require a target-mode audit at
+first startup. Generic empty MEDIA_HOST is **deferred**, not media-ready; provide
+a usable client-reachable IPv4 before starting. Private LAN IPs are valid inputs.
+
+Read-only manual example (no Docker):
+`python -B build-tools/network-audit.py --root . --mode generic --output <new-audit-directory>`
+
+Reports inventory template declarations and fixed endpoints with source lines,
+input hashes, source/config SHA and run identity. Rendered environments log only
+network keys, not credentials. Target routes, NAT, UDP, actual ICE, TLS and media
+remain unverified. Keyword discovery is not proof that every dynamic source path
+is covered; new consumption paths require reviewed inventory/test updates.

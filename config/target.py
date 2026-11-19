@@ -1,6 +1,9 @@
 """Strict public deployment configuration; never execute dotenv as shell code."""
 import argparse
 import ipaddress
+import os
+import hashlib
+import json
 from pathlib import Path
 import re
 import shlex
@@ -59,6 +62,30 @@ def load_target(path):
     values.update(SITE_HOST='cloudmeet.internal', PUBLIC_URL='https://cloudmeet.internal',
                   JVB_ADVERTISE_IPS=media_host, JVB_PORT=values['MEDIA_PORT'])
     return values
+
+
+def resolve_target(root, external=None):
+    """Resolve one explicit instance file without modifying immutable package bytes."""
+    root = Path(root).resolve()
+    external = external or os.environ.get('CLOUDMEET_TARGET_ENV')
+    if external:
+        path = Path(external)
+        if not path.is_absolute() or path.is_symlink():
+            raise ValueError('Instance target must be an absolute non-symlink path')
+        path = path.resolve()
+        if path == root or root in path.parents:
+            raise ValueError('Instance target must be outside immutable package')
+        values=load_target(path)
+    else:
+        values=load_target(root/'target.env')
+    expected=os.environ.get('CLOUDMEET_TARGET_SHA256')
+    if expected and fingerprint(values)!=expected:
+        raise ValueError('Instance target changed after preflight')
+    return values
+
+
+def fingerprint(values):
+    return hashlib.sha256(json.dumps(values,sort_keys=True).encode('utf-8')).hexdigest()
 
 
 if __name__ == '__main__':

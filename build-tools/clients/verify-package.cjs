@@ -12,6 +12,44 @@ function command(exe, args) {
 function ps(script) { return command('powershell.exe', ['-NoProfile', '-Command', script]); }
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
 
+function inspectAndroidResources(file, analyzer, aapt, config, requireCa, run = command) {
+  const table = run(aapt, ['dump', 'resources', file]);
+  const ids = new Map();
+  for (const m of table.matchAll(/spec resource (0x[0-9a-f]+) [^\s:]+:([^\s:]+):/gi)) ids.set(m[1].toLowerCase(), '@' + m[2]);
+  const normalize = xml => xml.replace(/@ref\/(0x[0-9a-f]+)/gi, (all, id) => ids.get(id.toLowerCase()) || all);
+  const member = (type, name) => {
+    const value = run(analyzer, ['resources', 'value', '--config', 'default', '--name', name, '--type', type, file]).trim();
+    if (!/^res\/[a-zA-Z0-9_./-]+$/.test(value) || value.split('/').includes('..')) throw Error('Unsafe Android resource member');
+    return value;
+  };
+  const xml = name => normalize(run(analyzer, ['resources', 'xml', '--file', member('xml', name), file]));
+  validateAndroidResources(normalize(run(analyzer, ['manifest', 'print', file])),
+    xml('app_restrictions'), requireCa ? xml('network_security_config') : '', config, requireCa);
+  return requireCa ? member('raw', 'cloudmeet_client_ca') : null;
+}
+
+function validateAndroidResources(manifest, restrictions, trust, config, requireCa) {
+  const script = `import sys,json,xml.etree.ElementTree as E
+d=json.loads(sys.argv[1]); ns='{http://schemas.android.com/apk/res/android}'
+m=E.fromstring(d['manifest']); app=m if m.tag=='application' else m.find('application')
+assert app is not None
+assert any(x.get(ns+'name')=='android.content.APP_RESTRICTIONS' and x.get(ns+'resource')=='@xml/app_restrictions' for x in app.findall('meta-data'))
+r=E.fromstring(d['restrictions'])
+matches=[x for x in r.iter('restriction') if x.get(ns+'key')=='SERVER_URL']
+assert len(matches)==1 and matches[0].get(ns+'defaultValue')==d['origin']
+if d['requireCa']:
+ assert app.get(ns+'networkSecurityConfig')=='@xml/network_security_config'
+ t=E.fromstring(d['trust'])
+ rules=[x for x in t.iter('domain-config') if any((v.text or '').strip()==d['host'] and v.get('includeSubdomains','false')=='false' for v in x.findall('domain'))]
+ assert len(rules)==1
+ assert any(x.get('src')=='@raw/cloudmeet_client_ca' for x in rules[0].findall('./trust-anchors/certificates'))
+print('verified')`;
+  const result = command('python', ['-B', '-c', script, JSON.stringify({ manifest, restrictions, trust,
+    origin: config.origin, host: config.values.SITE_DOMAIN, requireCa })]);
+  if (result.trim() !== 'verified') throw Error('Android resource reference validation failed');
+  return true;
+}
+
 function verifyPackage(file, artifact, config, ca, workspace, scratch) {
   const checks = {};
   const check = (name, ok, detail) => {
@@ -31,10 +69,9 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     if (!asarFile) throw Error('MSI app.asar missing');
     const asar = require(path.join(workspace, 'jitsi-meet-electron/node_modules/@electron/asar'));
     const env = asar.extractFile(asarFile, 'deployment.env').toString();
-    check('origin', env.includes(`SITE_DOMAIN=${config.values.SITE_DOMAIN}\n`)
-      && env.includes(`SITE_SCHEME=${config.values.SITE_SCHEME}\n`)
-      && env.includes(`SITE_PORT=${config.values.SITE_PORT}\n`), config.origin);
     const trust = JSON.parse(asar.extractFile(asarFile, 'client-trust.json').toString());
+    require('./network-audit.cjs').auditGenerated('electron', config, { deployment: env, trust });
+    check('origin', true, config.origin);
     check('ca', trust.origin === config.origin && (ca
       ? matchesCa(asar.extractFile(asarFile, 'client-ca.crt'), ca) : trust.caFile === null), ca?.sha256 || 'system trust');
     const exe = files.find(p => /cloudmeet\.exe$/i.test(p));
@@ -55,28 +92,11 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     const signature = command(path.join(tools, 'apksigner.bat'), ['verify', '--verbose', '--print-certs', file]);
     check('signature', signature.includes('Verifies'), signature);
     const analyzer = path.join(sdk, 'cmdline-tools/latest/bin/apkanalyzer.bat');
-    const scan = JSON.parse(command('python', ['-B', '-c',
-      'import zipfile,json,sys; z=zipfile.ZipFile(sys.argv[1]); o=sys.argv[2].encode(); h=sys.argv[3].encode(); r={"origin":[],"domain":[]}\n'
-      + 'for n in z.namelist():\n'
-      + '    if not n.endswith(".xml") or n=="AndroidManifest.xml": continue\n'
-      + '    d=z.read(n)\n'
-      + '    if b"SERVER_URL" in d and o in d: r["origin"].append(n)\n'
-      + '    if h in d and b"trust-anchors" in d: r["domain"].append(n)\n'
-      + 'print(json.dumps(r))', file, config.origin, config.values.SITE_DOMAIN]));
-    const readXml = name => {
-      const raw = command('python', ['-B', '-c',
-        'import zipfile,sys; sys.stdout.buffer.write(zipfile.ZipFile(sys.argv[1]).read(sys.argv[2]))', file, name]);
-      // apkanalyzer omits element text (e.g. <domain> values); raw member bytes keep the AXML string pool.
-      try { return command(analyzer, ['resources', 'xml', '--file', name, file]) + '\n' + raw; }
-      catch { return raw; }
-    };
-    let origin = false; let domain = false;
-    for (const name of scan.origin) { const xml = readXml(name); if (xml.includes('SERVER_URL') && xml.includes(config.origin)) { origin = true; break; } }
-    for (const name of scan.domain) { const xml = readXml(name); if (xml.includes(config.values.SITE_DOMAIN) && xml.includes('trust-anchors')) { domain = true; break; } }
-    check('origin', origin, 'Packaged managed SERVER_URL');
+    const caMember = inspectAndroidResources(file, analyzer, path.join(tools, 'aapt.exe'), config, Boolean(ca));
+    check('origin', true, 'Manifest-selected managed SERVER_URL; runtime/profile overrides not verified');
     const caFound = !ca || command('python', ['-B', '-c',
       'import zipfile,hashlib,sys,base64,re; z=zipfile.ZipFile(sys.argv[1]); want=sys.argv[2]; ok=False\n'
-      + 'for n in z.namelist():\n'
+      + 'for n in [sys.argv[3]]:\n'
       + '    i=z.getinfo(n)\n'
       + '    if n.endswith("/") or i.file_size>=65536: continue\n'
       + '    d=z.read(n)\n'
@@ -84,9 +104,9 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
       + '    try: der=base64.b64decode(re.sub(rb"\\s", b"", m.group(1))) if m else d\n'
       + '    except Exception: continue\n'
       + '    if hashlib.sha256(der).hexdigest()==want: ok=True; break\n'
-      + 'print(ok)', file, ca?.sha256 || '']).trim() === 'True';
-    check('ca', caFound && (!ca || domain), ca?.sha256 || 'system trust');
+      + 'print(ok)', file, ca?.sha256 || '', caMember || '']).trim() === 'True';
+    check('ca', caFound, ca?.sha256 || 'system trust');
   }
   return checks;
 }
-module.exports = { verifyPackage };
+module.exports = { verifyPackage, validateAndroidResources, inspectAndroidResources };

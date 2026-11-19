@@ -58,6 +58,13 @@ jobs:
         env:
           SERVICE: ${{ matrix.service }}
         run: bash build-tools/package.sh build "$SERVICE"
+      - name: Retain build network audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: network-${{ matrix.service }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/network-audit-*/
+          if-no-files-found: warn
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: image-${{ matrix.service }}-${{ github.run_id }}-${{ github.run_attempt }}
@@ -152,6 +159,13 @@ jobs:
           PY
       - name: Assemble complete package and check material integrity only
         run: bash build-tools/package.sh assemble
+      - name: Retain assembly network audit
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: network-package-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/network-audit-*/
+          if-no-files-found: warn
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: cloudmeet-${{ inputs.architecture == 'amd64' && 'amd64' || 'aarch64' }}-${{ github.run_id }}-${{ github.run_attempt }}

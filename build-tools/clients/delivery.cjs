@@ -31,6 +31,9 @@ function deliver(manifest, root) {
     const evidence = { ...manifest, artifacts: [{ ...artifact, file }], status: 'packaged-delivered',
       acceptance: 'Package checks only; installation, endpoint TLS and meeting/media acceptance not performed.' };
     fs.writeFileSync(path.join(destination, 'build-evidence.json'), JSON.stringify(evidence, null, 2) + '\n');
+    for (const name of fs.readdirSync(manifest.candidate).filter(n => /^network-.*\.(json|md)$/.test(n))) {
+      fs.copyFileSync(path.join(manifest.candidate, name), path.join(destination, name));
+    }
     fs.writeFileSync(path.join(destination, 'README.txt'), `CloudMeet ${manifest.version}\nOrigin: ${manifest.origin}\n`
       + `Architectures: ${artifact.architectures.join(', ')}\nSignature: ${artifact.checks.signature.detail}\n`
       + evidence.acceptance + '\n');

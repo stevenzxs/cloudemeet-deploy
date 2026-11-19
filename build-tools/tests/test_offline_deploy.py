@@ -46,6 +46,50 @@ class DeployTests(unittest.TestCase):
         self.mod.check_local_identity(None,'sha256:approved')
         self.mod.check_local_identity({'Id':'sha256:approved','Os':'linux','Architecture':'amd64'},'sha256:approved')
 
+    def test_new_package_missing_media_fails_before_host_commands(self):
+        import shutil
+        tools=Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'package'; root.mkdir()
+            for source,name in [(tools.parent/'config/target.py','target.py'),
+                                (tools.parent/'config/target.env','target.env'),
+                                (tools.parent/'config/jitsi.env','jitsi.env'),
+                                (tools/'network-audit.py','network-audit.py')]:
+                shutil.copyfile(source,root/name)
+            (root/'candidate.json').write_text(json.dumps({'network_audit_required':True}))
+            runner=Mock()
+            with self.assertRaisesRegex(ValueError,'network'):
+                self.mod.deploy(root,Mock(),runner)
+            runner.assert_not_called()
+            self.assertFalse((root/'.env').exists())
+            self.assertFalse((root/'data').exists())
+
+    def test_external_target_renders_before_any_image_import(self):
+        import shutil
+        tools=Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)/'package'; root.mkdir()
+            shutil.copyfile(tools/'offline-runtime/start.py',root/'start.py')
+            for source,name in [(tools.parent/'config/target.py','target.py'),
+                                (tools.parent/'config/target.env','target.env'),
+                                (tools.parent/'config/jitsi.env','jitsi.env'),
+                                (tools/'network-audit.py','network-audit.py')]:
+                shutil.copyfile(source,root/name)
+            external=Path(tmp)/'instance.env'
+            external.write_text((root/'target.env').read_text().replace('MEDIA_HOST=', 'MEDIA_HOST=10.1.2.28'))
+            original=(root/'target.env').read_bytes()
+            (root/'candidate.json').write_text(json.dumps({'network_audit_required':True}))
+            verifier=Mock();verifier.compose_prefix.return_value=['compose']
+            services={s:{} for s in ('gateway','app-web','api','web','prosody','jicofo','jvb')}
+            runner=Mock(return_value=Mock(stdout=json.dumps({'services':services})))
+            with self.assertRaisesRegex(ValueError,'Rendered target network'):
+                self.mod.deploy(root,verifier,runner,target_env=external)
+            self.assertEqual(runner.call_count,1)
+            self.assertEqual(runner.call_args.args[0][-3:],['config','--format','json'])
+            self.assertEqual(runner.call_args.kwargs['env']['MEDIA_HOST'],'10.1.2.28')
+            self.assertEqual((root/'target.env').read_bytes(),original)
+            self.assertFalse((root/'.env').exists())
+
     def test_explicit_arm_image_identity(self):
         self.mod.check_local_identity({'Id':'sha256:approved','Os':'linux','Architecture':'arm64'},
                                       'sha256:approved', 'arm64')

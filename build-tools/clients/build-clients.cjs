@@ -6,6 +6,7 @@ const crypto = require('node:crypto');
 const { spawnSync } = require('node:child_process');
 const { parseConfig, versionCode, withLock, withFiles, findWix } = require('./core.cjs');
 const { readCa, androidTrust } = require('./ca-config.cjs');
+const { auditGenerated, auditPackages, writeAudit, inventorySources } = require('./network-audit.cjs');
 const root = path.resolve(__dirname, '../../..');
 const canonical = path.join(root, 'deploy/config/client.env');
 const lock = path.join(__dirname, '.client-build.lock');
@@ -117,8 +118,13 @@ function collect(source, destination, extension, started, layoutFor) {
 async function build(options, config, report) {
   return withLock(lock, async () => {
     const candidate = createCandidate();
+    require('./network-audit.cjs').stageReports(options.auditDir, candidate);
     const manifest = { ...report, status: 'building', candidate, started: new Date().toISOString(), artifacts: [] };
     const save = () => fs.writeFileSync(path.join(candidate, 'build.json'), JSON.stringify(manifest, null, 2) + '\n');
+    const recordNetwork = (name, data) => {
+      writeAudit(candidate, name, data, root);
+      if (process.env.CLOUDMEET_AUDIT_DIR) writeAudit(process.env.CLOUDMEET_AUDIT_DIR, name, data, root);
+    };
     const env = { ...process.env, CLOUDMEET_BUILD_MODE: 'release' };
     for (const key of ['SITE_DOMAIN', 'SITE_SCHEME', 'SITE_PORT', 'CLIENT_VERSION', 'CLIENT_CA_FILE', 'CLOUDMEET_ENV_FILE']) delete env[key];
     try {
@@ -138,6 +144,10 @@ async function build(options, config, report) {
           [path.join(project, 'client-trust.json'), JSON.stringify({ origin: config.origin, caFile: ca ? 'client-ca.crt' : null }) + '\n']];
         if (ca) changes.push([path.join(project, 'client-ca.crt'), ca.pem]);
         await withFiles(changes, async () => {
+          recordNetwork('network-electron-generated', auditGenerated('electron', config, {
+            deployment: fs.readFileSync(path.join(project, 'deployment.env'), 'utf8'),
+            trust: JSON.parse(fs.readFileSync(path.join(project, 'client-trust.json'), 'utf8'))
+          }));
           const wix = findWix();
           if (!wix) throw Error('WiX tools disappeared after preflight');
           const pathKey = Object.keys(env).find(key => key.toLowerCase() === 'path') || 'PATH';
@@ -170,6 +180,11 @@ async function build(options, config, report) {
             [path.join(project, 'android/app/src/main/res/raw/cloudmeet_client_ca.crt'), ca.pem]);
         }
         await withFiles(changes, async () => {
+          recordNetwork('network-android-generated', auditGenerated('android', config, {
+            deployment: JSON.parse(fs.readFileSync(path.join(project, 'react/features/cloudmeet/deployment.json'), 'utf8')),
+            restrictions: fs.readFileSync(restrictions, 'utf8'),
+            trust: ca ? fs.readFileSync(path.join(project, 'android/app/src/main/res/xml/network_security_config.xml'), 'utf8') : null
+          }));
           run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'], path.join(project, 'android'), env, path.join(candidate, 'android.log'));
           manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });
@@ -180,11 +195,17 @@ async function build(options, config, report) {
         artifact.checks = require('./verify-package.cjs').verifyPackage(
           path.join(candidate, artifact.file), artifact, config, ca, root, scratch);
       }
+      manifest.networkAudit = writeAudit(candidate, 'network-final-packages', auditPackages(manifest), root);
+      recordNetwork('network-final-packages', manifest.networkAudit);
       manifest.deliveries = require('./delivery.cjs').deliver(manifest, report.deliveryRoot);
       manifest.status = 'packaged-delivered';
       manifest.acceptance = 'Package checks and delivery completed; installation, endpoint TLS and media acceptance not performed.';
       save(); console.log(JSON.stringify(manifest, null, 2));
-    } catch (error) { manifest.status = 'failed'; manifest.error = error.message; save(); throw error; }
+    } catch (error) {
+      recordNetwork('network-failure', { status: 'fail', phase: manifest.status,
+        message: 'Build/package audit interrupted; inspect protected build logs. No acceptance claimed.' });
+      manifest.status = 'failed'; manifest.error = error.message; save(); throw error;
+    }
   });
 }
 
@@ -196,8 +217,26 @@ function createCandidate(base = process.env.LOCALAPPDATA
 
 async function main() {
   const options = argumentsFor(process.argv.slice(2));
-  const config = parseConfig(fs.readFileSync(canonical, 'utf8'));
+  const auditDir = process.env.CLOUDMEET_AUDIT_DIR || path.join(createCandidate(), 'audit');
+  options.auditDir = auditDir;
+  let config;
+  try { config = parseConfig(fs.readFileSync(canonical, 'utf8')); }
+  catch {
+    writeAudit(auditDir, 'network-client-preflight', { phase: 'preflight', status: 'fail',
+      blockers: ['Invalid canonical client configuration; input values not echoed.'] }, root);
+    throw Error('Client configuration audit failed');
+  }
   const report = preflight(options, config);
+  for (const target of (options.target === 'all' ? ['electron', 'android'] : [options.target])) {
+    const project = path.join(root, target === 'electron' ? 'jitsi-meet-electron' : 'jm');
+    writeAudit(auditDir, `network-${target}-source-inventory`, inventorySources(project,
+      target === 'electron' ? ['src', 'deployment.env', 'client-trust.json', 'forge.config.js']
+        : ['react/features/cloudmeet', 'android/app/src/main', 'android/app/build.gradle']), root);
+  }
+  writeAudit(auditDir, 'network-client-preflight', { phase: 'preflight', status: report.blockers.length ? 'fail' : 'pass',
+    origin: config.origin, desktopUrl: config.desktopUrl, version: config.version,
+    parameters: ['SITE_DOMAIN', 'SITE_SCHEME', 'SITE_PORT'].map(name => ({ name, value: config.values[name], source: 'config/client.env' })),
+    ca: report.ca, blockers: report.blockers, unverified: report.warnings }, root);
   console.log(JSON.stringify(report, null, 2));
   if (report.blockers.length) { process.exitCode = 1; return; }
   if (!options.check) await build(options, config, report);

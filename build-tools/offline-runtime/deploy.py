@@ -59,7 +59,7 @@ def host_os():
             (line.split('=',1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)}
 
 
-def deploy(root,verifier,runner=subprocess.run,verify_origin=None):
+def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=None):
     certificate=None
     if verify_origin is not None:
         spec=importlib.util.spec_from_file_location('target_certificate',root/'certificate.py')
@@ -68,6 +68,41 @@ def deploy(root,verifier,runner=subprocess.run,verify_origin=None):
     verifier.verify_checksums(root)
     manifest=json.loads((root/'candidate.json').read_text())
     verifier.require_ready(manifest)
+    child_env=dict(os.environ)
+    external=None
+    if target_env is not None or manifest.get('network_audit_required'):
+        spec=importlib.util.spec_from_file_location('instance_target',root/'target.py')
+        target=importlib.util.module_from_spec(spec);spec.loader.exec_module(target)
+        # Never inherit an unrelated task's instance selection.
+        external=Path(target_env).absolute() if target_env is not None else None
+        values=target.resolve_target(root,external) if external else target.load_target(root/'target.env')
+        if verify_origin is not None:
+            from urllib.parse import urlsplit
+            if (urlsplit(verify_origin).port or 443)!=int(values['HTTPS_PORT']):
+                raise ValueError('Direct-entry origin port must match HTTPS_PORT')
+        if external: child_env['CLOUDMEET_TARGET_ENV']=str(external)
+        else: child_env.pop('CLOUDMEET_TARGET_ENV',None)
+        child_env['CLOUDMEET_TARGET_SHA256']=target.fingerprint(values)
+        spec=importlib.util.spec_from_file_location('instance_network',root/'network-audit.py')
+        network=importlib.util.module_from_spec(spec);spec.loader.exec_module(network)
+        report=network.audit(root,mode='target',target=values)
+        # Outside the immutable package, so retries retain evidence without invalidating it.
+        network.write_report(report,root.parent/(root.name+'-network-preflight'))
+        if report['errors']: raise ValueError('Target network preflight failed before host changes')
+        spec=importlib.util.spec_from_file_location('preflight_start',root/'start.py')
+        startup=importlib.util.module_from_spec(spec);spec.loader.exec_module(startup)
+        render_env=startup.runtime_environment(root,external,preflight=True)
+        command=verifier.compose_prefix(root,manifest)+['--project-directory',str(root),
+                                                       '--env-file',str(root/'jitsi.env')]
+        for name in ('jitsi-base.yaml','docker-compose.yml','source-images.yaml'):
+            command+=['-f',str(root/name)]
+        result=runner(command+['config','--format','json'],env=render_env,
+                      capture_output=True,text=True,check=True,timeout=30)
+        rendered=json.loads(result.stdout)
+        verifier.verify_product(root,rendered)
+        report=network.audit(root,mode='target',target=values,rendered=rendered)
+        network.write_report(report,root.parent/(root.name+'-network-preflight'))
+        if report['errors']: raise ValueError('Rendered target network preflight failed before host changes')
     if any((root/name).exists() or (root/name).is_symlink() for name in ['.env','data']):
         raise ValueError('First install refuses existing secrets/data')
     profile=manifest.get('target_profile','ubuntu-22.04-amd64')
@@ -100,12 +135,16 @@ def deploy(root,verifier,runner=subprocess.run,verify_origin=None):
         runner(['docker','image','load','--input',str(root/'images'/archives[service]['file'])],check=True,timeout=600)
         local=runner(['docker','image','inspect',tag],capture_output=True,text=True,check=True,timeout=20)
         check_local_identity(json.loads(local.stdout)[0],identity,architecture,root/'images'/archives[service]['file'])
-    runner([sys.executable,'-B',str(root/'initialize.py')],check=True,timeout=30)
-    runner([sys.executable,'-B',str(root/'start.py'),'--start'],check=True,timeout=180)
+    runner([sys.executable,'-B',str(root/'initialize.py')],check=True,timeout=30,env=child_env)
+    runner([sys.executable,'-B',str(root/'start.py'),'--start'],check=True,timeout=180,env=child_env)
     if certificate is not None:
         spec=importlib.util.spec_from_file_location('instance_start',root/'start.py')
         start=importlib.util.module_from_spec(spec);spec.loader.exec_module(start)
-        certificate.activate(root,verify_origin,start.compose_command(root))
+        if ('CLOUDMEET_TARGET_SHA256' in child_env and
+                target.fingerprint(start.values_for_audit(root,external))!=child_env['CLOUDMEET_TARGET_SHA256']):
+            raise ValueError('Instance target changed before certificate activation')
+        certificate.activate(root,verify_origin,start.compose_command(root,external),
+                             env=start.runtime_environment(root,external))
     print('First-start commands completed. Target CA/TLS, signaling, clients and media must still be accepted.')
 
 
@@ -113,12 +152,13 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--first-install',action='store_true',required=True)
     parser.add_argument('--verify-origin',required=True)
+    parser.add_argument('--target-env',type=Path,help='Explicit public instance parameters outside package')
     args=parser.parse_args()
     root=Path(__file__).resolve().parent
     spec=importlib.util.spec_from_file_location('package_verifier',root/'install.py')
     verifier=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)
-    deploy(root,verifier,verify_origin=args.verify_origin)
+    deploy(root,verifier,verify_origin=args.verify_origin,target_env=args.target_env)
 
 
 if __name__=='__main__':

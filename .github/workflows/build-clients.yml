@@ -13,6 +13,8 @@ on:
         type: string
 permissions:
   contents: read
+env:
+  CLOUDMEET_AUDIT_DIR: ${{ github.workspace }}/client-network-audit
 concurrency:
   group: cloudmeet-clients-${{ github.ref }}
   cancel-in-progress: false
@@ -116,6 +118,14 @@ jobs:
           name: client-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: deploy/release/clients/
           if-no-files-found: error
+          retention-days: 14
+      - name: Retain network audit even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: client-network-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: client-network-audit/
+          if-no-files-found: warn
           retention-days: 14
       - name: Remove ephemeral signing files
         if: always() && matrix.target == 'android'

@@ -75,3 +75,32 @@ apkanalyzer/aapt/apksigner；管理解包仅展开MSI，不安装应用。
 universal 并记录完整集合，不代表支持所有 ABI。候选使用相同平台/架构分类。
 构建临时排除 Android x86，结束恢复源码。需要 Python 3 检查 APK ZIP 成员。
 deliveryDirectory 仅记录目标模板，不自动晋级、不移动历史产物。
+# Network audit (2026-11-19)
+
+`--check` writes JSON/Markdown preflight and source-endpoint inventory to
+`CLOUDMEET_AUDIT_DIR`, or a new temporary candidate/audit directory. Native builds
+check temporary effective Electron deployment/trust and Android deployment,
+managed SERVER_URL and host-scoped trust before compilation. Final package
+checks are summarized with artifact hashes, copied alongside new deliveries
+and covered by SHA256SUMS. Actions retains the audit directory even on failure.
+
+Source literals are `review-required`: historical defaults, optional external
+services and user/profile overrides are not silently declared safe or active.
+Generated default endpoint checks do not prove installed-user overrides or all
+runtime URL construction, TLS connectivity or meeting functionality.
+
+Audit convergence: preflight and source inventories are staged byte-for-byte into
+the build candidate and delivered with generated/final reports. Android inspection
+now requires decoded XML: Manifest must reference the checked restrictions resource
+and, for a private CA, the checked network-security resource; the exact host rule
+must reference cloudmeet_client_ca. Raw AXML string-pool matches no longer qualify.
+If the installed apkanalyzer omits domain text or cannot decode references, packaging
+fails closed pending a verified decoder; no actual APK decoder acceptance is claimed.
+The final React Native/Hermes bundle default and installed profile overrides remain
+unverified. Signing execution on 150 is not implemented by these checks.
+
+Second-review fix: resource IDs are resolved through `aapt dump resources`, and
+`apkanalyzer resources value` obtains the actual (possibly shortened) XML/raw member.
+The CA digest is checked only in that referenced raw member. A historical APK's
+Manifest/restrictions mapping has been checked read-only with installed tools;
+private-CA domain decoding and authorized signing identity remain unaccepted.

@@ -45,6 +45,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--server-package',type=Path,required=True)
     parser.add_argument('--verify-origin',required=True)
+    parser.add_argument('--target-env',type=Path,required=True,help='Public instance configuration outside package')
     args=parser.parse_args()
     if os.geteuid()!=0: raise ValueError('Run setup.py with sudo/root')
     os.umask(0o077)
@@ -71,7 +72,7 @@ def main():
     module.preflight(root,args.verify_origin)
     module.unpack_certificate(root/'cert.tar.gz',root/'cert')
     subprocess.run([sys.executable,'-B',str(root/'deploy.py'),'--first-install',
-                    '--verify-origin',args.verify_origin],check=True,cwd=str(root))
+                    '--verify-origin',args.verify_origin,'--target-env',str(args.target_env.absolute())],check=True,cwd=str(root))
 
 
 if __name__=='__main__': main()

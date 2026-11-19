@@ -4,9 +4,36 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+import os
+import shutil
+from unittest.mock import patch
 
 
 class StartTests(unittest.TestCase):
+    def test_runtime_environment_discards_parent_overrides(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            shutil.copyfile(Path(__file__).parents[2]/'config/target.py',root/'target.py')
+            shutil.copyfile(Path(__file__).parents[2]/'config/target.env',root/'target.env')
+            (root/'jitsi.env').write_text('ENABLE_AUTH=1\n')
+            keys=('JWT_APP_SECRET','JICOFO_AUTH_PASSWORD','JVB_AUTH_PASSWORD','JITSI_ROLE_CHECK_SECRET')
+            (root/'.env').write_text(''.join(k+'=generated\n' for k in keys))
+            with patch.dict(os.environ,{'JWT_APP_SECRET':'stale','ENABLE_AUTH':'0','COMPOSE_FILE':'evil.yaml'}):
+                env=self.module.runtime_environment(root)
+                self.assertEqual(env['JWT_APP_SECRET'],'generated')
+                self.assertEqual(env['ENABLE_AUTH'],'1')
+                self.assertNotIn('COMPOSE_FILE',env)
+                self.assertEqual(os.environ['JWT_APP_SECRET'],'stale')
+
+    def test_target_fingerprint_rejects_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            spec=importlib.util.spec_from_file_location('target',Path(__file__).parents[2]/'config/target.py')
+            target=importlib.util.module_from_spec(spec);spec.loader.exec_module(target)
+            shutil.copyfile(Path(__file__).parents[2]/'config/target.env',root/'target.env')
+            with patch.dict(os.environ,{'CLOUDMEET_TARGET_SHA256':'0'*64}):
+                with self.assertRaisesRegex(ValueError,'changed'):
+                    target.resolve_target(root)
     def test_transfer_and_creator_reclaim_enabled_together(self):
         source=(Path(__file__).parents[1]/'offline-runtime/start.py').read_text()
         self.assertIn('host_transfer_enabled = true;',source)

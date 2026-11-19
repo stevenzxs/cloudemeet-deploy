@@ -39,7 +39,7 @@ def main():
         target_spec = importlib.util.spec_from_file_location('target_config', root/'target.py')
         target = importlib.util.module_from_spec(target_spec)
         target_spec.loader.exec_module(target)
-        target.load_target(root/'target.env')
+        target.resolve_target(root)
         text = ''
     else:
         text = (root / 'server.env.example').read_text()

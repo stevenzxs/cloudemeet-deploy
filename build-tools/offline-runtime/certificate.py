@@ -79,7 +79,7 @@ def preflight(root,origin):
         validate(out,origin)
 
 
-def activate(root,origin,command):
+def activate(root,origin,command,env=None):
     """Install only external TLS; preserve internal TLS, secrets and CA volumes."""
     # Do not execute target-supplied code: transformation is from maintained package.
     config=root/'Caddyfile';original=config.read_bytes()
@@ -88,7 +88,7 @@ def activate(root,origin,command):
         raise ValueError('Unsupported initial Caddyfile TLS layout')
     replacement='tls /config/cloudmeet-cert/first-install/server.crt /config/cloudmeet-cert/first-install/server.key'
     candidate=text.replace('tls internal',replacement)
-    container=subprocess.check_output(command+['ps','-q','gateway'],universal_newlines=True).strip()
+    container=subprocess.check_output(command+['ps','-q','gateway'],universal_newlines=True,env=env).strip()
     if not container or '\n' in container: raise ValueError('Expected one gateway container')
     subprocess.run(['docker','exec',container,'mkdir','-p','/config/cloudmeet-cert/first-install'],check=True)
     for name in ('server.crt','server.key'):
@@ -101,7 +101,7 @@ def activate(root,origin,command):
     except Exception:
         config.write_bytes(original)
         raise
-    subprocess.run(command+['restart','gateway'],check=True,timeout=90)
+    subprocess.run(command+['restart','gateway'],check=True,timeout=90,env=env)
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs): return None
     context=ssl.create_default_context(cafile=str(root/'cert/ca.crt'))
