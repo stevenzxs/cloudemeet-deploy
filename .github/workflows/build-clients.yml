@@ -172,7 +172,7 @@ jobs:
           path: deploy/release/clients/
           if-no-files-found: error
           retention-days: 14
-      - name: Retain network audit even on failure
+      - name: Retain audit and sanitized build diagnostics even on failure
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

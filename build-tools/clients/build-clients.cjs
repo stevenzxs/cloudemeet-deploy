@@ -30,12 +30,35 @@ function argumentsFor(args) {
   return result;
 }
 
+function sanitizeBuildLog(text, env) {
+  text = text.replace(/-----BEGIN ([A-Z ]*PRIVATE KEY)-----[\s\S]*?(?:-----END \1-----|$)/g, '[REDACTED PRIVATE KEY]');
+  const secrets = Object.entries(env).filter(([name, value]) => value && /PASSWORD|PASSPHRASE|TOKEN|SECRET|KEYSTORE|PFX|CREDENTIAL|AUTHORIZATION/i.test(name))
+    .flatMap(([, value]) => [String(value), encodeURIComponent(value), JSON.stringify(String(value)).slice(1, -1)])
+    .sort((a, b) => b.length - a.length);
+  for (const value of secrets) text = text.split(value).join('[REDACTED]');
+  return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').split(/\r?\n/).map(line =>
+    /password|passphrase|authorization|bearer\s|token\s*[:=]|secret\s*[:=]|signtool.*\s\/p\s/i.test(line)
+      ? '[REDACTED credential-bearing line]' : line).join('\n');
+}
+
 function run(exe, args, cwd, env, logfile) {
   const fd = fs.openSync(logfile, 'a');
+  let result;
   try {
-    const result = spawnSync(exe, args, { cwd, env, stdio: ['ignore', fd, fd], windowsHide: true });
-    if (result.error || result.status !== 0) throw Error(`Build step failed (${path.basename(exe)}); see ${logfile}`);
+    result = spawnSync(exe, args, { cwd, env, stdio: ['ignore', fd, fd], windowsHide: true });
   } finally { fs.closeSync(fd); }
+  if (result.error || result.status !== 0) {
+    // Raw logs remain protected in the candidate. Never upload that directory,
+    // command arguments, or the child environment (which can contain signing material).
+    const diagnostic = sanitizeBuildLog(fs.readFileSync(logfile, 'utf8'), env).slice(-65536);
+    if (env.CLOUDMEET_AUDIT_DIR) {
+      fs.mkdirSync(env.CLOUDMEET_AUDIT_DIR, { recursive: true });
+      fs.writeFileSync(path.join(env.CLOUDMEET_AUDIT_DIR, `build-${path.basename(logfile)}`), diagnostic);
+    }
+    const reason = result.error ? `spawn=${result.error.code || 'unknown'}` : `exit=${result.status}, signal=${result.signal || 'none'}`;
+    const tail = diagnostic.split('\n').slice(-30).join('\n').slice(-8192);
+    throw Error(`Build step failed (${path.basename(exe)}; ${reason}); protected log: ${logfile}\nSanitized build output:\n${tail}`);
+  }
 }
 
 function preflight(options, config) {
@@ -259,4 +282,4 @@ async function main() {
   if (!options.check) await build(options, config, report);
 }
 if (require.main === module) main().catch(error => { console.error(error.message); process.exitCode = 1; });
-module.exports = { argumentsFor, preflight, collect, androidTasks, androidLayout, createCandidate };
+module.exports = { argumentsFor, preflight, collect, androidTasks, androidLayout, createCandidate, run, sanitizeBuildLog };

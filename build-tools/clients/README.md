@@ -114,3 +114,15 @@ Forge postPackage签主程序，再调用产品原生统一MSI组包，之后签
 SignTool与公开身份比较。APK要求唯一批准签名DER指纹，不接受仅Verifies。
 当前真实Windows身份尚缺，固定工具提交下也无该身份；配置后必须更新受审工具SHA及
 工作流引用再构建，不能临时覆盖身份。实际签名/时间戳/清理及最终包仍须云端验收。
+
+## 失败诊断（2026-11-19）
+
+子构建失败时，错误包含实际exit/signal或spawn错误码及脱敏后的最后30行（最多8KiB），
+不再只指向Runner销毁后不可读取的临时文件。原始electron.log/android.log仍留受保护的
+候选目录；不上传整个候选目录、命令参数或环境。脱敏会屏蔽环境中已知秘密值、私钥块及
+凭据行；最多64KiB的脱敏诊断以build-electron.log/build-android.log写入CLOUDMEET_AUDIT_DIR，
+由工作流现有always审计制品保留14天。不要将秘密写入产品工具自定义日志；脱敏不是秘密管理替代品。
+
+旧Run44023749308（配置e256f5d，2026-11-17）未上传任何artifact，其详细electron.log
+无法从现有Run取回；只能确认Forge子进程失败，不能据此外层错误断言具体编译根因已修复。
+重新运行旧Run仍使用旧workflow；本次仅补诊断辅助回归，不发起构建或绕过现有版本/签名门禁。

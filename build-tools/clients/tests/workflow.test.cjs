@@ -18,6 +18,9 @@ test('client workflow is manual, pinned, least privilege and signature gated', (
   assert.match(text, /client-ca.crt/);
   assert.match(text, /27.1.12297006/);
   assert.match(text, /java-version: '17'/);
+  assert.match(text, /name: Retain audit and sanitized build diagnostics even on failure\s+if: always\(\)/);
+  assert.match(text, /path: client-network-audit\//);
+  assert.doesNotMatch(text, /path:.*(?:cloudmeet-clients-|electron\.log|android\.log)/);
   for (const line of text.split('\n').filter(x => x.includes('uses:') && !x.includes('uses: ./.github/workflows/'))) {
     assert.match(line, /@[0-9a-f]{40}\s*$/);
   }
