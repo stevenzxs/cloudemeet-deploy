@@ -14,7 +14,7 @@ function findWix(env = process.env) {
   })) || null;
 }
 
-function parseConfig(text) {
+function parseConfig(text, assignment = null) {
   const keys = ['SITE_DOMAIN', 'SITE_SCHEME', 'SITE_PORT', 'CLIENT_VERSION'];
   const values = {};
   for (const line of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
@@ -34,10 +34,25 @@ function parseConfig(text) {
   const parts = version.split('.').map(Number);
   if (parts[0] > 255 || parts[1] > 255 || parts[2] > 65535) throw Error('CLIENT_VERSION exceeds MSI limits');
   const origin = `${values.SITE_SCHEME}://${host}:${+values.SITE_PORT}`;
-  return { values, origin, desktopUrl: `${origin}/cm/desktop`, version };
+  const result = { values, origin, desktopUrl: `${origin}/cm/desktop`, version };
+  if (assignment) {
+    const v = assignment.versions;
+    if (!v || v.client_version !== `${version}+r${v.revision}` || !Number.isSafeInteger(v.revision) || v.revision < 1
+        || v.android_code !== versionCode(v.client_version)
+        || v.msi_version !== `${parts[0]}.${parts[1]}.${parts[2] + v.revision}`
+        || v.pe_version !== `${v.msi_version}.0` || parts[2] + v.revision > 65535) throw Error('Client version assignment mismatch');
+    Object.assign(result, { version: v.client_version, msiVersion: v.msi_version, peVersion: v.pe_version, assignment });
+  }
+  return result;
 }
 
 function versionCode(version) {
+  const revision = /^(.*)\+r([1-9]\d*)$/.exec(version);
+  if (revision) {
+    const value = Number(`${versionCode(revision[1])}${revision[2]}`);
+    if (!Number.isSafeInteger(value) || value < 1 || value > 2100000000) throw Error('Android revision versionCode overflow');
+    return value;
+  }
   if (!/^(0|[1-9]\d*)\.[0-9]\.(0|[1-9]\d?)$/.test(version)) {
     throw Error('Android version requires major.minor.patch with minor 0..9 and patch 0..99');
   }
@@ -57,8 +72,12 @@ async function withLock(file, callback) {
 
 async function withFiles(changes, callback) {
   const originals = [];
+  const created = [];
   try {
     for (const [file, content] of changes) {
+      const missing = [];
+      for (let dir = path.dirname(file); !fs.existsSync(dir); dir = path.dirname(dir)) missing.push(dir);
+      for (const dir of missing.reverse()) { fs.mkdirSync(dir); created.push(dir); }
       originals.push([file, fs.existsSync(file) ? fs.readFileSync(file) : null]);
       fs.writeFileSync(file, content);
     }
@@ -67,6 +86,9 @@ async function withFiles(changes, callback) {
     for (const [file, bytes] of originals.reverse()) {
       if (bytes === null) { if (fs.existsSync(file)) fs.unlinkSync(file); }
       else fs.writeFileSync(file, bytes);
+    }
+    for (const dir of created.reverse()) {
+      if (fs.existsSync(dir) && fs.readdirSync(dir).length === 0) fs.rmdirSync(dir);
     }
   }
 }

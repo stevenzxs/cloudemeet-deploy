@@ -11,6 +11,17 @@ on:
         required: true
         default: '["electron","android"]'
         type: string
+  workflow_call:
+    inputs:
+      material_commit:
+        type: string
+        required: true
+      targets:
+        type: string
+        required: true
+      assignment:
+        type: string
+        required: true
 permissions:
   contents: read
 env:
@@ -19,7 +30,18 @@ concurrency:
   group: cloudmeet-clients-${{ github.ref }}
   cancel-in-progress: false
 jobs:
+  version:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/revision-allocation.yml
+    with:
+      material_commit: ${{ inputs.material_commit }}
+      scope: ${{ inputs.targets }}
+      assignment: ${{ inputs.assignment || '' }}
   package:
+    needs: version
+    env:
+      ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
     runs-on: windows-2022
     timeout-minutes: 120
     strategy:
@@ -51,6 +73,8 @@ jobs:
           if ($env:MATERIAL_SHA -cnotmatch '^[0-9a-f]{40}$') { throw 'Full SHA required' }
           if ($env:CLIENT_TARGET -notin @('electron','android')) { throw 'Unexpected target' }
           if ((git -C deploy rev-parse HEAD) -ne $env:MATERIAL_SHA) { throw 'Material mismatch' }
+          if ($env:MATERIAL_SHA -ne $env:GITHUB_SHA) { throw 'Workflow/material mismatch' }
+          [IO.File]::WriteAllText((Join-Path $env:GITHUB_WORKSPACE 'version-assignment.json'), $env:ALLOCATION_JSON)
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: stevenzxs/jitsi-meet-electron
@@ -109,9 +133,9 @@ jobs:
       - name: Build and verify packages
         shell: pwsh
         run: |
-          node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --check
+          node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json --check
           if ($LASTEXITCODE) { throw 'Client prerequisites failed' }
-          node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }}
+          node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json
           if ($LASTEXITCODE) { throw 'Client package verification failed' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

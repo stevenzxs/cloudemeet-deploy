@@ -1,0 +1,40 @@
+name: CloudMeet persistent revision allocation
+on:
+  workflow_call:
+    inputs:
+      material_commit:
+        type: string
+        required: true
+      scope:
+        type: string
+        required: true
+      assignment:
+        type: string
+        default: ''
+    outputs:
+      assignment:
+        value: ${{ jobs.allocate.outputs.assignment }}
+permissions:
+  contents: read
+jobs:
+  allocate:
+    # Dedicated persistent 150 controller only; no product build or signing here.
+    runs-on: [self-hosted, linux, cloudmeet-version-controller]
+    timeout-minutes: 5
+    outputs:
+      assignment: ${{ steps.record.outputs.assignment }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Allocate or verify inherited parent record against persistent ledger
+        id: record
+        env:
+          MATERIAL_SHA: ${{ inputs.material_commit }}
+          REQUEST_SCOPE: ${{ inputs.scope }}
+          INHERITED_ASSIGNMENT: ${{ inputs.assignment }}
+          VERSION_LEDGER: ${{ vars.CLOUDMEET_VERSION_LEDGER }}
+        run: python3 -B build-tools/allocate-workflow.py
+      - name: Verify revision contract after persistent allocation (failure still consumes revision)
+        run: python3 -B -m unittest discover -s build-tools/tests -p 'test_revision*.py'

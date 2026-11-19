@@ -117,6 +117,13 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 |---|---|
 | `build-tools/network-audit.py`、`build-tools/tests/test_network_audit.py` | 地址/端口声明清单、目标派生和最终Compose审计；无网络辅助回归，新包目标启动前复用 |
 | `build-tools/NETWORK-AUDIT-PLAN.md` | 本次网络参数审计实施清单，非规范 |
+| `build-tools/REVISION-PLAN.md` | 联合版本改造计划、验证记录及未启用门槛，非规范 |
+| `config/version-policy.json` | 已审版本映射及待补的服务端基线、历史数字版本上限；未批准配置禁止分配 |
+| `build-tools/revision_versions.py`、`build-tools/tests/test_revision_versions.py` | 版本派生、Run/配置绑定及范围/并发/重试/损坏拒绝回归，测试只使用临时台账 |
+| `build-tools/revision_ledger.py` | 仓库外SQLite原子持久分配；初始化须单独审批，丢失不自动重建 |
+| `build-tools/allocate-workflow.py`、`.github/workflows/revision-allocation.yml` | 专用控制Runner的受控分配/父批次核验，无产品构建和Secrets；当前未安装启用 |
+| `.github/workflows/build-joint.yml`、`build-tools/tests/test_revision_workflows.py` | 七服务和双客户端共享一次顶层Run分配的编排及静态回归，不代表云端验收 |
+| `build-tools/clients/revision-config.cjs`、`build-tools/clients/tests/revision.test.cjs` | 消费统一版本记录、Forge映射适配及显示/平台字段测试，不新增产品编译实现 |
 | `build-tools/clients/network-audit.cjs`、`build-tools/clients/tests/network-audit.test.cjs` | 双客户端源码端点清单、生成参数及最终包审计报告与拒绝路径测试 |
 
 **2026-11-11 脚本收敛更新（用户“按建议优化打包脚本”）：**新正式发布入口为下表统一工作流；每个新发布批次完整编译七服务，统一 version + run ID + attempt，逐服务保留源码提交与镜像身份，不以旧批镜像补缺。允许依赖/构建层缓存，不允许自动退回旧应用产物。此更新替代第6节此前“本批复用、只重编变化服务”的执行选择；历史证据不变。仅优化脚本不自动授权推送、调度构建或发布镜像。旧工作流仅保留手动诊断，不再自动响应 push。
@@ -270,6 +277,15 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 6. 编译打包与交付（不含测试流程）
 
+### 2026-11-19 已批准：联合修订版本
+
+- 依据知识库1.2，七服务和两客户端采用各自批准基线`B+rN`。新顶层打包Run在产品测试/构建前持久分配N，失败/取消占号，同Run重跑复用N，子工作流和矩阵只核验继承记录，预检/查询/下载/部署既有包不占号。
+- 本次用户采用平台映射：客户端基线1.0.21，Android versionName及Electron应用显示1.0.21+rN；Android versionCode为十进制1021拼接N（r1=10211、r2=10212、r10=102110、r100=1021100）；MSI ProductVersion=1.0.(21+N)、PE FileVersion=1.0.(21+N).0。MSI major/minor≤255、第三段≤65535；Android正整数≤2100000000，必须超过核验的历史最高版本，否则阻断，不卸载/清数据绕过。
+- 服务端基线尚待审批，11248.0.2仅为审阅示例。七服务保留各自上游/源码SHA与依赖身份，交付显示版本不冒充各服务原生版本；容器tag使用B-rN加Run/attempt隔离身份。
+- `config/client.env`继续唯一提供客户端入口及三段基线；`config/version-policy.json`显式绑定同一基线、1021及历史上限。派生修订号仅来自受控分配记录，不允许手填VERSION或配置默认值绕过。配置/源码SHA、父Run及attempt证据随包记录。
+- 持久SQLite台账放Git工作树外，专用150控制Runner串行事务分配，绑定命名空间/基线、任务、Run、配置和源码身份。初始化、备份恢复、Runner组隔离/审批与安装另行执行；禁止丢失后按成功Release重建计数。自校验摘要不是签名，不替代可信Runner与持久状态保护。
+- 本次仅代码/工作流/辅助测试交付；策略保持approved=false，服务端基线及历史Android/MSI上限未核验，正式分配和Actions整链均未验收。下文旧手填版本/禁止自动递增/旧versionCode公式由本节覆盖，历史制品不追改。
+
 ### 2026-11-19 用户确认：七服务与双客户端网络参数审计
 
 - 构建前记录可发现的地址/端口声明、固定上游/监听、来源行号、输入摘要及派生链；七服务生成Compose再次按实际渲染结果校验。新增网络参数或消费路径须纳入追溯和回归，不把关键词扫描当语义上绝对无遗漏。
@@ -367,7 +383,7 @@ flowchart TD
 
 ### 2026-11-19 用户确认：对话参数与签名执行职责
 
-- Android对话发起每个新的CloudMeet交付任务时，Hermes必须提示用户提供客户端版本和完整入口地址（协议、主机、端口）；缺项时停止调度，不猜测历史值、不自动递增版本。同一任务确认后固定参数，恢复/查询不重复询问。
+- Android对话发起每个新的CloudMeet交付任务时，Hermes须确认完整入口地址（协议、主机、端口）；版本按第6节批准基线自动分配rN，不再每批询问数字版本。同一任务确认后固定参数，恢复/查询不重复询问或占号。
 - 将用户确认值映射为本批`config/client.env`的CLIENT_VERSION、SITE_SCHEME、SITE_DOMAIN、SITE_PORT，经校验及版本管理后，Actions从固定配置SHA读取并带入Electron/Android打包脚本；保留并发任务和已有工作区改动，不通过环境默认值另建配置源。
 - 客户端签名授权、材料准备及相关工具脚本的权威维护库是https://github.com/stevenzxs/cloudmeet-certificates；150.158.83.70执行经过审阅的固定提交，记录其与本批配置SHA/产物的配对。部署库只保留引用、调用与非敏感证据，不复制维护第二份签名工具。
 - 本次确认不默认授权将私钥/密码上传Actions Secrets；须核对证书库实际实现后明确是150安全注入受控构建还是接收未签名包在150签名。既有授权仍限其原范围，不扩大为CA私钥可进入Actions。签名材料、密码、会话不明文入Git/日志/公共制品，保持既有签名身份。
@@ -376,7 +392,7 @@ flowchart TD
 - 最新客户端打包终点覆盖下文旧“候选不晋级”约定：正常命令必须完成编译、最终包版本/平台ABI/内嵌入口和公开CA/签名状态检查，复制到release/clients/<平台>/<架构或ABI>/<批次>，复核副本摘要并输出记录和实际路径；必需检查失败明确报阻塞。临时目录仅中间态。未签名MSI如实记录，异常签名拒绝；安装、真实入口TLS及会议媒体验收不是打包门槛。
 - `build-tools/clients/verify-package.cjs`负责最终MSI管理解包、PE/版本/配置及签名，APK最终资源/ABI/版本/签名及公开CA；工具缺失报阻塞。`build-tools/clients/delivery.cjs`负责全批检查前置、不可覆盖交付及摘要说明；`build-tools/clients/tests/delivery.test.cjs`负责交付拒绝及防覆盖回归，不安装应用。
 
-- 唯一客户端入口及发布版本配置源为 `deploy/config/client.env`，包含 SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION，MSI/APK均须显式读取；不从服务端target.env、.env、旧client.env、环境变量或源码历史默认值覆盖/回退。缺项、无效入口或无效版本拒绝构建。CLIENT_VERSION使用三段数字版本，Electron产品版本与Android versionName保持一致；按配置原值使用，不自动递增补丁号。Android versionCode自动按major×1000+minor×100+patch转换，1.0.19对应1019；minor限定0..9、patch限定0..99，越界拒绝Android构建。相同版本得到相同code，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译，不自动卸载或清数据。构建记录保留版本及versionCode，不并发构建或删除活动锁。
+- 唯一客户端入口及基线配置为`deploy/config/client.env`的SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION；不从服务端target.env、.env、旧client.env、进程环境或源码历史默认值覆盖/回退。CLIENT_VERSION保留批准三段基线，实际显示版本/Android整数/MSI/PE字段按第6节及绑定Run记录派生。缺分配记录、历史上限不明或不满足升级单调性拒绝正式构建；旧三段整数公式只用于诊断基线，不读取release-version.json推断修订号。不卸载/清数据或删除活动锁绕过。
 - 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；已恢复四项配置读取和候选构建编排，须先执行--check。版本转换约定替代旧历史证据/预留计数方案，不变更历史包或既有记录。工具回归通过不代表真实编译或包级验证完成。
 - 每批核对完整 origin、实际 MSI/APK 版本和摘要、包内入口及目标公开 CA。新地址不会自动配置 CA 信任。Electron 按准确 origin 限定信任；Android 按主机限定，保留已有端点策略，不打包私钥。
 - 实测 APK signing certificate、MSI/内嵌程序实际签名与有效性；旧 manifest 固定文案和文件名不是签名证据。签名改变字节后重新计算最终摘要。

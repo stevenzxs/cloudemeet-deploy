@@ -11,7 +11,7 @@ case "${1:-}" in
 esac
 : "${VERSION:?Set VERSION}"
 : "${BATCH:?Set BATCH to version/run/attempt identity}"
-[[ $VERSION =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,63}$ ]] || die 'Invalid version'
+[[ $VERSION =~ ^[0-9]+(\.[0-9]+){2,3}\+r[1-9][0-9]*$ ]] || die 'Allocated display version required'
 [[ $BATCH =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,110}$ ]] || die 'Invalid batch'
 TARGET_ARCH=${TARGET_ARCH:-arm64}
 case "$TARGET_ARCH" in
@@ -24,11 +24,21 @@ export TARGET_ARCH HOST_ARCH PACKAGE_ARCH COMPOSE_ARCH
 : "${GITHUB_RUN_ID:?Run through GitHub Actions}"
 : "${GITHUB_RUN_ATTEMPT:?Missing workflow attempt}"
 : "${GITHUB_SHA:?Missing workflow commit}"
-[[ $BATCH == "$VERSION-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ]] || die 'Batch identity mismatch'
+[[ $BATCH == "${VERSION/+/-}-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ]] || die 'Batch identity mismatch'
 deployment_commit=$(git -C "$repo" rev-parse HEAD)
 [[ $deployment_commit == "$GITHUB_SHA" ]] || die 'Workflow commit mismatch'
 (cd "$repo"; sha256sum -c build-tools/inputs.sha256)
 export VERSION BATCH DEPLOYMENT_COMMIT="$deployment_commit"
+: "${VERSION_RECORD:?Bound version allocation record required}"
+python3 -B "$tools/revision_versions.py" --record "$VERSION_RECORD" --policy "$repo/config/version-policy.json" \
+    --sha "$deployment_commit" --run-id "$GITHUB_RUN_ID" --scope server --attempt "$GITHUB_RUN_ATTEMPT" >/dev/null
+python3 -B - "$VERSION_RECORD" "$tools/sources.json" <<'PY'
+import json,os,sys
+r=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2]))
+assert r['versions']['server_version']==os.environ['VERSION'], 'Version assignment mismatch'
+for name,item in s['services'].items():
+    assert r['request']['sources'].get(name)==item['commit'], 'Source allocation mismatch'
+PY
 python3 -B "$tools/network-audit.py" --root "$repo" --mode generic \
     --output "$repo/output/network-audit-${1}-${2:-package}/preflight"
 
@@ -204,6 +214,7 @@ def digest(path):
     return h.hexdigest()
 sources=json.loads(sourcefile.read_text())
 record={'service':service,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
+         'version_assignment':json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()),
         'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
          'workflow_commit':os.environ['GITHUB_SHA'],'source_dirty':False,
          'build_overrides':{'VITE_JITSI_SERVER':'same-origin'} if service=='app-web' else {},
@@ -249,6 +260,7 @@ assemble_package() {
     (cd "$repo/output" && sha256sum setup.py > setup.py.sha256)
     cp -a "$repo/patches" "$output/patches"
     cp "$tools/sources.json" "$output/provenance/sources.json"
+    cp "$VERSION_RECORD" "$output/provenance/version-assignment.json"
     cp "$tools/inputs.sha256" "$output/provenance/deployment-inputs.sha256"
     cp "$repo/incoming/artifacts.json" "$output/provenance/actions-artifacts.json"
     export PACKAGE_DIR="$output" COMPOSE_URL="$compose_url" COMPOSE_VERSION="$compose_version"
@@ -285,6 +297,8 @@ for s in services:
             or record['run_id']!=os.environ['GITHUB_RUN_ID'] or record['attempt']!=os.environ['GITHUB_RUN_ATTEMPT']):
         raise ValueError('Batch identity mismatch: '+s)
     if record['source']!=sources['services'][s]: raise ValueError('Source identity mismatch: '+s)
+    if record.get('version_assignment')!=json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()):
+        raise ValueError('Version allocation mismatch: '+s)
     if record['platform']!='linux/'+os.environ.get('TARGET_ARCH','arm64') or record['archive']!=s+'.tar.gz': raise ValueError('Wrong platform/archive')
     archive=repo/'incoming'/s/record['archive']
     if archive.stat().st_size!=record['bytes'] or digest(archive)!=record['sha256']:
@@ -353,6 +367,7 @@ shutil.copyfile(repo/'config/target.py',out/'target.py')
 caddy=(repo/'config/Caddyfile').read_text()
 (out/'Caddyfile').write_text(caddy)
 manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
+  'version_assignment':json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()),
   'network_audit_required':True,
  'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
  'workflow_commit':os.environ['GITHUB_SHA'],

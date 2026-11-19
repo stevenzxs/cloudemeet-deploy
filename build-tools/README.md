@@ -13,12 +13,12 @@
 `.github/workflows/build-package.yml`；公开补丁仍来自部署仓库 `patches/`。
 审核并提交推送这些文件后，在 GitHub Actions 选择 **CloudMeet compile and package aarch64**：
 
-- `version`：本次版本，如 `1.0.19-rc1`（不代表已占用客户端版本）。
+- 版本不再手填：共同修订号由受控持久台账分配，具体映射和启用门槛见下文。
 - `material_commit`：包含本次脚本、补丁及配置的完整40位提交SHA，必须等于所选workflow提交。
 - 地址与端口：`config/target.env`不绑定网页入口IP，仅设置协议、端口及可选媒体IPv4覆盖。Caddy使用本地证书和通配路由，接受证书告警/客户端兼容性限制；信令由启动器生成的custom-config.js跟随浏览器入口。`config/jitsi.env`保留公共参数。
 
 工作流只读仓库，不需要SSH或registry秘密，不自动发布镜像。每次run/attempt完整编译七服务；
-当前CI分支尚未进入默认分支，限定push触发仅在ci/arm64-smoke分支修改新workflow文件时运行，默认版本1.0.19-rc1、材料SHA为该提交，目标来自受控config/target.env；其他修改不自动构建。
+入口仅受控手动触发；移除push触发和默认版本回退。默认不发布，显式批准publish_images时仅发布job取得GHCR写权限。
 失败则无最终包，不跨run/attempt补旧镜像。**重跑请选择全部jobs**，不能仅重跑失败job后混用旧attempt。
 Docker build中的依赖和构建层缓存允许复用，但输出应用镜像必须由本批build步骤产生。
 
@@ -27,6 +27,28 @@ Docker build中的依赖和构建层缓存允许复用，但输出应用镜像�
 这两个命令由工作流设置VERSION、BATCH和GitHub运行身份；不在Windows/WSL运行服务器构建或组包。
 
 ## 输出及安装边界
+
+### 联合版本入口（2026-11-19）
+
+`.github/workflows/build-joint.yml`一次分配后调用七服务及双客户端工作流；
+独立服务端/客户端入口使用相同命名空间，子工作流只核验已有父Run记录。
+`revision_versions.py`派生显示与平台字段，`revision_ledger.py`使用SQLite
+BEGIN IMMEDIATE原子持久化，已分配失败不回收，同Run attempt复用并追加attempt证据。
+包内来源记录和provenance/version-assignment.json绑定完整分配身份。
+
+目前**未启用**：config/version-policy.json的approved=false，服务端基线及
+previous_android_code/previous_msi_version未核验，不猜零值；客户端映射为
+1.0.21+rN、Android int('1021'+N)、MSI 1.0.(21+N)、PE 1.0.(21+N).0。
+策略审批/历史包核验后，另行部署专用150 Runner标签cloudmeet-version-controller、
+限制Runner组只允许审阅工作流/main、受限用户和仓库外绝对路径变量
+CLOUDMEET_VERSION_LEDGER。不得将通用公开PR Runner接入持久台账。
+台账初始化必须显式授权，自动任务不初始化，不从Release/Actions保留列表重建。
+SQLite备份恢复须对照独立Run证据确认最新高水位；普通摘要/事务不能检测整库旧快照回滚，
+未经核对不得恢复分配。当前未安装Runner、未创建正式台账、未触发Actions。
+
+首次启用前还需完成Windows签名身份、真实MSI/PE/APK映射和覆盖升级验证；
+代码辅助回归不代表签名/云端/客户端/媒体通过。服务原生版本仍见sources.json，
+联合交付版本不能覆盖上游身份。预检、查询、下载和部署既有制品不分配N。
 
 最终artifact `cloudmeet-aarch64-RUN-ATTEMPT` 包含：
 

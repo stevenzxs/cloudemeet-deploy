@@ -5,6 +5,10 @@ from unittest.mock import patch
 
 
 class ActionsTests(unittest.TestCase):
+    def test_dispatch_never_accepts_manual_version(self):
+        text=(Path(__file__).parents[1]/'actions.py').read_text()
+        self.assertNotIn("dispatch.add_argument('--version'", text)
+        self.assertIn('build-joint.yml', text)
     def test_api_targets_only_reviewed_repository(self):
         path=Path(__file__).parents[1]/'actions.py'
         spec=importlib.util.spec_from_file_location('actions_entry',path)

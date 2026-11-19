@@ -1,0 +1,33 @@
+const test = require('node:test');
+const assert = require('node:assert/strict');
+const { parseConfig, versionCode } = require('../core.cjs');
+const config = 'SITE_DOMAIN=example.com\nSITE_SCHEME=https\nSITE_PORT=8443\nCLIENT_VERSION=1.0.21\n';
+test('allocated display version is distinct from all platform fields', () => {
+  const versions = { revision: 100, client_version: '1.0.21+r100', android_code: 1021100,
+    msi_version: '1.0.121', pe_version: '1.0.121.0' };
+  const parsed = parseConfig(config, { versions });
+  assert.equal(parsed.version, '1.0.21+r100');
+  assert.equal(parsed.msiVersion, '1.0.121');
+  assert.equal(parsed.peVersion, '1.0.121.0');
+  assert.equal(versionCode(parsed.version), 1021100);
+  assert.throws(() => parseConfig(config, { versions: { ...versions, android_code: 1021 } }));
+  assert.throws(() => parseConfig(config.replace('1.0.21', '1.0.22'), { versions }));
+});
+test('revision client code refuses zero, leading zeros and overflow', () => {
+  assert.equal(versionCode('1.0.21+r1'), 10211);
+  assert.equal(versionCode('1.0.21+r10'), 102110);
+  for (const s of ['1.0.21+r0', '1.0.21+r01', '1.0.21+r1000000']) assert.throws(() => versionCode(s));
+});
+test('Forge adapter preserves native hooks while excluding build adapter from the shipped app', () => {
+  const vm = require('node:vm');
+  const { forgeWrapper } = require('../revision-config.cjs');
+  const hook = () => {};
+  const native = { hooks: { preMake: hook, postMake: hook }, packagerConfig: { ignore: [/native/] }, makers: [] };
+  const sandbox = { module: { exports: {} }, require: file => file === 'node:path' ? require(file) : native };
+  vm.runInNewContext(forgeWrapper('C:/source', { versions: { msi_version: '1.0.22', pe_version: '1.0.22.0' } }), sandbox);
+  const config = sandbox.module.exports;
+  assert.equal(config.hooks.preMake, hook);
+  assert.equal(config.packagerConfig.appVersion, '1.0.22');
+  assert.equal(config.packagerConfig.buildVersion, '1.0.22.0');
+  assert.ok(config.packagerConfig.ignore.some(rule => rule.test('/cloudmeet.forge.cjs')));
+});

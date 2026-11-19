@@ -1,0 +1,49 @@
+name: CloudMeet seven services and two clients
+on:
+  workflow_dispatch:
+    inputs:
+      material_commit:
+        description: Reviewed full deployment configuration SHA (must equal workflow commit)
+        type: string
+        required: true
+      architecture:
+        type: choice
+        options: [amd64, arm64]
+        required: true
+      publish_images:
+        description: Explicitly approved publication of exact seven service images (no deployment)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+  actions: read
+jobs:
+  version:
+    permissions:
+      contents: read
+    uses: ./.github/workflows/revision-allocation.yml
+    with:
+      material_commit: ${{ inputs.material_commit }}
+      scope: '["server","electron","android"]'
+  server:
+    needs: version
+    uses: ./.github/workflows/build-package.yml
+    permissions:
+      contents: read
+      actions: read
+      packages: write
+    with:
+      material_commit: ${{ inputs.material_commit }}
+      architecture: ${{ inputs.architecture }}
+      publish_images: ${{ inputs.publish_images }}
+      assignment: ${{ needs.version.outputs.assignment }}
+  clients:
+    needs: version
+    permissions:
+      contents: read
+    uses: ./.github/workflows/build-clients.yml
+    secrets: inherit
+    with:
+      material_commit: ${{ inputs.material_commit }}
+      targets: '["electron","android"]'
+      assignment: ${{ needs.version.outputs.assignment }}

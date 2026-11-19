@@ -41,7 +41,7 @@ class PublicationTests(unittest.TestCase):
     def test_workflow_requires_explicit_publication_after_package(self):
         text=(Path(__file__).parents[2]/'.github/workflows/build-package.yml').read_text()
         self.assertIn('publish_images:',text)
-        self.assertIn('needs: [build, package]',text)
+        self.assertIn('needs: [version, build, package]',text)
         self.assertIn('packages: write',text)
         self.assertIn('inputs.publish_images',text)
 

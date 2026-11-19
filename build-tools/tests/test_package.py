@@ -76,17 +76,17 @@ PUBLIC_ORIGIN=$PUBLIC_URL
     def test_single_manual_workflow_builds_all_seven_services(self):
         workflow = (ROOT / 'build-tools/build-package.yml').read_text(encoding='utf-8')
         self.assertIn('workflow_dispatch:', workflow)
-        self.assertIn('branches: [ci/arm64-smoke]', workflow)
-        self.assertIn('paths: [.github/workflows/build-package.yml]', workflow)
+        self.assertNotIn('  push:', workflow)
+        self.assertIn('revision-allocation.yml', workflow)
         self.assertIn('service: [gateway, app-web, api, web, prosody, jicofo, jvb]', workflow)
         self.assertIn("inputs.architecture == 'amd64'", workflow)
         self.assertIn('options: [arm64, amd64]', workflow)
-        self.assertIn('needs: build', workflow)
+        self.assertIn('needs: [version, build]', workflow)
         self.assertIn('github.run_attempt', workflow)
         self.assertNotIn('run-id:', workflow)
         self.assertNotIn('packages: write', workflow.split('jobs:',1)[0])
         self.assertEqual(workflow.count('packages: write'),1)
-        self.assertIn('needs: [build, package]',workflow)
+        self.assertIn('needs: [version, build, package]',workflow)
         self.assertNotIn('secrets.', workflow)
         self.assertNotIn('continue-on-error', workflow)
 
@@ -178,7 +178,8 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         import tempfile
         from unittest.mock import patch
         script = (ROOT / 'build-tools/package.sh').read_text()
-        block = re.findall(r"<<'PY'\n(.*?)\nPY", script, re.S)[2]
+        block = next(b for b in re.findall(r"<<'PY'\n(.*?)\nPY", script, re.S)
+                     if 'records={}' in b and "manifest={'status':'PACKAGED'" in b)
         with tempfile.TemporaryDirectory() as temp:
             repo = Path(temp)
             tools = repo / 'build-tools'
@@ -207,6 +208,9 @@ print(json.dumps(data))
             (out / 'bin/docker-compose').chmod(0o755)
             (out / 'images').mkdir()
             (out / 'provenance').mkdir()
+            assignment = {'fixture': 'test-only allocation'}
+            version_record = repo / 'version-assignment.json'
+            version_record.write_text(json.dumps(assignment))
             shutil.copytree(ROOT / 'patches', out / 'patches')
             for source in (ROOT / 'build-tools/offline-runtime').glob('*.py'):
                 shutil.copyfile(source, out / source.name)
@@ -222,7 +226,7 @@ print(json.dumps(data))
                           'deployment_commit': 'd' * 40, 'service': service, 'source': sources['services'][service],
                           'platform': 'linux/'+architecture, 'tag': 'cloudmeet/' + service + ':test-123-1',
                           'archive': service + '.tar.gz', 'image_id': 'sha256:' + hashlib.sha256(raw).hexdigest(),
-                          'runtime_user': '1000:1000'}
+                          'runtime_user': '1000:1000', 'version_assignment': assignment}
                 archive = directory / record['archive']
                 with tarfile.open(archive, 'w:gz') as tar:
                     for name, data in {'manifest.json': json.dumps([{'Config': 'config.json',
@@ -239,11 +243,13 @@ print(json.dumps(data))
                    'DEPLOYMENT_COMMIT': 'd' * 40, 'COMPOSE_URL': 'https://example.invalid/fixture',
                     'COMPOSE_VERSION': 'fixture', 'TARGET_ARCH': architecture,
                     'PACKAGE_ARCH': 'amd64' if architecture=='amd64' else 'aarch64',
-                    'HOST_ARCH': 'x86_64' if architecture=='amd64' else 'aarch64'}
+                     'HOST_ARCH': 'x86_64' if architecture=='amd64' else 'aarch64',
+                     'VERSION_RECORD': str(version_record)}
             with patch.dict(os.environ, env), patch.object(sys, 'argv', ['fixture', str(repo)]):
                 exec(compile(block, 'assembly-fixture', 'exec'), {})
             manifest = json.loads((out / 'candidate.json').read_text())
             self.assertEqual(manifest['status'], 'PACKAGED')
+            self.assertEqual(manifest['version_assignment'], assignment)
             self.assertEqual(manifest['architecture'], architecture)
             self.assertEqual(manifest['target_profile'], 'linux-'+env['PACKAGE_ARCH']+'-existing-engine')
             target_spec = __import__('importlib.util', fromlist=['util']).spec_from_file_location('fixture_target', repo/'config/target.py')
@@ -261,7 +267,8 @@ print(json.dumps(data))
             archive = repo / 'fixture.tar.gz'
             with tarfile.open(archive, 'w:gz') as tar:
                 tar.add(out, arcname='fixture')
-            final_block = re.findall(r"<<'PY'\n(.*?)\nPY", script, re.S)[3]
+            final_block = next(b for b in re.findall(r"<<'PY'\n(.*?)\nPY", script, re.S)
+                               if 'tarfile.open' in b and 'PASS_MATERIALS_ONLY' in b)
             with patch.dict(os.environ, env), patch.object(sys, 'argv', ['fixture', str(archive)]):
                 exec(compile(final_block, 'final-archive-fixture', 'exec'), {})
             self.assertEqual(json.loads((repo / 'package-evidence.json').read_text())['status'], 'PASS_MATERIALS_ONLY')

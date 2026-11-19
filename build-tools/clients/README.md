@@ -14,18 +14,17 @@ SITE_PORT、CLIENT_VERSION。命令不接受其他配置路径或进程环境覆
 Electron打入client-trust.json/client-ca.crt，按配置入口使用严格CA校验；
 Android临时注入raw/cloudmeet_client_ca.crt及主机限定network-security-config，
 保留其他主机策略。不关闭证书链、有效期或主机校验。
-三段数字版本按原值使用，遵守MSI上限255.255.65535，不自动增加补丁号。
+CLIENT_VERSION为批准的三段基线；实际交付显示和平台数字字段由受控Run记录派生，不以手填补丁号递增代替修订号。
 `--target`支持electron（Windows x64）、android、all；当前实现要求Windows。
 
 ## Android versionCode自动转换
 
-唯一读取CLIENT_VERSION，规则为`major * 1000 + minor * 100 + patch`：
-`1.0.19 → 1019`、`1.1.0 → 1100`、`2.0.0 → 2000`。
-minor限定0..9，patch限定0..99以避免编码冲突；越界拒绝Android构建。
-相同版本重复构建得到相同code，不自动递增，不读取历史证据、时间计数或
-release-version.json。保留独占构建锁，但不创建版本状态文件。
-旧时间计数APK的code可能更大，覆盖升级不保证；提示风险但不阻止编译，
-不自动卸载应用或清数据。仅在已获构建授权且检查通过后执行不带--check的命令。
+基线1.0.21与数字基线1021绑定：显示1.0.21+rN，Android数字字段为十进制1021拼接N；
+r1=10211、r2=10212、r10=102110、r100=1021100。MSI=1.0.(21+N)，PE增加第四段0。
+旧三段数字转换只用于诊断基线，不允许无分配记录正式打包。超过平台上限、历史最高版本
+未核验或不满足升级单调性均阻断，不卸载/清数据绕过。
+Actions提供`--version-record version-assignment.json`，校验配置SHA、Run、scope及源码SHA；
+`--check`不分配修订号，无记录时报告诊断基线及缺项。配置策略保持未启用，尚无真实包验收。
 
 ## 构建行为和限制
 

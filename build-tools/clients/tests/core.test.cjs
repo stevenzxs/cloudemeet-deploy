@@ -7,6 +7,14 @@ const corePath = path.join(__dirname, '../core.cjs');
 const config = 'SITE_DOMAIN=47.96.221.94\nSITE_SCHEME=https\nSITE_PORT=8443\nCLIENT_VERSION=1.0.19\n';
 test('core module exists', () => assert.ok(fs.existsSync(corePath), 'unified builder core is missing'));
 const load = () => require(corePath);
+test('temporary nested assets directory is created and removed without losing existing files', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-assets-test-'));
+  const asset = path.join(dir, 'assets/version.json');
+  try {
+    await load().withFiles([[asset, '{}']], async () => assert.ok(fs.existsSync(asset)));
+    assert.ok(!fs.existsSync(path.dirname(asset)));
+  } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
 test('optional public CA configuration is accepted without accepting unknown keys', () => {
   assert.equal(load().parseConfig(config + 'CLIENT_CA_FILE=../cert/ca.crt\n').values.CLIENT_CA_FILE, '../cert/ca.crt');
 });

@@ -55,6 +55,11 @@ def push_exact(remote):
 
 def main():
     batch=os.environ['BATCH'];sha=os.environ['GITHUB_SHA']
+    from revision_versions import validate_record
+    assignment=validate_record(json.loads(Path(os.environ['VERSION_RECORD']).read_text()),
+        json.loads(Path('config/version-policy.json').read_text()),sha,os.environ['GITHUB_RUN_ID'])
+    if 'server' not in assignment['request']['scope']:
+        raise ValueError('Server publication not in allocated scope')
     if not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,110}',batch):
         raise ValueError('Invalid batch')
     if os.environ['GITHUB_REPOSITORY']!='stevenzxs/cloudemeet-deploy':
@@ -64,6 +69,8 @@ def main():
     for service in SERVICES:
         root=Path('downloads')/('image-'+service+'-'+os.environ['GITHUB_RUN_ID']+'-'+os.environ['GITHUB_RUN_ATTEMPT'])
         record=json.loads((root/(service+'.json')).read_text())
+        if record.get('version_assignment')!=assignment:
+            raise ValueError('Publication allocation mismatch')
         for key,expected in {'service':service,'batch':batch,'workflow_commit':sha,
                              'deployment_commit':sha,'run_id':os.environ['GITHUB_RUN_ID'],
                              'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
@@ -82,6 +89,7 @@ def main():
             raise ValueError('Loaded image mismatch: '+service)
         records[service]=record
     result={'batch':batch,'configuration_commit':sha,'architecture':os.environ['TARGET_ARCH'],
+            'version_assignment':assignment,
             'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
             'status':'PUBLISHING_NOT_COMPLETE','images':{},'runtime_acceptance':'NOT_RUN'}
     destination=Path('publication');destination.mkdir()

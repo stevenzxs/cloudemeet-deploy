@@ -58,7 +58,7 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
   };
   if (artifact.platform === 'windows') {
     const version = ps(`$i=New-Object -ComObject WindowsInstaller.Installer; $d=$i.OpenDatabase(${quote(file)},0); $v=$d.OpenView('SELECT Value FROM Property WHERE Property = ''ProductVersion'''); $v.Execute(); $r=$v.Fetch(); $r.StringData(1)`).trim();
-    check('version', version === config.version, version);
+    check('version', Boolean(config.assignment) && version === config.msiVersion, version);
     const out = path.join(scratch, 'msi-payload');
     command('msiexec.exe', ['/a', file, '/qn', `TARGETDIR=${out}`]);
     const files = [];
@@ -68,6 +68,10 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     const asarFile = files.find(p => path.basename(p) === 'app.asar');
     if (!asarFile) throw Error('MSI app.asar missing');
     const asar = require(path.join(workspace, 'jitsi-meet-electron/node_modules/@electron/asar'));
+    const metadata = JSON.parse(asar.extractFile(asarFile, 'package.json').toString());
+    const assignment = JSON.parse(asar.extractFile(asarFile, 'cloudmeet-version.json').toString());
+    check('displayVersion', metadata.version === config.version
+      && JSON.stringify(assignment) === JSON.stringify(config.assignment), config.version);
     const env = asar.extractFile(asarFile, 'deployment.env').toString();
     const trust = JSON.parse(asar.extractFile(asarFile, 'client-trust.json').toString());
     require('./network-audit.cjs').auditGenerated('electron', config, { deployment: env, trust });
@@ -76,6 +80,8 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
       ? matchesCa(asar.extractFile(asarFile, 'client-ca.crt'), ca) : trust.caFile === null), ca?.sha256 || 'system trust');
     const exe = files.find(p => /cloudmeet\.exe$/i.test(p));
     if (!exe) throw Error('MSI main executable missing');
+    const peVersion = ps(`(Get-Item -LiteralPath ${quote(exe)}).VersionInfo.FileVersion`).trim();
+    check('peVersion', peVersion === config.peVersion, peVersion);
     const bytes = fs.readFileSync(exe); const offset = bytes.readUInt32LE(0x3c);
     check('architecture', bytes.readUInt16LE(offset + 4) === 0x8664 && artifact.architecture === 'x64', 'PE AMD64');
     const signatures = [file, exe].map(p => ({ file: path.basename(p), status: ps(`(Get-AuthenticodeSignature ${quote(p)}).Status`).trim() }));
@@ -86,6 +92,10 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
       .map(n => path.join(sdk, 'build-tools', n)).find(p => fs.existsSync(path.join(p, 'apksigner.bat')));
     const badging = command(path.join(tools, 'aapt.exe'), ['dump', 'badging', file]);
     check('version', badging.includes(`versionName='${config.version}'`) && badging.includes(`versionCode='${require('./core.cjs').versionCode(config.version)}'`), config.version);
+    const allocation = command('python', ['-B', '-c',
+      'import zipfile,sys; print(zipfile.ZipFile(sys.argv[1]).read("assets/cloudmeet-version.json").decode())', file]);
+    check('versionAssignment', Boolean(config.assignment)
+      && JSON.stringify(JSON.parse(allocation)) === JSON.stringify(config.assignment), config.version);
     const native = /native-code: (.*)/.exec(badging);
     const abis = native ? [...native[1].matchAll(/'([^']+)'/g)].map(m => m[1]).sort() : [];
     check('architecture', JSON.stringify(abis) === JSON.stringify([...artifact.architectures].sort()) && !abis.includes('x86'), abis.join(','));

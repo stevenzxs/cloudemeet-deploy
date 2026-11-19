@@ -4,7 +4,7 @@
 
 ## 先选材料身份，不选另一条部署线
 
-2026-11-19已确认：新Android对话交付任务先向用户收集客户端版本及完整入口，固定到本批config/client.env供双客户端打包；签名工具由cloudmeet-certificates维护，150执行固定提交。完整约定见AGENTS.md第8节。此为文档同步，未声称编排/签名/发布/部署已跑通，不默认上传私钥至Actions。
+2026-11-19版本改造：新任务确认完整入口，客户端保留批准基线并自动分配+rN，不再每批手填版本。七服务与两客户端联合入口为`.github/workflows/build-joint.yml`，独立入口共用持久分配器。平台映射及边界见AGENTS.md第6节；实现计划见`build-tools/REVISION-PLAN.md`。当前策略未启用，服务端基线、历史数字版本及专用控制Runner仍待核验，不代表实际打包/签名/发布/部署通过。
 
 编译打包仅含：确认批次 → 编译/复用 → 组包 → 材料完整性校验 → 输出release包。不要求测试环境、麒麟ISO或安装运行测试；包不含宿主操作系统。流程及流程图见AGENTS.md第6节，不表示安装器/工作流已经适配或已有新包。
 
@@ -26,7 +26,7 @@ deploy/
 ### 统一Actions入口（2026-11-11脚本优化）
 
 - 维护源：`build-tools/build-package.yml`、`build-tools/package.sh`；CI入口：`.github/workflows/build-package.yml`。
-- 手动指定版本及受审材料commit，原生aarch64矩阵完整编译七服务，再仅收集同run/attempt镜像组包；不回退旧镜像。
+- 手动选择架构及受审材料commit；版本由持久台账分配，原生amd64/arm64矩阵完整编译七服务，仅收集同run/attempt镜像组包，不回退旧镜像。
 - 统一版本下分别记录源码commit、真实镜像ID、基础镜像及归档摘要；包内携带Compose和公共首次安装核心，已有Docker为明确前提。
 - 本轮为本地脚本优化，尚未推送或运行新的Actions，没有新部署包；安装/服务/客户端/媒体均未因此验收。旧workflow保留手动诊断，不自动push触发。
 - 业务Web本批使用same-origin构建参数，工作区默认118 `.env`不变；包内记录实际覆盖。用法见`build-tools/README.md`。

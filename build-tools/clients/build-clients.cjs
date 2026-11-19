@@ -19,10 +19,10 @@ function argumentsFor(args) {
     if (seen.has(flag)) throw Error(`Duplicate argument: ${flag}`);
     seen.add(flag);
     if (flag === '--check') result.check = true;
-    else if (['--target', '--env-file'].includes(flag)) {
+    else if (['--target', '--env-file', '--version-record'].includes(flag)) {
       const value = args.shift();
       if (!value || value.startsWith('--')) throw Error(`Missing value for ${flag}`);
-      result[{ '--target': 'target', '--env-file': 'file' }[flag]] = value;
+      result[{ '--target': 'target', '--env-file': 'file', '--version-record': 'versionRecord' }[flag]] = value;
     } else throw Error(`Unknown argument: ${flag}`);
   }
   if (!['all', 'electron', 'android'].includes(result.target)) throw Error('Invalid target');
@@ -40,6 +40,7 @@ function run(exe, args, cwd, env, logfile) {
 
 function preflight(options, config) {
   const blockers = [];
+  if (!config.assignment) blockers.push('Version allocation missing: diagnostic baseline only; release builds disabled');
   let androidCode;
   let ca;
   try { ca = readCa(config, canonical); } catch (error) { blockers.push(`Invalid CLIENT_CA_FILE: ${error.message}`); }
@@ -119,7 +120,8 @@ async function build(options, config, report) {
   return withLock(lock, async () => {
     const candidate = createCandidate();
     require('./network-audit.cjs').stageReports(options.auditDir, candidate);
-    const manifest = { ...report, status: 'building', candidate, started: new Date().toISOString(), artifacts: [] };
+    if (!config.assignment) throw Error('Allocated version required; legacy versions are diagnostic-only');
+    const manifest = { ...report, versionAssignment: config.assignment, status: 'building', candidate, started: new Date().toISOString(), artifacts: [] };
     const save = () => fs.writeFileSync(path.join(candidate, 'build.json'), JSON.stringify(manifest, null, 2) + '\n');
     const recordNetwork = (name, data) => {
       writeAudit(candidate, name, data, root);
@@ -138,8 +140,11 @@ async function build(options, config, report) {
         const project = path.join(root, 'jitsi-meet-electron');
         const metadata = path.join(project, 'package.json');
         const pkg = JSON.parse(fs.readFileSync(metadata, 'utf8')); pkg.version = config.version;
+        pkg.config = { ...pkg.config, forge: './cloudmeet.forge.cjs' };
         const started = Date.now();
         const changes = [[metadata, JSON.stringify(pkg, null, 2) + '\n'],
+          [path.join(project, 'cloudmeet-version.json'), JSON.stringify(config.assignment, null, 2) + '\n'],
+          [path.join(project, 'cloudmeet.forge.cjs'), require('./revision-config.cjs').forgeWrapper(project, config.assignment)],
           [path.join(project, 'deployment.env'), Object.entries(config.values).filter(([key]) => !['CLIENT_VERSION', 'CLIENT_CA_FILE'].includes(key)).map(([key, value]) => `${key}=${value}`).join('\n') + '\n'],
           [path.join(project, 'client-trust.json'), JSON.stringify({ origin: config.origin, caFile: ca ? 'client-ca.crt' : null }) + '\n']];
         if (ca) changes.push([path.join(project, 'client-ca.crt'), ca.pem]);
@@ -168,6 +173,7 @@ async function build(options, config, report) {
         if (!xml.includes('android:key="SERVER_URL"') || xml.includes('android:defaultValue=')) throw Error('Unexpected Android restrictions layout; refusing overwrite');
         const started = Date.now();
         const changes = [[path.join(project, 'react/features/cloudmeet/deployment.json'), JSON.stringify({ origin: config.origin }, null, 4) + '\n'],
+          [path.join(project, 'android/app/src/main/assets/cloudmeet-version.json'), JSON.stringify(config.assignment, null, 2) + '\n'],
           [restrictions, xml.replace('android:key="SERVER_URL"', `android:key="SERVER_URL" android:defaultValue="${config.origin}"`)]];
         const gradle = path.join(project, 'android/app/build.gradle');
         const gradleText = fs.readFileSync(gradle, 'utf8');
@@ -220,7 +226,11 @@ async function main() {
   const auditDir = process.env.CLOUDMEET_AUDIT_DIR || path.join(createCandidate(), 'audit');
   options.auditDir = auditDir;
   let config;
-  try { config = parseConfig(fs.readFileSync(canonical, 'utf8')); }
+  try {
+    const assignment = options.versionRecord ? require('./revision-config.cjs').loadAssignment(options.versionRecord, root, options.target) : null;
+    if (!options.check && !assignment) throw Error('Version record required');
+    config = parseConfig(fs.readFileSync(canonical, 'utf8'), assignment);
+  }
   catch {
     writeAudit(auditDir, 'network-client-preflight', { phase: 'preflight', status: 'fail',
       blockers: ['Invalid canonical client configuration; input values not echoed.'] }, root);
