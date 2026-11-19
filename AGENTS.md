@@ -338,6 +338,15 @@ flowchart TD
 
 ## 8. 客户端编译与签名
 
+### 2026-11-19 用户确认：对话参数与签名执行职责
+
+- Android对话发起每个新的CloudMeet交付任务时，Hermes必须提示用户提供客户端版本和完整入口地址（协议、主机、端口）；缺项时停止调度，不猜测历史值、不自动递增版本。同一任务确认后固定参数，恢复/查询不重复询问。
+- 将用户确认值映射为本批`config/client.env`的CLIENT_VERSION、SITE_SCHEME、SITE_DOMAIN、SITE_PORT，经校验及版本管理后，Actions从固定配置SHA读取并带入Electron/Android打包脚本；保留并发任务和已有工作区改动，不通过环境默认值另建配置源。
+- 客户端签名授权、材料准备及相关工具脚本的权威维护库是https://github.com/stevenzxs/cloudmeet-certificates；150.158.83.70执行经过审阅的固定提交，记录其与本批配置SHA/产物的配对。部署库只保留引用、调用与非敏感证据，不复制维护第二份签名工具。
+- 本次确认不默认授权将私钥/密码上传Actions Secrets；须核对证书库实际实现后明确是150安全注入受控构建还是接收未签名包在150签名。既有授权仍限其原范围，不扩大为CA私钥可进入Actions。签名材料、密码、会话不明文入Git/日志/公共制品，保持既有签名身份。
+- 以上为已确认的交互与职责契约，不代表脚本已实现、150已执行、Actions已发布或118已部署；实际结果分别验收留痕。
+
+
 - 最新客户端打包终点覆盖下文旧“候选不晋级”约定：正常命令必须完成编译、最终包版本/平台ABI/内嵌入口和公开CA/签名状态检查，复制到release/clients/<平台>/<架构或ABI>/<批次>，复核副本摘要并输出记录和实际路径；必需检查失败明确报阻塞。临时目录仅中间态。未签名MSI如实记录，异常签名拒绝；安装、真实入口TLS及会议媒体验收不是打包门槛。
 - `build-tools/clients/verify-package.cjs`负责最终MSI管理解包、PE/版本/配置及签名，APK最终资源/ABI/版本/签名及公开CA；工具缺失报阻塞。`build-tools/clients/delivery.cjs`负责全批检查前置、不可覆盖交付及摘要说明；`build-tools/clients/tests/delivery.test.cjs`负责交付拒绝及防覆盖回归，不安装应用。
 
