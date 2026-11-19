@@ -11,6 +11,25 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 ## 0. 工作区入口与执行边界
 
+### 线上入口（2026-11-17）
+
+从配置库固定完整SHA读取本Skill和build-tools，不从聊天生成临时安装器。
+`build-tools/actions.py --token-file <仓库外600专用文件> --record <受限任务JSON> dispatch --commit <完整SHA> --version <版本> --publish`
+是显式amd64构建发布入口；仅本次已批准时加--publish。状态用同record执行
+`status --run-id <实际run>`，断线先查状态，不能重新dispatch。HTTP204只表示请求接受，
+不表示构建或发布成功；须核对run SHA/attempt、制品摘要、registry.json完整七项固定digest。
+缺少专用Token立即报告，不借用知识库Token、不在聊天索取/输出秘密。
+
+118既有实例的image-only更新使用公共运行时`online_update.py`，显式提供registry JSON及
+独立可信SHA256、同批candidate、root及公开CA。默认只读，--apply才pull/更新；要求
+既有配置/公开补丁适配、空闲会议、严格TLS、保留数据秘密、SQLite一致性备份。
+不适用全新安装、不更新产品配置、不替代换证。回滚使用备份中的精确旧image ID，
+不能恢复DB覆盖更新后的用户数据。运行测试与回滚演练另列，不因代码存在报通过。
+
+150已初始化专用CA v1，但尚未激活；工具维护在私有cloudmeet-certificates固定提交，
+私钥/密码在仓库外cloudmeet-issuer受限目录。独立恢复备份及客户端新旧根信任过渡
+未验证前不替换118证书。对外换证不改变内部TLS，不使用全局证书绕过。
+
 工具已迁入deploy/build-tools并纳入部署仓库，作为唯一维护源。Actions从同一提交读取.github/workflows/build-package.yml、build-tools、config和patches，不再手工同步CI分支副本。在工作区根使用deploy/build-tools/clients/build-clients.cjs；业务源码仍位于deploy同级。历史worktree不作新维护源。
 
 按2026-11-12用户确认及deploy/AGENTS.md，所有新正常部署默认开启主持人转让，不再询问可选启用。正式build-tools及公共安装核心成套接入API内部鉴权、仅容器网络内部HTTPS、Prosody插件/模块/接口/在线撤权；缺项失败，不降级为普通moderator。秘密与CA私钥仅目标生成，内部端口不发布；找回及管理员恢复不默认开启。打包检查材料，轮换/撤权/确认/恢复验收另列。历史overlay不作为新部署主流程；当前代码仍在集成，不表示已构建或已有服务器启用。

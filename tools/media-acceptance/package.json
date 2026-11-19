@@ -1,0 +1,16 @@
+{
+  "name": "media-acceptance",
+  "version": "1.0.0",
+  "description": "从**客户端侧**对一台已部署的 CloudMeet/Jitsi 实例做只读验收，定位\"会议进得去但频繁断掉\"类故障。不 SSH、不改服务器、不产数据。",
+  "main": "chrome-path.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "playwright-core": "^1.65.1"
+  }
+}

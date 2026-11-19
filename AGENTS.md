@@ -54,6 +54,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `config/jitsi-base.yaml` | 过渡模板 Jitsi web、Prosody、Jicofo、JVB 服务定义 |
 | `config/jitsi.env` | 过渡模板非秘密 Jitsi 参数、资源与内部管理配置 |
 | `config/client.env` | Electron MSI与Android APK唯一人工维护入口及发布版本配置：SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION；仅公开参数，不放服务端秘密 |
+| `config/client-ca.crt`、`config/client-ca.json` | 证书库固定提交的公开根分发副本与来源/DER指纹；权威仍为cloudmeet-certificates，不含私钥，不维护签发工具 |
 | `config/init.py` | 校验target.env后仅生成deploy根的三项随机秘密及数据目录，拒绝覆盖既有.env，不再接收IP参数 |
 | `config/start.sh` | 以deploy根为运行目录及Compose项目目录，准备补丁/权限、校验并启动服务，不隐式拉取或清数据 |
 | `.git/` | 部署维护仓库 Git 元数据，不作交付材料、不手工整理内部文件 |
@@ -122,6 +123,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 |---|---|
 | `build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
 | `build-tools/publish.py` | 已成功组包后显式发布同run七镜像；逐项校验归档、平台、源码及镜像config身份，核对远端digest，保留部分发布与未部署状态，不重编译 |
+| `build-tools/actions.py`、`build-tools/tests/test_actions.py` | 仓库限定Actions API调度/状态及参数/认证边界回归；凭据文件仓库外600，意图先落盘防止断线重发，不代表Hermes模型调用及制品验证已验收 |
+| `build-tools/offline-runtime/online_update.py`、`build-tools/tests/test_online_update.py` | 既有118实例image-only更新入口及固定七digest/空闲状态/保留配置回归；严格TLS前检、全部pull后SQLite一致性备份、失败恢复旧image ID，无重建/清数据，配置补丁变化须另行审核适配 |
 | `build-tools/tests/test_publish.py` | 发布显式审批及registry config身份绑定回归，不冒充真实push验证 |
 | `build-tools/ONLINE-PLAN.md` | 2026-11-17线上整链实施清单及门禁/剩余证据，非独立规范 |
 | `build-tools/setup.py` | 目标侧组合入口，校验server摘要、安全解压新目录，暂存管理员旁置cert.tar.gz并预检，调用公共首装；Actions独立输出脚本和摘要，不带私钥 |
@@ -131,6 +134,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/clients/build-clients.cjs` | Windows MSI/Android统一候选构建入口；显式读取config/client.env，提供只读预检查、锁、临时配置恢复及产物摘要，不自动晋级交付 |
 | `build-tools/clients/core.cjs` | 严格四项配置校验、版本到Android整数转换、WiX路径识别与锁/临时文件恢复公共实现 |
 | `build-tools/clients/README.md`、`build-tools/clients/.gitignore` | 客户端工具操作说明及本机锁/旧状态文件忽略边界，非并列规范 |
+| `.github/workflows/build-clients.yml` | 双客户端手动Actions入口候选，固定源码及材料SHA、签名缺项拒绝、仅上传核验制品；CA获取/工具链/发布尚待补齐，不触发即视为验收 |
+| `build-tools/clients/tests/workflow.test.cjs` | 双客户端工作流手动触发、固定Actions引用、签名拒绝与只读权限静态回归，不代替云端构建 |
 | `build-tools/clients/tests/core.test.cjs`、`build-tools/clients/tests/cli.test.cjs` | 配置、版本转换、WiX发现、独占锁/恢复、候选收集和只读预检查回归，不替代实际构建或安装验收 |
 | `../docs/plans/2026-11-12-client-builder.md` | 统一客户端构建工具实施计划，历史设计选择由当前第8节覆盖，非规范源 |
 | `build-tools/migration/test_deploy_governance.py` | 当前目录登记与打包边界回归，不依赖旧构建脚本 |
@@ -173,6 +178,13 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `tools/enable-host-control.py` | 通过前提检查后显式打开候选能力配置，不自动重启 |
 | `tools/probe-host-control.py` | 通过临时容器探测内部严格 TLS/鉴权，不打印秘密；并非纯静态检查 |
 | `tools/inspect-host-control-state.py` | 只读查询 SQLite 角色状态/操作数量，不输出凭据 |
+| `tools/media-acceptance/` | 会议媒体验收探针维护目录；从客户端侧只读验证已部署实例，不SSH、不改服务器、不产数据 |
+| `tools/media-acceptance/README.md` | 探针前提、参数、判定标准与典型故障速查说明 |
+| `tools/media-acceptance/chrome-path.js` | Chromium 可执行文件自动探测公共模块（CHROME_PATH 优先） |
+| `tools/media-acceptance/probe-candidates.js` | 抓取 JVB 下发的 ICE 候选，识别只通告容器内网地址（如 172.18.x）的地址通告缺失故障 |
+| `tools/media-acceptance/probe-media.js` | 双人假设备入会实测 ICE 连通与会议稳定性，识别 iceFailed 强制刷新循环 |
+| `tools/media-acceptance/probe-join.js` | 经 /cm/meeting/<room> 完整用户路径入会，验证应用层 iframe 嵌入稳定性 |
+| `tools/media-acceptance/package.json`、`tools/media-acceptance/package-lock.json` | 探针唯一依赖 playwright-core 的声明与锁；node_modules 为本机缓存不入库 |
 | `tests/` | 已有维护功能回归及历史专项交付记录，不代表全产品验收 |
 | `tests/test_host_control_prepare.py` | 准备步骤拒绝覆盖、配置及秘密处理回归 |
 | `tests/test_host_control_enable.py` | 启用前会议空闲和前置条件等拒绝路径回归 |
@@ -345,7 +357,6 @@ flowchart TD
 - 客户端签名授权、材料准备及相关工具脚本的权威维护库是https://github.com/stevenzxs/cloudmeet-certificates；150.158.83.70执行经过审阅的固定提交，记录其与本批配置SHA/产物的配对。部署库只保留引用、调用与非敏感证据，不复制维护第二份签名工具。
 - 本次确认不默认授权将私钥/密码上传Actions Secrets；须核对证书库实际实现后明确是150安全注入受控构建还是接收未签名包在150签名。既有授权仍限其原范围，不扩大为CA私钥可进入Actions。签名材料、密码、会话不明文入Git/日志/公共制品，保持既有签名身份。
 - 以上为已确认的交互与职责契约，不代表脚本已实现、150已执行、Actions已发布或118已部署；实际结果分别验收留痕。
-
 
 - 最新客户端打包终点覆盖下文旧“候选不晋级”约定：正常命令必须完成编译、最终包版本/平台ABI/内嵌入口和公开CA/签名状态检查，复制到release/clients/<平台>/<架构或ABI>/<批次>，复核副本摘要并输出记录和实际路径；必需检查失败明确报阻塞。临时目录仅中间态。未签名MSI如实记录，异常签名拒绝；安装、真实入口TLS及会议媒体验收不是打包门槛。
 - `build-tools/clients/verify-package.cjs`负责最终MSI管理解包、PE/版本/配置及签名，APK最终资源/ABI/版本/签名及公开CA；工具缺失报阻塞。`build-tools/clients/delivery.cjs`负责全批检查前置、不可覆盖交付及摘要说明；`build-tools/clients/tests/delivery.test.cjs`负责交付拒绝及防覆盖回归，不安装应用。
