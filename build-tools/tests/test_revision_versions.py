@@ -38,6 +38,19 @@ class RevisionTests(unittest.TestCase):
             self.assertEqual(out['server_version'], f'11248.0.2+r{n}')
             self.assertEqual(out['server_tag'], f'11248.0.2-r{n}')
 
+    def test_registered_policy_activation_uses_confirmed_baselines(self):
+        v, _ = self.modules()
+        policy = json.loads((Path(__file__).resolve().parents[2] / 'config/version-policy.json').read_text())
+        self.assertIs(policy['approved'], True)
+        self.assertEqual(policy['server_baseline'], '11248.0.1')
+        self.assertEqual(policy['previous_android_code'], 1021)
+        self.assertEqual(policy['previous_msi_version'], '1.0.21')
+        out = v.derive(policy, 1)  # Pure preview: does not allocate a revision.
+        self.assertEqual(out['server_version'], '11248.0.1+r1')
+        self.assertEqual(out['client_version'], '1.0.21+r1')
+        self.assertEqual(out['android_code'], 10211)
+        self.assertEqual(out['msi_version'], '1.0.22')
+
     def test_refuses_invalid_overflow_and_unverified_history(self):
         v, _ = self.modules()
         for n in [0, -1, True, '1', 65515, 1000000]:

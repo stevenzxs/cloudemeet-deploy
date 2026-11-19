@@ -44,6 +44,8 @@ Stop at code/tooling delivery. Runner installation, historical high-water verifi
 
 ## Verification checkpoint — 2026-11-19
 
+Later user-approved activation supersedes the disabled-policy state below: server baseline 11248.0.1, approved=true, compatibility floors Android1021/MSI1.0.21 limited to inspected formal delivery packages. See VERSION-ACTIVATION.md; controller/ledger still unconfigured, no formal allocation or build occurred.
+
 - Python auxiliary suite: 93/94; sole remaining failure is the pre-existing protected `output/assemble-11248.0.1.sh` inventory issue. No history deleted or test suppressed. Revision-specific suite includes controller inheritance/retry fixtures and SQLite concurrency/corruption/range guards.
 - Node client tools: 30/30, including temporary asset-parent recovery and numeric/display mapping. No product build or real final-package execution performed.
 - Four changed Actions workflows: actionlint 1.7.12 syntax/expression/reuse checks pass with declared custom Runner label; shellcheck/pyflakes disabled, Bash and embedded Python checked separately.

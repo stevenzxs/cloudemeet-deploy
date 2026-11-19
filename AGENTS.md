@@ -118,7 +118,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/network-audit.py`、`build-tools/tests/test_network_audit.py` | 地址/端口声明清单、目标派生和最终Compose审计；无网络辅助回归，新包目标启动前复用 |
 | `build-tools/NETWORK-AUDIT-PLAN.md` | 本次网络参数审计实施清单，非规范 |
 | `build-tools/REVISION-PLAN.md` | 联合版本改造计划、验证记录及未启用门槛，非规范 |
-| `config/version-policy.json` | 已审版本映射及待补的服务端基线、历史数字版本上限；未批准配置禁止分配 |
+| `config/version-policy.json` | 已批准基线/映射及现存正式交付包数字版本上限；配置批准不等于控制Runner已就绪 |
+| `build-tools/VERSION-ACTIVATION.md` | 用户批准的启用范围、现存APK/MSI只读核验与摘要证据，不是独立规范 |
 | `build-tools/revision_versions.py`、`build-tools/tests/test_revision_versions.py` | 版本派生、Run/配置绑定及范围/并发/重试/损坏拒绝回归，测试只使用临时台账 |
 | `build-tools/revision_ledger.py` | 仓库外SQLite原子持久分配；初始化须单独审批，丢失不自动重建 |
 | `build-tools/allocate-workflow.py`、`.github/workflows/revision-allocation.yml` | 专用控制Runner的受控分配/父批次核验，无产品构建和Secrets；当前未安装启用 |
@@ -281,10 +282,10 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 - 依据知识库1.2，七服务和两客户端采用各自批准基线`B+rN`。新顶层打包Run在产品测试/构建前持久分配N，失败/取消占号，同Run重跑复用N，子工作流和矩阵只核验继承记录，预检/查询/下载/部署既有包不占号。
 - 本次用户采用平台映射：客户端基线1.0.21，Android versionName及Electron应用显示1.0.21+rN；Android versionCode为十进制1021拼接N（r1=10211、r2=10212、r10=102110、r100=1021100）；MSI ProductVersion=1.0.(21+N)、PE FileVersion=1.0.(21+N).0。MSI major/minor≤255、第三段≤65535；Android正整数≤2100000000，必须超过核验的历史最高版本，否则阻断，不卸载/清数据绕过。
-- 服务端基线尚待审批，11248.0.2仅为审阅示例。七服务保留各自上游/源码SHA与依赖身份，交付显示版本不冒充各服务原生版本；容器tag使用B-rN加Run/attempt隔离身份。
+- 用户最终确认服务端基线为11248.0.1（撤回本次先选11248.0.2的回答）；客户端基线仍为1.0.21。七服务保留各自上游/源码SHA与依赖身份，交付显示版本不冒充各服务原生版本；容器tag使用B-rN加Run/attempt隔离身份。
 - `config/client.env`继续唯一提供客户端入口及三段基线；`config/version-policy.json`显式绑定同一基线、1021及历史上限。派生修订号仅来自受控分配记录，不允许手填VERSION或配置默认值绕过。配置/源码SHA、父Run及attempt证据随包记录。
 - 持久SQLite台账放Git工作树外，专用150控制Runner串行事务分配，绑定命名空间/基线、任务、Run、配置和源码身份。初始化、备份恢复、Runner组隔离/审批与安装另行执行；禁止丢失后按成功Release重建计数。自校验摘要不是签名，不替代可信Runner与持久状态保护。
-- 本次仅代码/工作流/辅助测试交付；策略保持approved=false，服务端基线及历史Android/MSI上限未核验，正式分配和Actions整链均未验收。下文旧手填版本/禁止自动递增/旧versionCode公式由本节覆盖，历史制品不追改。
+- 用户2026-11-19另行批准启用配置：approved=true，现存正式交付包只读核验的Android最高1021、MSI最高1.0.21作为本次升级兼容基线。不明的更早时间计数测试APK明确排除在本次兼容保证外，用户已批准此范围；发现更高历史版时阻断受影响升级，不卸载/清数据/改签名绕过。控制Runner、正式台账/备份恢复仍未配置或验收，本次不正式占号、不触发构建/签名/发布/部署。下文旧手填版本/禁止自动递增/旧versionCode公式由本节覆盖，历史制品不追改。
 
 ### 2026-11-19 用户确认：七服务与双客户端网络参数审计
 

@@ -36,17 +36,18 @@ Docker build中的依赖和构建层缓存允许复用，但输出应用镜像�
 BEGIN IMMEDIATE原子持久化，已分配失败不回收，同Run attempt复用并追加attempt证据。
 包内来源记录和provenance/version-assignment.json绑定完整分配身份。
 
-目前**未启用**：config/version-policy.json的approved=false，服务端基线及
-previous_android_code/previous_msi_version未核验，不猜零值；客户端映射为
+目前**配置已批准启用、控制端未就绪**：config/version-policy.json的approved=true，
+服务端基线11248.0.1；用户批准以现存正式包Android1021/MSI1.0.21为兼容基线，
+不明更早测试包不在覆盖升级保证内，核验摘要见VERSION-ACTIVATION.md。客户端映射为
 1.0.21+rN、Android int('1021'+N)、MSI 1.0.(21+N)、PE 1.0.(21+N).0。
-策略审批/历史包核验后，另行部署专用150 Runner标签cloudmeet-version-controller、
+仍需另行部署专用150 Runner标签cloudmeet-version-controller、
 限制Runner组只允许审阅工作流/main、受限用户和仓库外绝对路径变量
 CLOUDMEET_VERSION_LEDGER。不得将通用公开PR Runner接入持久台账。
 台账初始化必须显式授权，自动任务不初始化，不从Release/Actions保留列表重建。
 SQLite备份恢复须对照独立Run证据确认最新高水位；普通摘要/事务不能检测整库旧快照回滚，
 未经核对不得恢复分配。当前未安装Runner、未创建正式台账、未触发Actions。
 
-首次启用前还需完成Windows签名身份、真实MSI/PE/APK映射和覆盖升级验证；
+首次实际交付前仍需核验Windows签名身份/适用签名要求、真实MSI/PE/APK映射和覆盖升级；
 代码辅助回归不代表签名/云端/客户端/媒体通过。服务原生版本仍见sources.json，
 联合交付版本不能覆盖上游身份。预检、查询、下载和部署既有制品不分配N。
 
