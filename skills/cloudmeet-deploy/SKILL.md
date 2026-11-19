@@ -5,6 +5,8 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 # CloudMeet 交互式部署技能
 
+标准线上整链或origin短句请求先加载同库 `../cloudmeet-online-delivery/SKILL.md`，按当前规范复用固定选择，不重复确认版本/媒体IP/Windows签名/首装入口。Windows正式包必须批准身份签名，不提供未签名交付选项。本文旧手填version及逐步确认示例不适用于新的联合rN入口。
+
 目录约定：服务端及依赖从`deploy/release/<amd64|aarch64>/{server,dependencies}/`交付，客户端从`deploy/release/clients/<架构>/<批次>/`交付，clients与amd64、aarch64同级。`deploy/config/`为公共配置目标。不得重建deploy/debug，不删除或改写其他历史材料；已有客户端批次并未因文档更新而迁移。完整规范仅由deploy/AGENTS.md负责。
 
 按 **收集部署参数 → 解释服务和补丁 → 用户确认方案 → 逐服务部署并报告进度 → 关键测试及结果报告** 执行。历史实例只是排坑证据，不是默认地址、平台或部署方案。本次仅要求编写文档/计划时不连接或部署。

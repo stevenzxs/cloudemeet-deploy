@@ -43,7 +43,11 @@ def read_env(path):
 
 
 def load_target(path):
-    values = read_env(path)
+    return validate_target(read_env(path))
+
+
+def validate_target(values):
+    values = dict(values)
     expected = {'SITE_SCHEME', 'HTTPS_PORT', 'HTTP_PORT', 'MEDIA_PORT', 'MEDIA_HOST'}
     if set(values) != expected:
         raise ValueError('target.env must contain exactly: ' + ', '.join(sorted(expected)))

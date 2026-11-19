@@ -9,6 +9,7 @@
 !/config/target.env
 !/config/target.py
 !/config/version-policy.json
+!/config/signing-policy.json
 !/config/Caddyfile
 !/config/docker-compose.yml
 !/config/init.py

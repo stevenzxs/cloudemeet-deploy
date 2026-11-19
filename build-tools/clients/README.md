@@ -48,7 +48,7 @@ Actions提供`--version-record version-assignment.json`，校验配置SHA、Run�
   预检查与build.json中的deliveryRoot明确记录该根目录，但不会自动创建或晋级。
   Windows x64使用amd64；多ABI APK必须注明全部实际ABI，不因存入aarch64就宣称仅ARM64。
   已有旧路径安装包不因本次同步而移动或改写。
-- Android release签名配置必须存在；MSI未配置PFX时可能无签名，不能声称已签名。
+- Android release签名配置必须存在；MSI缺批准PFX/公开身份即阻断，不允许未签名交付。
   新入口的私有CA/主机匹配兼容性未验证，不关闭全局证书校验。
 
 WiX依次识别WIX/bin、WIX便携目录、PATH及默认v3.14/v3.11安装目录。
@@ -62,7 +62,7 @@ WiX依次识别WIX/bin、WIX便携目录、PATH及默认v3.14/v3.11安装目录�
 正常构建依次完成最终包检查及自动交付，Temp不再作为成功终点。
 MSI管理解包后核对实际版本、PE架构、内嵌入口/公开CA以及MSI和主程序签名状态；
 APK使用SDK工具核对版本、真实ABI、签名和打包资源中的入口/CA。
-必需检查缺失或失败即报阻塞；未签名MSI明确记录，异常签名拒绝。
+必需检查缺失或失败即报阻塞；Windows MSI及主程序须批准身份的有效签名和时间戳，APK比对批准签名DER SHA256。
 通过后复制到release/clients/<平台>/<架构或ABI>/<批次>，生成证据、说明及SHA256SUMS。
 交付目录拒绝覆盖。设备安装、线上TLS与会议媒体验收不属于打包门禁。
 检查依赖Windows Installer管理解包、PowerShell、Python和Android SDK的
@@ -102,4 +102,15 @@ Second-review fix: resource IDs are resolved through `aapt dump resources`, and
 `apkanalyzer resources value` obtains the actual (possibly shortened) XML/raw member.
 The CA digest is checked only in that referenced raw member. A historical APK's
 Manifest/restrictions mapping has been checked read-only with installed tools;
-private-CA domain decoding and authorized signing identity remain unaccepted.
+private-CA domain decoding acceptance remains separate from signature identity checks.
+
+## 标准签名（2026-11-19，覆盖早期未签名说明）
+
+`config/signing-policy.json`固定证书库工具提交、Android批准DER指纹和Windows身份路径。
+`signing.cjs`只调用证书库工具，不复制签名实现。工作流检出受审证书库提交，要求真实
+`windows/public/identity.json`、WINDOWS_PFX_BASE64、WINDOWS_PFX_PASSWORD、
+CERTIFICATES_READ_TOKEN（仅证书库contents:read）及SignTool。缺项在构建前拒绝，不降级。
+Forge postPackage签主程序，再调用产品原生统一MSI组包，之后签最终MSI；验包调用
+SignTool与公开身份比较。APK要求唯一批准签名DER指纹，不接受仅Verifies。
+当前真实Windows身份尚缺，固定工具提交下也无该身份；配置后必须更新受审工具SHA及
+工作流引用再构建，不能临时覆盖身份。实际签名/时间戳/清理及最终包仍须云端验收。

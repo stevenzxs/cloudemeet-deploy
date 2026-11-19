@@ -59,6 +59,10 @@ function preflight(options, config) {
     if (!sdk || !fs.existsSync(path.join(sdk, 'platform-tools'))) blockers.push('ANDROID_HOME/ANDROID_SDK_ROOT with installed SDK required');
   }
   if (options.target !== 'android') {
+    try { require('./signing.cjs').windowsIdentity(); } catch (error) { blockers.push(error.message); }
+    for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'SIGNTOOL_PATH']) {
+      if (!process.env[key]) blockers.push(`Required Windows signing prerequisite missing: ${key}`);
+    }
     exists(path.join(root, 'jitsi-meet-electron/node_modules/@electron-forge/cli/dist/electron-forge.js'), 'Electron Forge dependencies');
     if (!findWix()) blockers.push('Missing WiX v3 candle.exe/light.exe: configure WIX or PATH');
   }
@@ -69,7 +73,7 @@ function preflight(options, config) {
       'Version-derived Android code may be lower than old time-based APK codes; in-place upgrade is NOT guaranteed.',
       'Configured CA is scoped to the deployment host; actual endpoint TLS compatibility is NOT verified.',
       'Preflight is not compilation, artifact signature verification or installation acceptance.',
-      'MSI may be unsigned without configured PFX; actual signing must be inspected before delivery.'
+      'Windows release requires approved timestamped MSI and main executable signatures; no unsigned delivery.'
     ] };
 }
 
@@ -128,6 +132,9 @@ async function build(options, config, report) {
       if (process.env.CLOUDMEET_AUDIT_DIR) writeAudit(process.env.CLOUDMEET_AUDIT_DIR, name, data, root);
     };
     const env = { ...process.env, CLOUDMEET_BUILD_MODE: 'release' };
+    // Only the reviewed certificate-repository tools may consume Windows secrets.
+    delete env.CLOUDMEET_CODESIGN_PFX;
+    delete env.CLOUDMEET_CODESIGN_PASSWORD;
     for (const key of ['SITE_DOMAIN', 'SITE_SCHEME', 'SITE_PORT', 'CLIENT_VERSION', 'CLIENT_CA_FILE', 'CLOUDMEET_ENV_FILE']) delete env[key];
     try {
       const ca = readCa(config, canonical);

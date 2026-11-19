@@ -31,3 +31,23 @@ test('Forge adapter preserves native hooks while excluding build adapter from th
   assert.equal(config.packagerConfig.buildVersion, '1.0.22.0');
   assert.ok(config.packagerConfig.ignore.some(rule => rule.test('/cloudmeet.forge.cjs')));
 });
+test('Forge signs main executable before unified MSI and then signs final MSI', async () => {
+  const vm = require('node:vm');
+  const { forgeWrapper } = require('../revision-config.cjs');
+  const calls = [];
+  const config = { hooks: { postPackage: async () => calls.push('native') }, packagerConfig: { ignore: [], windowsSign: { forbidden: true } }, makers: [] };
+  const results = [{ artifacts: ['C:/final.msi'] }];
+  const sandbox = { module: { exports: {} }, require: file => {
+    if (file === 'node:path') return require(file);
+    if (file.endsWith('signing.cjs')) return { sign: file => calls.push(file.replaceAll('\\', '/')) };
+    if (file.endsWith('forge.config.js')) return config;
+    if (file.endsWith('unified-msi.cjs')) return { buildUnifiedMsi: async () => { calls.push('assemble'); return results; } };
+    if (file.endsWith('build-openvpn-bundle.cjs')) return { verifyPayload: async () => 'vendor' };
+    throw Error(file);
+  } };
+  vm.runInNewContext(forgeWrapper('C:/source', { versions: { msi_version: '1.0.22', pe_version: '1.0.22.0' } }), sandbox);
+  await config.hooks.postPackage({}, { outputPaths: ['C:/app'] });
+  await config.hooks.postMake({}, results);
+  assert.equal(config.packagerConfig.windowsSign, undefined);
+  assert.deepEqual(calls, ['native', 'C:/app/cloudmeet.exe', 'assemble', 'C:/final.msi']);
+});

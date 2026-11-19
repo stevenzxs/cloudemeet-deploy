@@ -9,6 +9,11 @@ test('client workflow is manual, pinned, least privilege and signature gated', (
   assert.match(text, /979a058769a085d0e63e68e6019d5753ed14f96b/);
   assert.match(text, /bee7389737ac93b28b2987861166a744c361beb8/);
   assert.match(text, /ANDROID_KEYSTORE_BASE64/);
+  for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'CERTIFICATES_READ_TOKEN']) assert.match(text, new RegExp(key));
+  assert.match(text, /unsigned fallback prohibited/);
+  assert.match(text, /repository: stevenzxs\/cloudmeet-certificates/);
+  const policy = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../config/signing-policy.json'), 'utf8'));
+  assert.match(text, new RegExp(`ref: ${policy.commit}`));
   assert.match(text, /build-clients.cjs --target/);
   assert.match(text, /client-ca.crt/);
   assert.match(text, /27.1.12297006/);

@@ -12,6 +12,19 @@ function command(exe, args) {
 function ps(script) { return command('powershell.exe', ['-NoProfile', '-Command', script]); }
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
 
+function validateAndroidSigner(output, expected) {
+  const signers = [...output.matchAll(/^Signer #\d+ certificate SHA-256 digest:\s*([0-9a-f:]+)\s*$/gim)]
+    .map(m => m[1].replaceAll(':', '').toLowerCase());
+  if (!/^[0-9a-f]{64}$/.test(expected || '') || !output.includes('Verifies')
+      || signers.length !== 1 || signers[0] !== expected) throw Error('Approved Android signer mismatch');
+  return signers[0];
+}
+function validateWindowsSigner(value, expected) {
+  if (!/^[0-9a-f]{64}$/.test(expected || '')) throw Error('Approved Windows identity required');
+  if (value.status !== 'Valid' || value.signer !== expected || value.timestamp !== true) throw Error('Approved timestamped Windows signature required');
+  return expected;
+}
+
 function inspectAndroidResources(file, analyzer, aapt, config, requireCa, run = command) {
   const table = run(aapt, ['dump', 'resources', file]);
   const ids = new Map();
@@ -84,8 +97,15 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     check('peVersion', peVersion === config.peVersion, peVersion);
     const bytes = fs.readFileSync(exe); const offset = bytes.readUInt32LE(0x3c);
     check('architecture', bytes.readUInt16LE(offset + 4) === 0x8664 && artifact.architecture === 'x64', 'PE AMD64');
-    const signatures = [file, exe].map(p => ({ file: path.basename(p), status: ps(`(Get-AuthenticodeSignature ${quote(p)}).Status`).trim() }));
-    check('signature', signatures.every(s => ['Valid', 'NotSigned'].includes(s.status)), JSON.stringify(signatures));
+    const signing = require('./signing.cjs');
+    const identity = signing.windowsIdentity();
+    const signatures = [file, exe].map(p => {
+      signing.verify(p); // SignTool verifies all signatures and RFC3161 timestamp.
+      const value = JSON.parse(ps(`$s=Get-AuthenticodeSignature -LiteralPath ${quote(p)}; $h=[Security.Cryptography.SHA256]::Create(); try { $fingerprint=([BitConverter]::ToString($h.ComputeHash($s.SignerCertificate.RawData))).Replace('-','').ToLowerInvariant() } finally { $h.Dispose() }; @{status=$s.Status.ToString();signer=$fingerprint;timestamp=($null -ne $s.TimeStamperCertificate)} | ConvertTo-Json -Compress`));
+      validateWindowsSigner(value, identity.fingerprint);
+      return { file: path.basename(p), ...value };
+    });
+    check('signature', true, JSON.stringify(signatures));
   } else {
     const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
     const tools = fs.readdirSync(path.join(sdk, 'build-tools')).sort((a,b) => a.localeCompare(b, undefined, { numeric: true })).reverse()
@@ -100,7 +120,7 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     const abis = native ? [...native[1].matchAll(/'([^']+)'/g)].map(m => m[1]).sort() : [];
     check('architecture', JSON.stringify(abis) === JSON.stringify([...artifact.architectures].sort()) && !abis.includes('x86'), abis.join(','));
     const signature = command(path.join(tools, 'apksigner.bat'), ['verify', '--verbose', '--print-certs', file]);
-    check('signature', signature.includes('Verifies'), signature);
+    check('signature', true, validateAndroidSigner(signature, require('./signing.cjs').policy.android_certificate_der_sha256));
     const analyzer = path.join(sdk, 'cmdline-tools/latest/bin/apkanalyzer.bat');
     const caMember = inspectAndroidResources(file, analyzer, path.join(tools, 'aapt.exe'), config, Boolean(ca));
     check('origin', true, 'Manifest-selected managed SERVER_URL; runtime/profile overrides not verified');
@@ -119,4 +139,4 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
   }
   return checks;
 }
-module.exports = { verifyPackage, validateAndroidResources, inspectAndroidResources };
+module.exports = { verifyPackage, validateAndroidResources, inspectAndroidResources, validateAndroidSigner, validateWindowsSigner };

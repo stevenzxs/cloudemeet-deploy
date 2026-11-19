@@ -101,6 +101,32 @@ jobs:
           [IO.File]::WriteAllBytes((Join-Path $dir 'release.keystore.properties'), [Convert]::FromBase64String($env:PROPERTIES))
           $text = Get-Content -Raw (Join-Path $dir 'release.keystore.properties')
           if ($text -notmatch '(?m)^storeFile=release\.keystore\s*$') { throw 'Unexpected signing file reference' }
+      - name: Windows signing prerequisite
+        if: matrix.target == 'electron'
+        shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ secrets.WINDOWS_PFX_BASE64 }}
+          WINDOWS_PFX_PASSWORD: ${{ secrets.WINDOWS_PFX_PASSWORD }}
+          CERTIFICATES_READ_TOKEN: ${{ secrets.CERTIFICATES_READ_TOKEN }}
+        run: |
+          if (!$env:WINDOWS_PFX_BASE64 -or !$env:WINDOWS_PFX_PASSWORD -or !$env:CERTIFICATES_READ_TOKEN) { throw 'Approved Windows signing identity, Secrets and read-only certificate repository access required; unsigned fallback prohibited' }
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        if: matrix.target == 'electron'
+        with:
+          repository: stevenzxs/cloudmeet-certificates
+          ref: f40342b56636bd727499b555dfdf14ef4a562d73
+          token: ${{ secrets.CERTIFICATES_READ_TOKEN }}
+          path: cloudmeet-certificates
+          persist-credentials: false
+      - name: Windows signing tools and identity
+        if: matrix.target == 'electron'
+        shell: pwsh
+        run: |
+          node -e "require('./deploy/build-tools/clients/signing.cjs').windowsIdentity()"
+          if ($LASTEXITCODE) { throw 'Approved Windows public identity missing or invalid' }
+          $tool = Get-ChildItem 'C:/Program Files (x86)/Windows Kits/10/bin/*/x64/signtool.exe' | Sort-Object FullName -Descending | Select-Object -First 1
+          if (!$tool) { throw 'Windows SignTool missing' }
+          "SIGNTOOL_PATH=$($tool.FullName)" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Public CA prerequisite
         shell: pwsh
         run: |
@@ -132,6 +158,9 @@ jobs:
           Pop-Location
       - name: Build and verify packages
         shell: pwsh
+        env:
+          WINDOWS_PFX_BASE64: ${{ matrix.target == 'electron' && secrets.WINDOWS_PFX_BASE64 || '' }}
+          WINDOWS_PFX_PASSWORD: ${{ matrix.target == 'electron' && secrets.WINDOWS_PFX_PASSWORD || '' }}
         run: |
           node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json --check
           if ($LASTEXITCODE) { throw 'Client prerequisites failed' }

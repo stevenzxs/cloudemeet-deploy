@@ -26,10 +26,22 @@ function forgeWrapper(project, assignment) {
   return `const path = require('node:path');
 const root = ${JSON.stringify(project)};
 const config = require(path.join(root, 'forge.config.js'));
+const signing = require(${JSON.stringify(path.join(__dirname, 'signing.cjs'))});
+// Do not invoke the source optional PFX path (it logs password arguments on failure).
+delete config.packagerConfig.windowsSign;
+const nativePostPackage = config.hooks.postPackage;
+config.hooks.postPackage = async (cfg, result) => {
+  if (nativePostPackage) await nativePostPackage(cfg, result);
+  for (const output of result.outputPaths) signing.sign(path.join(output, 'cloudmeet.exe'));
+};
 config.packagerConfig = { ...config.packagerConfig, appVersion: ${JSON.stringify(v.msi_version)}, buildVersion: ${JSON.stringify(v.pe_version)} };
 config.packagerConfig.ignore = [...config.packagerConfig.ignore, /^\\/cloudmeet\\.forge\\.cjs$/];
 config.makers = config.makers.map(m => m.name === '@electron-forge/maker-wix' ? { ...m, config: { ...m.config, version: ${JSON.stringify(v.msi_version)} } } : m);
-config.hooks.postMake = async (_config, results) => require(path.join(root, 'scripts/unified-msi.cjs')).buildUnifiedMsi(results, ${JSON.stringify(v.msi_version)}, await require(path.join(root, 'scripts/build-openvpn-bundle.cjs')).verifyPayload());
+config.hooks.postMake = async (_config, results) => {
+  const output = await require(path.join(root, 'scripts/unified-msi.cjs')).buildUnifiedMsi(results, ${JSON.stringify(v.msi_version)}, await require(path.join(root, 'scripts/build-openvpn-bundle.cjs')).verifyPayload());
+  for (const result of output) for (const file of result.artifacts) if (file.endsWith('.msi')) signing.sign(file);
+  return output;
+};
 module.exports = config;
 `;
 }

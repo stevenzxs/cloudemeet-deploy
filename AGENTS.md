@@ -2,11 +2,21 @@
 
 ## 1. 效力与执行责任
 
+本项目同时遵守知识库standards/project-delivery.md与唯一台账；冲突以知识库现行标准为准（2026-11-16用户裁决）。本文件中有日期的旧批次约束保留为历史，后续用户批准的本节及第2节标准契约覆盖重复确认/未签名降级等旧口径，历史制品不追改。
+
 本文件独立、完整地规定本工作区 CloudMeet 服务端及客户端的编译、打包、发布、安装、更新、验收与回滚规则。执行者必须遵守，不得通过新增脚本、改变架构、改用技能或测试拓扑规避。获得完整规范不需要阅读其他文档；不得把本文件未写明的强制要求委托给其他文档。
 
 README 仅导航材料和报告实际状态；技能仅提供操作方法；检查脚本中的路径清单仅登记实现；包内 INSTALL 仅描述该包的实测操作；测试提供验证证据。它们都不是并列规范源，不得新增、放宽或覆盖本文件的要求。发现实现与本文件冲突时停止受影响步骤并报告，不能自行选择较宽松规则。根级安全、授权和环境保护要求仍须遵守。
 
 ## 2. 批次范围与授权
+
+### 2026-11-19 标准流程固定选择（用户批准）
+
+- 短提示词仅需本次完整origin与终点；已给入口不再问，IPv4入口直接派生同机MEDIA_HOST，域名必须当前解析及同机身份核验，歧义才阻断；媒体端口取受控配置，不要求用户重填版本/媒体地址。
+- 明确“执行到部署与验收”的请求即为本次对应范围的执行授权，包含必要专用Runner/变量/仓库外台账初始化和独立恢复核验、配置修改/合main、受控Actions构建签名发布及安装验收；预检后连续推进，不再按固定句式重复确认Runner标准方案、入口提交、签名或首装入口。只要求预检/计划/打包时不越过终点。采用一套标准规范方案，不列未签名等降级选项。缺真实材料/凭据、新风险或超范围操作一次性列具体阻塞；破坏性操作仍遵守第7节二次审批。
+- Windows正式交付必须使用证书库批准的真实代码签名身份，MSI及主程序有效签名、批准DER SHA256和时间戳全部核验；未签名拒绝，不自签替代、不借Android身份。150按证书库受审工具将已有批准Windows PFX/密码安全注入本配置库受控Actions Secrets属于标准签名路径，不再逐任务问签名方式；新身份材料与批准公开身份缺失时阻断，不伪造身份。CA私钥仍不进入Actions。
+- 首次安装统一setup.py和包外target.env，复用既有CA、核验后安装目标叶证书；不将无CA轮换写成不碰叶证书。既有安装不能当首装覆盖，失败保留秘密/数据并按阶段恢复，不清理重装。
+- 必要配置修改提交推送后合入main并核验；知识库、配置库与150安装Skill同步并留摘要。版本按批准基线自动rN，不保证下一号为r1；标准台账/Runner隔离和独立恢复核验不可省。当前任务仅修复并同步流程，不触发正式占号、产品构建、发布或118部署。
 
 - 2026-11-17用户批准线上整链：150 Hermes编排固定提交的Actions七服务构建/组包及显式GHCR发布，118既有amd64实例按digest更新；允许提交推送、合并本次知识库规则、安装150工具并初始化专用CA以及更新/换证。数据/秘密/CA卷与内部TLS保留；不授权清数据、跳过客户端新CA信任过渡或借用知识库专用凭据。此批准覆盖此前仅打包和47先运行后发布的批次限制，仅对本次118线上链生效，构建/发布/部署/媒体验收分别记录。
 - 证书工具与公开CA身份权威库为stevenzxs/cloudmeet-certificates；本地cert为被忽略的工作副本，150执行固定工具提交。CA私钥/密码保存在150仓库外受限目录，独立恢复备份未核验及客户端信任未准备时不得激活新CA。旧“仅离线签发”描述对本次已批准150专用在线签发不适用。
@@ -117,6 +127,9 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 |---|---|
 | `build-tools/network-audit.py`、`build-tools/tests/test_network_audit.py` | 地址/端口声明清单、目标派生和最终Compose审计；无网络辅助回归，新包目标启动前复用 |
 | `build-tools/NETWORK-AUDIT-PLAN.md` | 本次网络参数审计实施清单，非规范 |
+| `build-tools/STANDARD-FLOW-PLAN.md` | 标准流程修复计划及范围/验证记录，不另立规范 |
+| `build-tools/delivery-target.py`、`build-tools/tests/test_standard_flow.py` | 入口统一派生、包外实例配置与短提示词契约辅助回归，不调度/占号/部署 |
+| `config/signing-policy.json`、`build-tools/clients/signing.cjs`、`build-tools/clients/tests/signing.test.cjs` | 证书库固定工具/批准公开身份引用、调用适配与签名拒绝回归，不维护第二份签名实现 |
 | `build-tools/REVISION-PLAN.md` | 联合版本改造计划、验证记录及未启用门槛，非规范 |
 | `config/version-policy.json` | 已批准基线/映射及现存正式交付包数字版本上限；配置批准不等于控制Runner已就绪 |
 | `build-tools/VERSION-ACTIVATION.md` | 用户批准的启用范围、现存APK/MSI只读核验与摘要证据，不是独立规范 |
@@ -215,7 +228,9 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `releases/11248-cm.20261110-rc2-amd64/` | 已有 amd64 候选版本登记，不是通用产品包 |
 | `releases/11248-cm.20261110-rc2-amd64/README.md` | 该候选来源与已知状态说明 |
 | `releases/11248-cm.20261110-rc2-amd64/registry.yaml` | 该候选七服务 registry 镜像身份锁定清单 |
-| `skills/` | 两个部署技能的唯一维护源；仅提供操作方法，不新增规范 |
+| `skills/` | 部署技能的唯一维护源；仅提供操作方法，不新增规范 |
+| `skills/cloudmeet-online-delivery/SKILL.md` | Hermes标准线上整链/短提示词操作入口，150安装副本须备份后同步核验 |
+| `skills/cloudmeet-online-delivery/references/preflight-checklist.md` | 同线上Skill的标准预检索引，无独立审批或降级路线 |
 | `skills/cloudmeet-deploy/` | 服务端部署、更新和客户端交付操作技能 |
 | `skills/cloudmeet-deploy/SKILL.md` | 技能触发及操作流程说明 |
 | `skills/cloudmeet-deploy/evals/` | 部署技能触发/流程评估输入 |
@@ -390,7 +405,7 @@ flowchart TD
 - 本次确认不默认授权将私钥/密码上传Actions Secrets；须核对证书库实际实现后明确是150安全注入受控构建还是接收未签名包在150签名。既有授权仍限其原范围，不扩大为CA私钥可进入Actions。签名材料、密码、会话不明文入Git/日志/公共制品，保持既有签名身份。
 - 以上为已确认的交互与职责契约，不代表脚本已实现、150已执行、Actions已发布或118已部署；实际结果分别验收留痕。
 
-- 最新客户端打包终点覆盖下文旧“候选不晋级”约定：正常命令必须完成编译、最终包版本/平台ABI/内嵌入口和公开CA/签名状态检查，复制到release/clients/<平台>/<架构或ABI>/<批次>，复核副本摘要并输出记录和实际路径；必需检查失败明确报阻塞。临时目录仅中间态。未签名MSI如实记录，异常签名拒绝；安装、真实入口TLS及会议媒体验收不是打包门槛。
+- 最新客户端打包终点覆盖下文旧“候选不晋级”约定：正常命令必须完成编译、最终包版本/平台ABI/内嵌入口和公开CA/签名检查，复制到release/clients/<平台>/<架构或ABI>/<批次>，复核副本摘要并输出记录和实际路径；必需检查失败明确报阻塞。临时目录仅中间态。Windows未签名或非批准身份拒绝交付，APK必须比对批准签名DER SHA256；安装、真实入口TLS及会议媒体验收不是打包门槛。
 - `build-tools/clients/verify-package.cjs`负责最终MSI管理解包、PE/版本/配置及签名，APK最终资源/ABI/版本/签名及公开CA；工具缺失报阻塞。`build-tools/clients/delivery.cjs`负责全批检查前置、不可覆盖交付及摘要说明；`build-tools/clients/tests/delivery.test.cjs`负责交付拒绝及防覆盖回归，不安装应用。
 
 - 唯一客户端入口及基线配置为`deploy/config/client.env`的SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION；不从服务端target.env、.env、旧client.env、进程环境或源码历史默认值覆盖/回退。CLIENT_VERSION保留批准三段基线，实际显示版本/Android整数/MSI/PE字段按第6节及绑定Run记录派生。缺分配记录、历史上限不明或不满足升级单调性拒绝正式构建；旧三段整数公式只用于诊断基线，不读取release-version.json推断修订号。不卸载/清数据或删除活动锁绕过。
@@ -406,4 +421,4 @@ flowchart TD
 - 布局检查只识别 deploy/build-tools 中规定命名的入口/Compose，不检测任意改名脚本、嵌入命令或 worktree；尚未接 CI/分支保护，不能阻止直接运行旧脚本。公共安装核心、独立产品契约校验及包级负例门禁尚未全部完成，不得声称不可绕过或全平台已统一。
 - 逐项报告通过/失败/阻塞/未验证与证据，不给虚构百分比，不把安装资格当生产安全或媒体验收。未解决 CVE 不标已接受。
 - 唯一当前执行记录位于 `build-tools/migration/STATUS.md`；历史记录不作当前运行事实或继续授权。
-- 技能维护源仅 `deploy/skills/cloudmeet-deploy/` 和 `cloudmeet-deploy-offline/`；同步前备份，仅更新这两个安装副本并核对摘要。技能不得成为另一份规范，不编辑无关技能或设置。
+- 技能维护源为 `deploy/skills/cloudmeet-deploy/`、`cloudmeet-deploy-offline/`、`cloudmeet-online-delivery/`；同步前备份，仅更新本任务涉及的安装副本并核对摘要。技能不得成为另一份规范，不编辑无关技能或设置。

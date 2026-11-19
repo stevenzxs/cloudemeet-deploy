@@ -4,6 +4,11 @@
 
 ## 唯一正常入口
 
+CloudMeet标准联合交付/短提示词操作入口见 `../skills/cloudmeet-online-delivery/SKILL.md`。
+唯一用户参数是完整origin及任务终点，`delivery-target.py --origin <origin>`只读派生统一网络值；
+`--target-env <仓库外路径>`另存实例配置，不改不可变包。联合工作流为build-joint.yml，
+Windows必须批准身份签名，无未签名降级。规则安装/辅助回归不是端到端交付通过。
+
 本节是服务端Actions入口；Windows MSI/Android APK的独立本机构建入口为
 `clients/build-clients.cjs`，配置唯一读取`deploy/config/client.env`，先运行
 `node build-tools/clients/build-clients.cjs --target all --check`。
