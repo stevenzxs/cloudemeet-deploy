@@ -118,7 +118,7 @@ jobs:
         if: matrix.target == 'electron'
         with:
           repository: stevenzxs/cloudmeet-certificates
-          ref: 0f514983cfc0a0cfac491cae0044847c0d184bc8
+          ref: 4057715ca5485560bb6c4d655bed9510360c0118
           token: ${{ secrets.CERTIFICATES_READ_TOKEN }}
           path: cloudmeet-certificates
           persist-credentials: false
@@ -161,6 +161,9 @@ jobs:
           if ($LASTEXITCODE) { throw 'npm ci failed' }
           Pop-Location
       - name: Build and verify packages
+        # Backstop against hung children (SignTool/TSA, gradle downloads):
+        # fail the step fast so always() diagnostics still upload.
+        timeout-minutes: 35
         shell: pwsh
         env:
           WINDOWS_PFX_BASE64: ${{ matrix.target == 'electron' && secrets.WINDOWS_PFX_BASE64 || '' }}

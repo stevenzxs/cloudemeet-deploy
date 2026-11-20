@@ -16,6 +16,7 @@ test('client workflow is manual, pinned, least privilege and signature gated', (
   assert.match(text, new RegExp(`ref: ${policy.commit}`));
   assert.match(text, /build-clients.cjs --target/);
   assert.match(text, /runs-on: \$\{\{ matrix\.target == 'android' && 'ubuntu-24\.04' \|\| 'windows-2022' \}\}/);
+  assert.match(text, /Build and verify packages\s*\n\s*#[^\n]*\n\s*#[^\n]*\n\s*timeout-minutes: 35/);
   assert.doesNotMatch(text, /GNU find missing/);
   assert.match(text, /client-ca.crt/);
   assert.match(text, /27.1.12297006/);

@@ -285,12 +285,15 @@ async function build(options, config, report) {
             trust: ca ? fs.readFileSync(path.join(project, 'android/app/src/main/res/xml/network_security_config.xml'), 'utf8') : null
           }));
           const gradleArgs = [...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'];
+          // Bound repository downloads so a degraded Maven egress fails fast
+          // and retries instead of stalling the build for tens of minutes.
+          const gradleEnv = { ...env, GRADLE_OPTS: `${env.GRADLE_OPTS || ''} -Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=60000`.trim() };
           if (process.platform === 'win32') {
-            await run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...gradleArgs], path.join(project, 'android'), env, path.join(candidate, 'android.log'));
+            await run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...gradleArgs], path.join(project, 'android'), gradleEnv, path.join(candidate, 'android.log'));
           } else {
             const wrapper = path.join(project, 'android', 'gradlew');
             fs.chmodSync(wrapper, 0o755);
-            await run(wrapper, gradleArgs, path.join(project, 'android'), env, path.join(candidate, 'android.log'));
+            await run(wrapper, gradleArgs, path.join(project, 'android'), gradleEnv, path.join(candidate, 'android.log'));
           }
           manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });
