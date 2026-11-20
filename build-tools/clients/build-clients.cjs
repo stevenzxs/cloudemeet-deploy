@@ -68,15 +68,15 @@ function preflight(options, config) {
   let ca;
   try { ca = readCa(config, canonical); } catch (error) { blockers.push(`Invalid CLIENT_CA_FILE: ${error.message}`); }
   const exists = (file, label) => { if (!fs.existsSync(file)) blockers.push(`Missing ${label}`); };
-  if (process.platform !== 'win32') blockers.push('Windows host required by this restored builder');
+  if (process.platform !== 'win32' && options.target !== 'android') blockers.push('Windows host required for Electron packaging');
   if (fs.existsSync(lock)) blockers.push('Active build lock exists; do not delete without investigation');
   if (options.target !== 'electron') {
     try { androidCode = versionCode(config.version); }
     catch (error) { blockers.push(error.message); }
-    exists(path.join(root, 'jm/android/gradlew.bat'), 'Gradle wrapper');
+    exists(path.join(root, 'jm/android', process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'), 'Gradle wrapper');
     exists(path.join(root, 'jm/node_modules/react-native/package.json'), 'Android Node dependencies');
     exists(path.join(root, 'jm/android/keystores/release.keystore.properties'), 'Android release signing configuration');
-    const java = process.env.JAVA_HOME && path.join(process.env.JAVA_HOME, 'bin/java.exe');
+    const java = process.env.JAVA_HOME && path.join(process.env.JAVA_HOME, 'bin', process.platform === 'win32' ? 'java.exe' : 'java');
     if (!java || !fs.existsSync(java)) blockers.push('JAVA_HOME must point to an installed JDK');
     const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
     if (!sdk || !fs.existsSync(path.join(sdk, 'platform-tools'))) blockers.push('ANDROID_HOME/ANDROID_SDK_ROOT with installed SDK required');
@@ -114,7 +114,8 @@ function androidLayout(abis) {
 
 function inspectApk(file) {
   const script = 'import json,sys,zipfile; z=zipfile.ZipFile(sys.argv[1]); print(json.dumps(sorted({n.split("/")[1] for n in z.namelist() if n.startswith("lib/") and n.endswith(".so") and len(n.split("/"))==3})))';
-  const result = spawnSync('python', ['-B', '-c', script, file], { encoding: 'utf8', windowsHide: true });
+  const python = process.platform === 'win32' ? 'python' : 'python3';
+  const result = spawnSync(python, ['-B', '-c', script, file], { encoding: 'utf8', windowsHide: true });
   if (result.error || result.status !== 0) throw Error('Python 3 with zipfile is required to inspect APK ABIs');
   return androidLayout(JSON.parse(result.stdout));
 }
@@ -192,7 +193,7 @@ async function build(options, config, report) {
           delete buildEnv.WIX;
           run(process.execPath, [path.join(project, 'node_modules/@electron-forge/cli/dist/electron-forge.js'), 'make', '--platform=win32', '--arch=x64'], project,
             buildEnv, path.join(candidate, 'electron.log'));
-          manifest.artifacts.push(...collect(path.join(project, 'out/make/unified/x64'), candidate, '.msi', started,
+          manifest.artifacts.push(...collect(path.join(project, 'out/make/wix/x64'), candidate, '.msi', started,
             () => ({ platform: 'windows', architecture: 'x64', architectures: ['x64'] })));
         });
       }
@@ -221,7 +222,14 @@ async function build(options, config, report) {
             restrictions: fs.readFileSync(restrictions, 'utf8'),
             trust: ca ? fs.readFileSync(path.join(project, 'android/app/src/main/res/xml/network_security_config.xml'), 'utf8') : null
           }));
-          run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'], path.join(project, 'android'), env, path.join(candidate, 'android.log'));
+          const gradleArgs = [...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'];
+          if (process.platform === 'win32') {
+            run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...gradleArgs], path.join(project, 'android'), env, path.join(candidate, 'android.log'));
+          } else {
+            const wrapper = path.join(project, 'android', 'gradlew');
+            fs.chmodSync(wrapper, 0o755);
+            run(wrapper, gradleArgs, path.join(project, 'android'), env, path.join(candidate, 'android.log'));
+          }
           manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });
       }

@@ -15,6 +15,8 @@ test('client workflow is manual, pinned, least privilege and signature gated', (
   const policy = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../config/signing-policy.json'), 'utf8'));
   assert.match(text, new RegExp(`ref: ${policy.commit}`));
   assert.match(text, /build-clients.cjs --target/);
+  assert.match(text, /runs-on: \$\{\{ matrix\.target == 'android' && 'ubuntu-24\.04' \|\| 'windows-2022' \}\}/);
+  assert.doesNotMatch(text, /GNU find missing/);
   assert.match(text, /client-ca.crt/);
   assert.match(text, /27.1.12297006/);
   assert.match(text, /java-version: '17'/);

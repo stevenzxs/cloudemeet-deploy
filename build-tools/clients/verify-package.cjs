@@ -9,7 +9,10 @@ function command(exe, args) {
   if (result.error || result.status !== 0) throw Error(`Package inspection failed: ${exe}: ${result.stderr || result.error}`);
   return result.stdout;
 }
-function ps(script) { return command('powershell.exe', ['-NoProfile', '-Command', script]); }
+const ps = script => command('powershell.exe', ['-NoProfile', '-Command', script]);
+const PY = process.platform === 'win32' ? 'python' : 'python3';
+const sdkTool = (dir, base) => path.join(dir, process.platform === 'win32'
+  ? (base === 'aapt' ? 'aapt.exe' : `${base}.bat`) : base);
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
 
 function validateAndroidSigner(output, expected) {
@@ -57,7 +60,7 @@ if d['requireCa']:
  assert len(rules)==1
  assert any(x.get('src')=='@raw/cloudmeet_client_ca' for x in rules[0].findall('./trust-anchors/certificates'))
 print('verified')`;
-  const result = command('python', ['-B', '-c', script, JSON.stringify({ manifest, restrictions, trust,
+  const result = command(PY, ['-B', '-c', script, JSON.stringify({ manifest, restrictions, trust,
     origin: config.origin, host: config.values.SITE_DOMAIN, requireCa })]);
   if (result.trim() !== 'verified') throw Error('Android resource reference validation failed');
   return true;
@@ -109,22 +112,22 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
   } else {
     const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
     const tools = fs.readdirSync(path.join(sdk, 'build-tools')).sort((a,b) => a.localeCompare(b, undefined, { numeric: true })).reverse()
-      .map(n => path.join(sdk, 'build-tools', n)).find(p => fs.existsSync(path.join(p, 'apksigner.bat')));
-    const badging = command(path.join(tools, 'aapt.exe'), ['dump', 'badging', file]);
+      .map(n => path.join(sdk, 'build-tools', n)).find(p => fs.existsSync(sdkTool(p, 'apksigner')));
+    const badging = command(sdkTool(tools, 'aapt'), ['dump', 'badging', file]);
     check('version', badging.includes(`versionName='${config.version}'`) && badging.includes(`versionCode='${require('./core.cjs').versionCode(config.version)}'`), config.version);
-    const allocation = command('python', ['-B', '-c',
+    const allocation = command(PY, ['-B', '-c',
       'import zipfile,sys; print(zipfile.ZipFile(sys.argv[1]).read("assets/cloudmeet-version.json").decode())', file]);
     check('versionAssignment', Boolean(config.assignment)
       && JSON.stringify(JSON.parse(allocation)) === JSON.stringify(config.assignment), config.version);
     const native = /native-code: (.*)/.exec(badging);
     const abis = native ? [...native[1].matchAll(/'([^']+)'/g)].map(m => m[1]).sort() : [];
     check('architecture', JSON.stringify(abis) === JSON.stringify([...artifact.architectures].sort()) && !abis.includes('x86'), abis.join(','));
-    const signature = command(path.join(tools, 'apksigner.bat'), ['verify', '--verbose', '--print-certs', file]);
+    const signature = command(sdkTool(tools, 'apksigner'), ['verify', '--verbose', '--print-certs', file]);
     check('signature', true, validateAndroidSigner(signature, require('./signing.cjs').policy.android_certificate_der_sha256));
-    const analyzer = path.join(sdk, 'cmdline-tools/latest/bin/apkanalyzer.bat');
-    const caMember = inspectAndroidResources(file, analyzer, path.join(tools, 'aapt.exe'), config, Boolean(ca));
+    const analyzer = sdkTool(path.join(sdk, 'cmdline-tools/latest/bin'), 'apkanalyzer');
+    const caMember = inspectAndroidResources(file, analyzer, sdkTool(tools, 'aapt'), config, Boolean(ca));
     check('origin', true, 'Manifest-selected managed SERVER_URL; runtime/profile overrides not verified');
-    const caFound = !ca || command('python', ['-B', '-c',
+    const caFound = !ca || command(PY, ['-B', '-c',
       'import zipfile,hashlib,sys,base64,re; z=zipfile.ZipFile(sys.argv[1]); want=sys.argv[2]; ok=False\n'
       + 'for n in [sys.argv[3]]:\n'
       + '    i=z.getinfo(n)\n'

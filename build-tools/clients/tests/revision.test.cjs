@@ -18,7 +18,7 @@ test('revision client code refuses zero, leading zeros and overflow', () => {
   assert.equal(versionCode('1.0.21+r10'), 102110);
   for (const s of ['1.0.21+r0', '1.0.21+r01', '1.0.21+r1000000']) assert.throws(() => versionCode(s));
 });
-test('Forge adapter preserves native hooks while excluding build adapter from the shipped app', () => {
+test('Forge adapter retires vendor payload verification and excludes build adapter from the shipped app', () => {
   const vm = require('node:vm');
   const { forgeWrapper } = require('../revision-config.cjs');
   const hook = () => {};
@@ -26,12 +26,14 @@ test('Forge adapter preserves native hooks while excluding build adapter from th
   const sandbox = { module: { exports: {} }, require: file => file === 'node:path' ? require(file) : native };
   vm.runInNewContext(forgeWrapper('C:/source', { versions: { msi_version: '1.0.22', pe_version: '1.0.22.0' } }), sandbox);
   const config = sandbox.module.exports;
-  assert.equal(config.hooks.preMake, hook);
+  // OpenVPN removed from the package (user 2026-11-20): preMake vendor check is a no-op, not the native hook.
+  assert.notEqual(config.hooks.preMake, hook);
+  assert.equal(typeof config.hooks.preMake, 'function');
   assert.equal(config.packagerConfig.appVersion, '1.0.22');
   assert.equal(config.packagerConfig.buildVersion, '1.0.22.0');
   assert.ok(config.packagerConfig.ignore.some(rule => rule.test('/cloudmeet.forge.cjs')));
 });
-test('Forge signs main executable before unified MSI and then signs final MSI', async () => {
+test('Forge signs main executable and the reviewed maker-wix MSI without OpenVPN assembly', async () => {
   const vm = require('node:vm');
   const { forgeWrapper } = require('../revision-config.cjs');
   const calls = [];
@@ -41,13 +43,13 @@ test('Forge signs main executable before unified MSI and then signs final MSI', 
     if (file === 'node:path') return require(file);
     if (file.endsWith('signing.cjs')) return { sign: file => calls.push(file.replaceAll('\\', '/')) };
     if (file.endsWith('forge.config.js')) return config;
-    if (file.endsWith('unified-msi.cjs')) return { buildUnifiedMsi: async () => { calls.push('assemble'); return results; } };
-    if (file.endsWith('build-openvpn-bundle.cjs')) return { verifyPayload: async () => 'vendor' };
+    if (file.endsWith('unified-msi.cjs') || file.endsWith('build-openvpn-bundle.cjs')) throw Error('OpenVPN assembly must not be invoked');
     throw Error(file);
   } };
   vm.runInNewContext(forgeWrapper('C:/source', { versions: { msi_version: '1.0.22', pe_version: '1.0.22.0' } }), sandbox);
   await config.hooks.postPackage({}, { outputPaths: ['C:/app'] });
-  await config.hooks.postMake({}, results);
+  const output = await config.hooks.postMake({}, results);
   assert.equal(config.packagerConfig.windowsSign, undefined);
-  assert.deepEqual(calls, ['native', 'C:/app/cloudmeet.exe', 'assemble', 'C:/final.msi']);
+  assert.deepEqual(calls, ['native', 'C:/app/cloudmeet.exe', 'C:/final.msi']);
+  assert.equal(output, results);
 });
