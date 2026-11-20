@@ -118,7 +118,7 @@ jobs:
         if: matrix.target == 'electron'
         with:
           repository: stevenzxs/cloudmeet-certificates
-          ref: f04265a4a16753cb36e92df9660b2cb1faadd734
+          ref: a69a574e5ef21ce3f0cedd19a250bdfa9392bd3a
           token: ${{ secrets.CERTIFICATES_READ_TOKEN }}
           path: cloudmeet-certificates
           persist-credentials: false
