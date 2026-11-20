@@ -142,8 +142,18 @@ jobs:
         if: matrix.target == 'android'
         shell: pwsh
         run: |
-          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.1.12297006' 'cmake;3.31.6'
           if ($LASTEXITCODE) { throw 'SDK provisioning failed' }
+      - name: Android long paths and CMake 3.31 for ninja 1.12
+        if: matrix.target == 'android'
+        shell: pwsh
+        run: |
+          # CMake 3.22.1 自带 ninja 1.10 不支持长路径；3.31.6 自带 ninja 1.12+。
+          # ninja 1.12 仍需系统启用长路径；该注册表值对后续新进程生效。
+          New-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1 -PropertyType DWORD -Force | Out-Null
+          $gradleHome = Join-Path $env:USERPROFILE '.gradle'
+          New-Item -ItemType Directory -Force -Path $gradleHome | Out-Null
+          'android.cmakeVersion=3.31.6' | Out-File -FilePath (Join-Path $gradleHome 'gradle.properties') -Encoding ascii -Force
       - name: WiX prerequisite
         if: matrix.target == 'electron'
         shell: pwsh
@@ -152,6 +162,11 @@ jobs:
           $bin = $tools | ForEach-Object { Join-Path $_.FullName 'bin' } | Where-Object { Test-Path (Join-Path $_ 'candle.exe') } | Select-Object -First 1
           if (!$bin) { throw 'Runner lacks approved WiX v3 tools' }
           $bin | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
+          # build-install-root.cjs 需要 WIX 根目录以定位 sdk（DTF 程序集与 MakeSfxCA）；
+          # 托管 runner 上不存在历史默认路径 D:/tool/wix311-binaries。
+          $root = Split-Path $bin -Parent
+          if (!(Test-Path (Join-Path $root 'sdk/Microsoft.Deployment.WindowsInstaller.dll'))) { throw 'WiX SDK (DTF) missing' }
+          "WIX=$root" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
       - name: Install locked product dependencies
         shell: pwsh
         run: |
