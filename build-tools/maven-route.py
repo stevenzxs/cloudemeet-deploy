@@ -7,6 +7,8 @@ import shutil
 import subprocess
 import tempfile
 import threading
+import time
+import ssl
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -59,18 +61,51 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
         return None
 
 
-def fetch_artifact(relative, opener):
+def failure_reason(error):
+    """Allowlisted categories only: exception messages can contain credentials."""
+    reason = error.reason if isinstance(error, urllib.error.URLError) else error
+    if isinstance(reason, ssl.SSLError):
+        return 'tls_error'
+    if isinstance(reason, TimeoutError):
+        return 'timeout'
+    if isinstance(reason, ConnectionResetError):
+        return 'connection_reset'
+    return 'unclassified_transport'
+
+
+def fetch_artifact(relative, opener, audit=lambda record: None):
     """Only an explicit Aliyun 404 permits a request to Central."""
     for origin in (ALIYUN, CENTRAL):
-        try:
-            response = opener.open(origin + relative, timeout=60)
+        for attempt in range(1, 4):
+            started = time.monotonic()
+            record = {'artifact': relative, 'origin': origin, 'attempt': attempt,
+                      'timestamp': time.time()}
+            try:
+                response = opener.open(origin + relative, timeout=60)
+            except (OSError, urllib.error.URLError) as error:
+                http_error = isinstance(error, urllib.error.HTTPError)
+                status = error.code if http_error else 502
+                reason = 'http_status' if http_error else failure_reason(error)
+                transient = status in (502, 503, 504) if http_error else reason in ('timeout', 'connection_reset')
+                fallback = http_error and status == 404 and origin == ALIYUN
+                retry = transient and attempt < 3
+                record.update(status=status, failure_kind='upstream_http' if http_error else 'transport',
+                              exception_type=type(error).__name__, reason=reason,
+                              elapsed_ms=round((time.monotonic()-started)*1000),
+                              action='fallback' if fallback else 'retry' if retry else 'fail')
+                audit(record)
+                if http_error:
+                    error.close()
+                if fallback:
+                    break
+                if retry:
+                    time.sleep((2, 5)[attempt-1])
+                    continue
+                raise
+            record.update(status=response.status, elapsed_ms=round((time.monotonic()-started)*1000),
+                          action='success')
+            audit(record)
             return response, origin
-        except urllib.error.HTTPError as error:
-            status = error.code
-            error.close()
-            if origin == ALIYUN and status == 404:
-                continue
-            raise
     raise AssertionError('unreachable')
 
 
@@ -103,17 +138,14 @@ def handler_factory(opener, audit):
                 self.send_error(400)
                 return
             try:
-                response, origin = fetch_artifact(relative, opener)
+                response, origin = fetch_artifact(relative, opener, audit)
             except urllib.error.HTTPError as error:
-                audit({'artifact': relative, 'status': error.code})
                 self.send_error(error.code)
                 return
             except (OSError, urllib.error.URLError):
-                audit({'artifact': relative, 'status': 502})
                 self.send_error(502)
                 return
             with response:
-                audit({'artifact': relative, 'origin': origin, 'status': response.status})
                 self.send_response(response.status)
                 # Do not forward credentials, cookies or upstream proxy headers.
                 for key in ('Content-Length', 'Content-Type', 'Last-Modified'):

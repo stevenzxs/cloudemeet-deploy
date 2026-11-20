@@ -6,6 +6,7 @@ import http.client
 import threading
 import tempfile
 import urllib.error
+import ssl
 from unittest.mock import Mock, patch
 
 spec = importlib.util.spec_from_file_location(
@@ -31,7 +32,7 @@ class MavenRouteTests(unittest.TestCase):
                          [route.ALIYUN + 'g/a/1/a-1.jar', route.CENTRAL + 'g/a/1/a-1.jar'])
 
     def test_http_errors_fail_closed(self):
-        for status in (401, 403, 429, 500, 502, 301):
+        for status in (401, 403, 429, 500, 301):
             with self.subTest(status=status):
                 opener = Mock()
                 opener.open.side_effect = urllib.error.HTTPError('url', status, '', {}, None)
@@ -40,12 +41,71 @@ class MavenRouteTests(unittest.TestCase):
                 self.assertEqual(opener.open.call_count, 1)
 
     def test_tls_timeout_and_connection_errors_do_not_fallback(self):
-        for error in (urllib.error.URLError('TLS'), TimeoutError(), ConnectionError()):
+        for error in (urllib.error.URLError('TLS'), ConnectionError(), urllib.error.URLError(ssl.SSLCertVerificationError('fixture'))):
             opener = Mock()
             opener.open.side_effect = error
             with self.assertRaises((OSError, urllib.error.URLError)):
                 route.fetch_artifact('a.pom', opener)
             self.assertEqual(opener.open.call_count, 1)
+
+    def test_transient_failures_retry_same_origin_with_bounded_backoff(self):
+        for error in (urllib.error.HTTPError('url', 502, '', {}, None),
+                      urllib.error.HTTPError('url', 503, '', {}, None),
+                      urllib.error.HTTPError('url', 504, '', {}, None),
+                      TimeoutError(), urllib.error.URLError(ConnectionResetError())):
+            with self.subTest(error=type(error).__name__), patch.object(route.time, 'sleep') as sleep:
+                opener = Mock()
+                opener.open.side_effect = [error, error, Mock(status=200)]
+                records = []
+                _, origin = route.fetch_artifact('a.pom', opener, records.append)
+                self.assertEqual(origin, route.ALIYUN)
+                self.assertEqual([c.args[0] for c in opener.open.call_args_list], [route.ALIYUN+'a.pom']*3)
+                self.assertEqual([c.args[0] for c in sleep.call_args_list], [2, 5])
+                self.assertEqual([r['attempt'] for r in records], [1, 2, 3])
+                self.assertTrue(all('elapsed_ms' in r and 'origin' in r for r in records))
+
+    def test_central_retry_after_404_and_exhaustion(self):
+        records = []
+        opener = Mock()
+        opener.open.side_effect = [urllib.error.HTTPError('url',404,'',{},None)] + [TimeoutError()]*3
+        with patch.object(route.time, 'sleep'), self.assertRaises(TimeoutError):
+            route.fetch_artifact('a.pom', opener, records.append)
+        self.assertEqual(opener.open.call_count, 4)
+        self.assertEqual(records[0]['action'], 'fallback')
+        self.assertEqual(records[-1]['action'], 'fail')
+        self.assertEqual(records[-1]['origin'], route.CENTRAL)
+        self.assertEqual(records[-1]['failure_kind'], 'transport')
+
+    def test_http_retry_exhaustion_never_falls_back(self):
+        opener = Mock()
+        opener.open.side_effect = urllib.error.HTTPError('url', 502, '', {}, None)
+        records = []
+        with patch.object(route.time, 'sleep'), self.assertRaises(urllib.error.HTTPError):
+            route.fetch_artifact('a.pom', opener, records.append)
+        self.assertEqual(opener.open.call_count, 3)
+        self.assertTrue(all(r['origin'] == route.ALIYUN for r in records))
+        self.assertEqual(records[-1]['failure_kind'], 'upstream_http')
+        self.assertEqual(records[-1]['action'], 'fail')
+
+    def test_central_recovers_without_changing_artifact(self):
+        opener = Mock()
+        opener.open.side_effect = [urllib.error.HTTPError('url', 404, '', {}, None),
+                                  TimeoutError(), Mock(status=200)]
+        with patch.object(route.time, 'sleep') as sleep:
+            _, origin = route.fetch_artifact('a.pom.sha1', opener)
+        self.assertEqual(origin, route.CENTRAL)
+        self.assertEqual([c.args[0] for c in opener.open.call_args_list],
+                         [route.ALIYUN+'a.pom.sha1', route.CENTRAL+'a.pom.sha1', route.CENTRAL+'a.pom.sha1'])
+        sleep.assert_called_once_with(2)
+
+    def test_diagnostics_never_echo_exception_secrets(self):
+        records = []
+        opener = Mock()
+        opener.open.side_effect = urllib.error.URLError('password=fixture-secret https://user:pass@host')
+        with self.assertRaises(urllib.error.URLError):
+            route.fetch_artifact('a.pom', opener, records.append)
+        self.assertNotIn('fixture-secret', str(records))
+        self.assertEqual(records[0]['reason'], 'unclassified_transport')
 
     def test_both_missing_preserves_failure(self):
         opener = Mock()
@@ -124,8 +184,9 @@ class MavenRouteTests(unittest.TestCase):
             self.assertEqual(result.status, 200)
             self.assertEqual(result.read(), b'<project>fixed bytes</project>')
             self.assertIsNone(result.getheader('Set-Cookie'))
-            self.assertEqual(records, [{'artifact': 'g/a/1/a.pom',
-                                        'origin': route.CENTRAL, 'status': 200}])
+            self.assertEqual([r['status'] for r in records], [404, 200])
+            self.assertEqual(records[0]['action'], 'fallback')
+            self.assertEqual(records[-1]['origin'], route.CENTRAL)
         finally:
             connection.close()
             server.shutdown()
