@@ -150,6 +150,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | 路径 | 作用 |
 |---|---|
 | `build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
+| `build-tools/maven-route.py`、`build-tools/tests/test_maven_route.py` | API/Jicofo/JVB的Central依赖逐项阿里云优先、仅404回退Central；回环代理、严格上游TLS/校验及选路审计，专用仓库不覆盖；定向回归不构建产品 |
 | `build-tools/publish.py` | 已成功组包后显式发布同run七镜像；逐项校验归档、平台、源码及镜像config身份，核对远端digest，保留部分发布与未部署状态，不重编译 |
 | `build-tools/actions.py`、`build-tools/tests/test_actions.py` | 仓库限定Actions API调度/状态及参数/认证边界回归；凭据文件仓库外600，意图先落盘防止断线重发，不代表Hermes模型调用及制品验证已验收 |
 | `build-tools/offline-runtime/online_update.py`、`build-tools/tests/test_online_update.py` | 既有118实例image-only更新入口及固定七digest/空闲状态/保留配置回归；严格TLS前检、全部pull后SQLite一致性备份、失败恢复旧image ID，无重建/清数据，配置补丁变化须另行审核适配 |
@@ -254,6 +255,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 未来编译输出目录、缓存目录（如 `__pycache__/`）、归档、镜像层、日志和批次报告按本文件既有归属及保密规则处理，不因未逐项列名而禁止正常生成；不得借此豁免新增人工维护脚本或配置的职责登记。
 
 ## 4. 源码编译与来源
+
+2026-11-20用户二次确认：遵守知识库1.5的Maven选路，API/Jicofo/JVB通过build-tools/maven-route.py只镜像central；逐路径先请求阿里云，明确404才回退Central，非缺包错误阻断，专用仓库/依赖版本及原构建门禁不变。上游严格HTTPS，适配代理仅绑定127.0.0.1临时端口；选路审计随network-audit制品保存。脚本更新不授权启动新Actions或重跑既有固定批次，不冒充云端验收。
 
 2026-11-13用户批准新增amd64交付：沿用唯一package.sh及同一workflow，以architecture输入选择ubuntu-24.04原生amd64或ubuntu-24.04-arm原生arm64；完整重编七服务。允许提交推送本次必要适配并调度amd64构建，下载校验至release/amd64/server；不授权registry发布、服务器操作或安装/运行测试。Jitsi base使用stable-11248多架构索引固定摘要，ARM子manifest保持原身份。
 
