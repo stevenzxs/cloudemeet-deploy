@@ -23,9 +23,14 @@ function loadAssignment(file, root, target, env = process.env) {
 
 function forgeWrapper(project, assignment) {
   const v = assignment.versions;
+  // electron-forge 7 resolves forge.config.{js,...} BEFORE the package.json
+  // config.forge path string (forge docs: a path string is used only when no
+  // forge.config.* file exists). The build therefore writes the original
+  // source config to forge.config.cloudmeet-base.cjs and places this wrapper
+  // at forge.config.js, which forge is guaranteed to pick up.
   return `const path = require('node:path');
 const root = ${JSON.stringify(project)};
-const config = require(path.join(root, 'forge.config.js'));
+const config = require(path.join(root, 'forge.config.cloudmeet-base.cjs'));
 const signing = require(${JSON.stringify(path.join(__dirname, 'signing.cjs'))});
 // Do not invoke the source optional PFX path (it logs password arguments on failure).
 delete config.packagerConfig.windowsSign;
@@ -35,7 +40,7 @@ config.hooks.postPackage = async (cfg, result) => {
   for (const output of result.outputPaths) signing.sign(path.join(output, 'cloudmeet.exe'));
 };
 config.packagerConfig = { ...config.packagerConfig, appVersion: ${JSON.stringify(v.msi_version)}, buildVersion: ${JSON.stringify(v.pe_version)} };
-config.packagerConfig.ignore = [...config.packagerConfig.ignore, /^\\/cloudmeet\\.forge\\.cjs$/];
+config.packagerConfig.ignore = [...config.packagerConfig.ignore, /^\\/forge\\.config\\.cloudmeet-base\\.cjs$/];
 // User approved 2026-11-20: OpenVPN is removed from the package; the vendor
 // payload verification and unified MSI assembly are retired. The reviewed
 // maker-wix MSI is signed directly and becomes the final artifact.
