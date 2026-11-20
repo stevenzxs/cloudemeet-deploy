@@ -40,6 +40,32 @@ test('generated Electron config must exactly match all origin fields', () => {
     trust: { origin: config.origin, caFile: null }
   }), /configuration/);
 });
+test('equivalent Electron duplicate keys are accepted with an audit warning', () => {
+  const report = auditGenerated('electron', config, {
+    deployment: 'SITE_DOMAIN=10.1.2.28\nSITE_SCHEME=https\nSITE_PORT=8443\nSITE_PORT=8443\n',
+    trust: { origin: config.origin, caFile: null }
+  });
+  assert.match(report.warnings.join(' '), /SITE_PORT/);
+  assert.throws(() => auditGenerated('electron', config, {
+    deployment: 'SITE_DOMAIN=10.1.2.28\nSITE_SCHEME=https\nSITE_PORT=8443\nSITE_PORT=443\n',
+    trust: { origin: config.origin, caFile: null }
+  }), /conflicts: SITE_PORT/);
+});
+test('equivalent Android rules pass but missing, inherited or conflicting duplicates fail', () => {
+  const validate = require('../verify-package.cjs').validateAndroidResources;
+  const manifest = '<application xmlns:android="http://schemas.android.com/apk/res/android" android:networkSecurityConfig="@xml/network_security_config"><meta-data android:name="android.content.APP_RESTRICTIONS" android:resource="@xml/app_restrictions" /></application>';
+  const restrictions = `<restrictions xmlns:android="http://schemas.android.com/apk/res/android"><restriction android:key="SERVER_URL" android:defaultValue="${config.origin}" /></restrictions>`;
+  const rule = '<domain-config cleartextTrafficPermitted="false"><domain includeSubdomains="false">10.1.2.28</domain><trust-anchors><certificates src="@raw/cloudmeet_client_ca" /></trust-anchors></domain-config>';
+  const xml = body => `<network-security-config>${body}</network-security-config>`;
+  assert.equal(validate(manifest, restrictions, xml(rule + rule), config, true), true);
+  assert.throws(() => validate(manifest, restrictions, xml(''), config, true), /matched 0/);
+  assert.throws(() => validate(manifest, restrictions, xml(rule + rule.replace('cleartextTrafficPermitted="false"', 'cleartextTrafficPermitted="true"')), config, true), /conflicting/);
+  assert.throws(() => validate(manifest, restrictions, xml(rule + rule.replace(' cleartextTrafficPermitted="false"', '')), config, true), /explicit/);
+  assert.throws(() => validate(manifest, restrictions, xml(rule + rule.replace('includeSubdomains="false"', 'includeSubdomains="true"')), config, true), /subdomains/);
+  assert.throws(() => validate(manifest, restrictions, xml(rule + rule.replace('</trust-anchors>', '<certificates src="system" /></trust-anchors>')), config, true), /trust anchors/);
+  assert.throws(() => validate(manifest, restrictions, xml(rule + rule.replace('</domain>', '</domain><domain>other.example</domain>')), config, true), /host scope/);
+  assert.throws(() => validate(manifest, restrictions, xml(rule + '<domain-config>'+rule+'</domain-config>'), config, true), /explicit/);
+});
 test('generated Android deployment and restrictions cannot diverge', () => {
   assert.throws(() => auditGenerated('android', config, {
     deployment: { origin: 'https://old.example.org:8443' },

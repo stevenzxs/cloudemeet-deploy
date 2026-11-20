@@ -59,15 +59,32 @@ r=E.fromstring(d['restrictions'])
 matches=[x for x in r.iter('restriction') if x.get(ns+'key')=='SERVER_URL']
 assert len(matches)==1 and matches[0].get(ns+'defaultValue')==d['origin']
 if d['requireCa']:
- assert app.get(ns+'networkSecurityConfig')=='@xml/network_security_config'
- t=E.fromstring(d['trust'])
- rules=[x for x in t.iter('domain-config') if any((v.text or '').strip()==d['host'] and v.get('includeSubdomains','false')=='false' for v in x.findall('domain'))]
- assert len(rules)==1
- assert any(x.get('src')=='@raw/cloudmeet_client_ca' for x in rules[0].findall('./trust-anchors/certificates'))
+  assert app.get(ns+'networkSecurityConfig')=='@xml/network_security_config'
+  t=E.fromstring(d['trust'])
+  rules=[x for x in t.iter('domain-config') if any((v.text or '').strip()==d['host'] for v in x.findall('domain'))]
+  if not rules: raise ValueError('Android CA scope: matched 0 rules for '+d['host'])
+  for rule in rules:
+   if any(v.get('includeSubdomains','false')!='false' for v in rule.findall('domain') if (v.text or '').strip()==d['host']): raise ValueError('Android CA scope includes subdomains')
+   if not any(x.get('src')=='@raw/cloudmeet_client_ca' for x in rule.findall('./trust-anchors/certificates')): raise ValueError('Android CA anchor missing')
+  if len(rules)>1:
+   def canonical(node):
+    return (node.tag,tuple(sorted(node.attrib.items())),(node.text or '').strip(),tuple(sorted(canonical(c) for c in node)))
+   parents={c:p for p in t.iter() for c in p}
+   for rule in rules:
+     if parents.get(rule) is not t or rule.get('cleartextTrafficPermitted') is None: raise ValueError('Duplicate Android rules require explicit non-inherited security settings')
+     if rule.get('cleartextTrafficPermitted')!='false': raise ValueError('Duplicate Android rules have conflicting cleartext settings')
+     if any((v.text or '').strip()!=d['host'] or v.get('includeSubdomains','false')!='false' for v in rule.findall('domain')): raise ValueError('Duplicate Android rules broaden host scope')
+     anchors=rule.findall('trust-anchors')
+     if len(anchors)!=1 or not list(anchors[0]) or any(c.tag!='certificates' or c.attrib!={'src':'@raw/cloudmeet_client_ca'} for c in anchors[0]): raise ValueError('Duplicate Android rules have conflicting trust anchors')
+     if any(c.tag not in ('domain','trust-anchors') for c in rule): raise ValueError('Duplicate Android rules contain unsupported inherited or security settings')
+   if any(canonical(rule)!=canonical(rules[0]) for rule in rules[1:]): raise ValueError('Duplicate Android CA rules have conflicting settings')
+   print('Equivalent duplicate Android CA rules: '+str(len(rules)))
 print('verified')`;
   const result = command(PY, ['-B', '-c', script, JSON.stringify({ manifest, restrictions, trust,
     origin: config.origin, host: config.values.SITE_DOMAIN, requireCa })]);
-  if (result.trim() !== 'verified') throw Error('Android resource reference validation failed');
+  const lines = result.trim().split(/\r?\n/);
+  if (lines.pop() !== 'verified') throw Error('Android resource reference validation failed');
+  for (const warning of lines) console.warn(warning);
   return true;
 }
 
@@ -95,8 +112,9 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
       && JSON.stringify(assignment) === JSON.stringify(config.assignment), config.version);
     const env = asar.extractFile(asarFile, 'deployment.env').toString();
     const trust = JSON.parse(asar.extractFile(asarFile, 'client-trust.json').toString());
-    require('./network-audit.cjs').auditGenerated('electron', config, { deployment: env, trust });
-    check('origin', true, config.origin);
+    const audit = require('./network-audit.cjs').auditGenerated('electron', config, { deployment: env, trust });
+    for (const warning of audit.warnings) console.warn(warning);
+    check('origin', true, JSON.stringify({ origin: config.origin, warnings: audit.warnings }));
     check('ca', trust.origin === config.origin && (ca
       ? matchesCa(asar.extractFile(asarFile, 'client-ca.crt'), ca) : trust.caFile === null), ca?.sha256 || 'system trust');
     const exe = files.find(p => /cloudmeet\.exe$/i.test(p));

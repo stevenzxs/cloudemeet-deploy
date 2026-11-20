@@ -32,11 +32,16 @@ function inventorySources(project, paths) {
 }
 
 function auditGenerated(target, config, input) {
+  const warnings = [];
   if (target === 'electron') {
     const actual = {};
     for (const line of input.deployment.trim().split(/\r?\n/)) {
       const match = /^(SITE_DOMAIN|SITE_SCHEME|SITE_PORT)=(.+)$/.exec(line);
-      if (!match || Object.hasOwn(actual, match[1])) throw Error('Generated Electron configuration invalid');
+      if (!match) throw Error('Generated Electron configuration invalid');
+      if (Object.hasOwn(actual, match[1])) {
+        if (actual[match[1]] !== match[2]) throw Error(`Generated Electron configuration conflicts: ${match[1]}`);
+        warnings.push(`Equivalent duplicate Electron key: ${match[1]}`);
+      }
       actual[match[1]] = match[2];
     }
     if (['SITE_DOMAIN', 'SITE_SCHEME', 'SITE_PORT'].some(k => actual[k] !== config.values[k])
@@ -49,7 +54,7 @@ function auditGenerated(target, config, input) {
     if (input.trust && (!input.trust.includes(`<domain includeSubdomains="false">${config.values.SITE_DOMAIN}</domain>`)
         || !input.trust.includes('@raw/cloudmeet_client_ca'))) throw Error('Generated Android trust scope mismatch');
   }
-  return { phase: 'generated', status: 'pass', target, parameters: [
+  return { phase: 'generated', status: 'pass', target, warnings, parameters: [
     ...Object.entries(config.values).filter(([k]) => ['SITE_DOMAIN', 'SITE_SCHEME', 'SITE_PORT'].includes(k))
       .map(([name, value]) => ({ name, value, source: 'config/client.env', consumer: target })),
     ...Object.entries({ origin: config.origin, desktopUrl: config.desktopUrl,
