@@ -420,7 +420,7 @@ flowchart TD
 - `build-tools/clients/verify-package.cjs`负责最终MSI管理解包、PE/版本/配置及签名，APK最终资源/ABI/版本/签名及公开CA；工具缺失报阻塞。`build-tools/clients/delivery.cjs`负责全批检查前置、不可覆盖交付及摘要说明；`build-tools/clients/tests/delivery.test.cjs`负责交付拒绝及防覆盖回归，不安装应用。
 
 - 唯一客户端入口及基线配置为`deploy/config/client.env`的SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION；不从服务端target.env、.env、旧client.env、进程环境或源码历史默认值覆盖/回退。CLIENT_VERSION保留批准三段基线，实际显示版本/Android整数/MSI/PE字段按第6节及绑定Run记录派生。缺分配记录、历史上限不明或不满足升级单调性拒绝正式构建；旧三段整数公式只用于诊断基线，不读取release-version.json推断修订号。不卸载/清数据或删除活动锁绕过。
-- 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；已恢复四项配置读取和候选构建编排，须先执行--check。版本转换约定替代旧历史证据/预留计数方案，不变更历史包或既有记录。工具回归通过不代表真实编译或包级验证完成。
+- 唯一 release 构建入口为 `build-tools/clients/build-clients.cjs`；正式命令内部必须先执行预检并在阻塞时停止。2026-11-20用户二次确认：Actions取消独立重复的--check调用，每目标只调用一次正式入口；保留--check供独立诊断，版本/入口/CA/签名/工具及最终包门禁不变，日志区分预检、编译打包、最终验包及交付。版本转换约定替代旧历史证据/预留计数方案，不变更历史包或既有记录。工具回归通过不代表真实编译或包级验证完成。
 - 每批核对完整 origin、实际 MSI/APK 版本和摘要、包内入口及目标公开 CA。新地址不会自动配置 CA 信任。Electron 按准确 origin 限定信任；Android 按主机限定，保留已有端点策略，不打包私钥。
 - 实测 APK signing certificate、MSI/内嵌程序实际签名与有效性；旧 manifest 固定文案和文件名不是签名证据。签名改变字节后重新计算最终摘要。
 - 客户端新增交付进入 `deploy/release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级，明确OS/ABI、签名、版本和摘要；不再设置debug交付树。已有批次仍按其实际旧路径引用，不因文档变更宣称已迁移。恢复后的构建器将未验证候选保留于本机Temp/opencode/cloudmeet-clients-*，不自动晋级release；历史history/client-builds不作为新输出入口。编译打包不自动安装设备应用或清数据。

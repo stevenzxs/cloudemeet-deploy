@@ -169,10 +169,8 @@ jobs:
           WINDOWS_PFX_BASE64: ${{ matrix.target == 'electron' && secrets.WINDOWS_PFX_BASE64 || '' }}
           WINDOWS_PFX_PASSWORD: ${{ matrix.target == 'electron' && secrets.WINDOWS_PFX_PASSWORD || '' }}
         run: |
-          node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json --check
-          if ($LASTEXITCODE) { throw 'Client prerequisites failed' }
           node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json
-          if ($LASTEXITCODE) { throw 'Client package verification failed' }
+          if ($LASTEXITCODE) { throw 'Client build or package verification failed; inspect the preceding error' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: client-${{ matrix.target }}-${{ github.run_id }}-${{ github.run_attempt }}

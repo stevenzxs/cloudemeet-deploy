@@ -202,6 +202,7 @@ function collect(source, destination, extension, started, layoutFor) {
 }
 
 async function build(options, config, report) {
+  console.error('[client-stage] Compile and package (includes product signing hooks)');
   return withLock(lock, async () => {
     const candidate = createCandidate();
     require('./network-audit.cjs').stageReports(options.auditDir, candidate);
@@ -298,6 +299,7 @@ async function build(options, config, report) {
           manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });
       }
+      console.error('[client-stage] Verify final packages');
       manifest.status = 'checking-packages'; save();
       for (const artifact of manifest.artifacts) {
         const scratch = fs.mkdtempSync(path.join(candidate, 'inspection-'));
@@ -306,6 +308,7 @@ async function build(options, config, report) {
       }
       manifest.networkAudit = writeAudit(candidate, 'network-final-packages', auditPackages(manifest), root);
       recordNetwork('network-final-packages', manifest.networkAudit);
+      console.error('[client-stage] Deliver verified packages');
       manifest.deliveries = require('./delivery.cjs').deliver(manifest, report.deliveryRoot);
       manifest.status = 'packaged-delivered';
       manifest.acceptance = 'Package checks and delivery completed; installation, endpoint TLS and media acceptance not performed.';
@@ -325,6 +328,7 @@ function createCandidate(base = process.env.LOCALAPPDATA
 }
 
 async function main() {
+  console.error('[client-stage] Preflight');
   const options = argumentsFor(process.argv.slice(2));
   const auditDir = process.env.CLOUDMEET_AUDIT_DIR || path.join(createCandidate(), 'audit');
   options.auditDir = auditDir;
