@@ -11,6 +11,11 @@ test('APK requires the unique approved signer, not merely Verifies', () => {
   // Older releases print uppercase with colons.
   const legacy = `Verifies\nSigner #1 certificate SHA-256 digest: ${approved.toUpperCase().replace(/(..)/g, '$1:').replace(/:$/, '')}\n`;
   assert.equal(verify.validateAndroidSigner(legacy, approved), approved);
+  // build-tools 37 prints scheme-prefixed signer blocks (and adds a v3.2 line).
+  const bt37 = 'Verifies\nVerified using v3.2 scheme (APK Signature Scheme v3.2): false\nNumber of signers: 1\n'
+    + 'V2 Signer: certificate DN: CN=CloudMeet, OU=CloudMeet, O=CloudMeet, L=Shenzhen, ST=Guangdong, C=CN\n'
+    + `V2 Signer: certificate SHA-256 digest: ${approved}\nV2 Signer: certificate SHA-1 digest: d0443245956d82495ef8da5eff1dc9ff66d51bc7\n`;
+  assert.equal(verify.validateAndroidSigner(bt37, approved), approved);
   for (const text of ['Verifies', valid.replace(approved, '0'.repeat(64)), valid + `Signer #2 certificate SHA-256 digest: ${approved}\n`]) {
     assert.throws(() => verify.validateAndroidSigner(text, approved), /signer/i);
   }
