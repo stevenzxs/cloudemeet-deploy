@@ -21,7 +21,7 @@ function validateAndroidSigner(output, expected) {
   const signers = [...output.matchAll(/^Signer #\d+ certificate SHA-?256 digest:\s*([0-9a-fA-F:]+)\s*$/gim)]
     .map(m => m[1].replaceAll(':', '').toLowerCase());
   if (!output.includes('Verifies')) throw Error('Android package signature does not verify');
-  if (signers.length !== 1) throw Error(`Expected exactly one APK signer certificate, apksigner reported ${signers.length}`);
+  if (signers.length !== 1) throw Error(`Expected exactly one APK signer certificate, apksigner reported ${signers.length}; output excerpt: ${JSON.stringify(output.replace(/[A-Za-z0-9+/=]{48,}/g, '<b64>').slice(0, 500))}`);
   if (!/^[0-9a-f]{64}$/.test(expected || '')) throw Error('Approved Android identity fingerprint required');
   if (signers[0] !== expected) throw Error(`Approved Android signer mismatch: APK signer ${signers[0]} != policy ${expected}`);
   return signers[0];
