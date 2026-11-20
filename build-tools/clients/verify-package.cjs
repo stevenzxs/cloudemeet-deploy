@@ -16,7 +16,9 @@ const sdkTool = (dir, base) => path.join(dir, process.platform === 'win32'
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
 
 function validateAndroidSigner(output, expected) {
-  const signers = [...output.matchAll(/^Signer #\d+ certificate SHA-256 digest:\s*([0-9a-f:]+)\s*$/gim)]
+  // Modern apksigner prints lowercase without colons; older releases print
+  // uppercase with colons; tolerate both (and SHA256/SHA-256 spellings).
+  const signers = [...output.matchAll(/^Signer #\d+ certificate SHA-?256 digest:\s*([0-9a-fA-F:]+)\s*$/gim)]
     .map(m => m[1].replaceAll(':', '').toLowerCase());
   if (!output.includes('Verifies')) throw Error('Android package signature does not verify');
   if (signers.length !== 1) throw Error(`Expected exactly one APK signer certificate, apksigner reported ${signers.length}`);
@@ -124,7 +126,11 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     const native = /native-code: (.*)/.exec(badging);
     const abis = native ? [...native[1].matchAll(/'([^']+)'/g)].map(m => m[1]).sort() : [];
     check('architecture', JSON.stringify(abis) === JSON.stringify([...artifact.architectures].sort()) && !abis.includes('x86'), abis.join(','));
-    const signature = command(sdkTool(tools, 'apksigner'), ['verify', '--verbose', '--print-certs', file]);
+    const signRun = spawnSync(sdkTool(tools, 'apksigner'), ['verify', '--verbose', '--print-certs', file],
+      { encoding: 'utf8', windowsHide: true, maxBuffer: 64 * 1024 * 1024 });
+    if (signRun.error || signRun.status !== 0) throw Error(`Package inspection failed: apksigner: ${signRun.stderr || signRun.error}`);
+    // Some apksigner builds print the certificate block on stderr; parse both streams.
+    const signature = `${signRun.stdout || ''}\n${signRun.stderr || ''}`;
     check('signature', true, validateAndroidSigner(signature, require('./signing.cjs').policy.android_certificate_der_sha256));
     const analyzer = sdkTool(path.join(sdk, 'cmdline-tools/latest/bin'), 'apkanalyzer');
     const caMember = inspectAndroidResources(file, analyzer, sdkTool(tools, 'aapt'), config, Boolean(ca));
