@@ -65,8 +65,15 @@ function auditGenerated(target, config, input) {
 }
 
 function auditPackages(manifest) {
-  const required = ['origin', 'ca', 'signature', 'architecture', 'version'];
-  if (!manifest.artifacts.length || manifest.artifacts.some(a => required.some(k => a.checks?.[k]?.passed !== true))) {
+  const common = ['origin', 'ca', 'architecture', 'version'];
+  if (!manifest.artifacts.length || manifest.artifacts.some(a => {
+    const required = a.platform === 'windows' ? common : [...common, 'signature'];
+    const signing = a.checks?.signing;
+    return required.some(k => a.checks?.[k]?.passed !== true)
+      || (a.platform === 'windows' && (a.checks.signature !== undefined
+        || signing?.required !== false || signing?.status !== 'unsigned'
+        || typeof signing.detail !== 'string' || !signing.detail.startsWith('UNSIGNED EXE/MSI;')));
+  })) {
     throw Error('Post-package network audit incomplete');
   }
   return { phase: 'final-packages', status: 'pass', origin: manifest.origin,

@@ -1,5 +1,11 @@
 # CloudMeet unified client builder
 
+## 2026-11-20 现行签名契约（覆盖下文历史Windows签名要求）
+
+用户二次确认：Windows EXE/MSI不执行代码签名，不要求Windows PFX、SignTool、私有证书库访问或时间戳；Forge移除签名postPackage并直接保留maker-wix结果，不再调用签名postMake。最终检查/网络审计/交付不要求Windows签名，记录`signing: {required:false,status:"unsigned"}`，不生成`signature.passed`。交付README明确UNSIGNED EXE/MSI及未知发布者/SmartScreen风险；HTTPS CA信任不变，不能把摘要当签名或保证公众信任。
+
+Android保持现有keystore、Actions Secrets安全注入和最终唯一批准DER SHA256核验，不换debug身份。两端继续检查实际版本、平台/ABI、入口、公开CA和摘要；安装/TLS/会议结果单列。原Windows工具/身份/Secrets保留为历史，不用于本入口，不自动删除。当前辅助回归不代替新Actions最终产品验包。
+
 规范见`../../AGENTS.md`。工具位于deploy/build-tools/clients，业务源码仍在deploy的同级目录。在工作区根执行时使用deploy/build-tools/clients/build-clients.cjs，Node无需新增依赖：
 
 ```powershell

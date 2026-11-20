@@ -31,25 +31,17 @@ function forgeWrapper(project, assignment) {
   return `const path = require('node:path');
 const root = ${JSON.stringify(project)};
 const config = require(path.join(root, 'forge.config.cloudmeet-base.cjs'));
-const signing = require(${JSON.stringify(path.join(__dirname, 'signing.cjs'))});
-// Do not invoke the source optional PFX path (it logs password arguments on failure).
+// Approved unsigned Windows delivery: never load or call signing tools.
 delete config.packagerConfig.windowsSign;
-const nativePostPackage = config.hooks.postPackage;
-config.hooks.postPackage = async (cfg, result) => {
-  if (nativePostPackage) await nativePostPackage(cfg, result);
-  for (const output of result.outputPaths) signing.sign(path.join(output, 'cloudmeet.exe'));
-};
+delete config.hooks.postPackage;
 config.packagerConfig = { ...config.packagerConfig, appVersion: ${JSON.stringify(v.msi_version)}, buildVersion: ${JSON.stringify(v.pe_version)} };
 config.packagerConfig.ignore = [...config.packagerConfig.ignore, /^\\/forge\\.config\\.cloudmeet-base\\.cjs$/];
 // User approved 2026-11-20: OpenVPN is removed from the package; the vendor
 // payload verification and unified MSI assembly are retired. The reviewed
-// maker-wix MSI is signed directly and becomes the final artifact.
+// maker-wix MSI is delivered unsigned and becomes the final artifact.
 config.hooks.preMake = async () => {};
 config.makers = config.makers.map(m => m.name === '@electron-forge/maker-wix' ? { ...m, config: { ...m.config, version: ${JSON.stringify(v.msi_version)} } } : m);
-config.hooks.postMake = async (_config, results) => {
-  for (const result of results) for (const file of result.artifacts || []) if (file.endsWith('.msi')) signing.sign(file);
-  return results;
-};
+config.hooks.postMake = async (_config, results) => results;
 module.exports = config;
 `;
 }

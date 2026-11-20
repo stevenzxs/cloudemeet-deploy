@@ -10,6 +10,12 @@
 - 旧 /opt/cloudmeet-jks 数据保留未动；未改 202 生产与其他实例。
 # 当前执行记录
 
+## 2026-11-20 Windows取消代码签名，Android保持签名
+
+- 经正常流程变更提醒和用户二次确认：Windows EXE/MSI取消签名钩子及PFX/SignTool/私有证书工具检出前提；不再安装签名根或验签/时间戳，审计与交付明确unsigned及未知发布者/SmartScreen风险，不写signature passed。原签名工具/身份/Secrets保留，非修复其内部阻塞。
+- Android保持原keystore/批准DER及安全Secrets注入；两端HTTPS CA、入口、rN/版本、架构/ABI/摘要不变。旧postPackage不返回路径不再进入Windows新构建；maker-wix结果直接返回，既有packageAfterCopy及版本映射保留，未改产品源码SHA/依赖或35分钟超时。
+- 回归先确认旧签名钩子、Windows凭据及交付记录三处失败后实施；网络最终审计旧签名必检亦由新增测试确认失败再适配。完整辅助验证、提交/150备份同步及一次新联合amd64 Actions（允许发布、不部署）结果以唯一台账为准；实现/辅助测试不冒充MSI/APK最终验收。
+
 ## 2026-11-20 Android编译XML字符数据丢失诊断
 
 - Run44717430608 r11 Android在最终资源检查报118.193.36.35匹配0条CA规则，生成配置审计通过；失败APK/解码XML未保留，不能断言本批包内实际缺规则。与重复预检及等价重复规则放宽无关。

@@ -1,6 +1,6 @@
 ---
 name: cloudmeet-online-delivery
-description: Use when the user requests CloudMeet standard online delivery, Actions builds, signed Windows/Android clients, deployment or acceptance through Hermes, including short origin-only prompts.
+description: Use when the user requests CloudMeet standard online delivery, Actions builds, Windows/Android clients, deployment or acceptance through Hermes, including short origin-only prompts.
 ---
 
 # CloudMeet 标准线上交付
@@ -19,7 +19,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 |---|---|
 | 完整 origin（协议/主机/端口）及任务终点 | 自动修订 rN、同机媒体IPv4、端口、签名、首装入口、main闭环 |
 
-已有完整 origin 就使用，不要求重新输入。缺 origin 时只问这个值。Windows 必须真实批准身份签名，禁止提供未签名选项或自签替代。首次安装固定 setup.py，不把 online_update 当首装选项；发现既有实例停止首装、报告事实，不覆盖既有数据。
+已有完整 origin 就使用，不要求重新输入。缺 origin 时只问这个值。2026-11-20用户二次确认：Windows EXE/MSI取消代码签名，交付明确unsigned，不要求Windows PFX/SignTool或代码签名验签；Android保持现有keystore和批准DER核验，两端HTTPS CA限定信任不变。首次安装固定 setup.py，不把 online_update 当首装选项；发现既有实例停止首装、报告事实，不覆盖既有数据。
 
 ## 实际入口
 
@@ -30,11 +30,11 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 ## 一套标准执行顺序
 
-1. **预检和固定身份**：查询现有GHCR镜像、Run、源码锁定SHA和配置main；明确本次是否要求完整新构建。检查Android两项Secrets、批准DER指纹，以及Windows真实公开身份、PFX两项Secrets、私有证书库只读访问 `CERTIFICATES_READ_TOKEN`、SignTool和时间戳能力。只看Secrets名称，不读取值。不再问是否需要Windows签名；缺材料列准确名称及安全提供位置。
+1. **预检和固定身份**：查询现有GHCR镜像、Run、源码锁定SHA和配置main；明确本次是否要求完整新构建。检查Android两项Secrets、批准DER指纹；Windows不要求代码签名材料/SignTool或私有证书库检出，不安装签名根。检查两端公开HTTPS CA；只看Secrets名称，不读取值。缺材料列准确名称及安全提供位置。
 2. **版本基础设施**：专用150控制Runner、持久仓库外SQLite、`CLOUDMEET_VERSION_LEDGER`、独立备份恢复与最新计数证据一起核验。采用标准规范方案，标签不等于Runner隔离；实测账户支持的Runner组/工作流限制及可信执行边界，无法满足则阻断，不降低隔离。已授权基础设施实施时直接执行该标准方案；未授权写操作时一次报告具体边界。正式台账丢失不自动重建，恢复须核对独立Run/高水位证据；禁止把纯预检当正式占号或承诺r1。
 3. **统一参数**：运行 `python3 -B build-tools/delivery-target.py --origin <origin>` 预览；IPv4直接复用MEDIA_HOST，域名用当前解析及独立核验的同机IPv4，经 `--verified-target-ipv4` 输入工具，歧义阻断。MEDIA_PORT来自受控target.env，不从网页端口猜。将工具输出的入口三项更新到唯一config/client.env，CLIENT_VERSION保持批准基线。包外实例配置通过 `--target-env <仓库外绝对路径>` 创建，不修改包内文件。修改/测试后提交推送并合入main，再固定最终完整SHA；只推任务分支不算完成。
 4. **联合构建/发布**：审阅当前 `build-joint.yml`、复用工作流的触发器/权限/Secrets/目标；显式 material_commit=本次最终配置SHA、118 architecture=amd64、在本次授权发布范围内 publish_images=true。不要用旧actions.py的手填--version示例调度新入口。新顶层Run在产品测试/构建前分配N，失败取消占号、同Run重跑复用、子流程继承；不另开客户端Run重复占号。不在150/目标机/Windows编译服务端，不自动离线回退。
-5. **跟踪与制品**：调度前落盘意图和任务ID，查询关联Run，记录head_sha/Run ID/attempt；HTTP204不等于成功。有限等待，网络超时先查状态，不重新dispatch。核验完成结论、实际矩阵、artifact来源/外层摘要、内层SHA256SUMS、七镜像固定digest和config身份。双客户端最终APK/MSI/PE版本、ABI、origin、CA和批准签名身份必须通过；缺Windows签名就阻断交付，不如实标注后放行。
+5. **跟踪与制品**：调度前落盘意图和任务ID，查询关联Run，记录head_sha/Run ID/attempt；HTTP204不等于成功。有限等待，网络超时先查状态，不重新dispatch。核验完成结论、实际矩阵、artifact来源/外层摘要、内层SHA256SUMS、七镜像固定digest和config身份。双客户端最终APK/MSI/PE版本、ABI、origin、CA必须通过；Android比对批准签名身份，Windows记录unsigned及未知发布者/SmartScreen风险，不写验签通过。其余门禁失败仍阻断。
 6. **首装**：先核验材料和目标无既有安装；用本批setup.py及摘要、server归档及摘要、独立安全传输的cert.tar.gz、包外target.env，经 `setup.py --server-package <包> --verify-origin <origin> --target-env <外部绝对路径>` 首装。线上固定digest拉取由经审阅流程安排，setup只消费已验配套材料，不在目标编译或隐式下载。保留CA v1、复用有效同CA目标叶证书；核验链/SAN/期限/密钥配对、客户端限定信任和备份恢复，不把“无CA轮换”写成“不安装叶证书”。新CA轮换仍另批。失败保留数据/秘密/证书/目录，按已完成阶段记录，禁止清理重装或假称旧残留镜像可回滚。
 7. **验收与闭环**：分别报告构建、签名、发布、制品核验、安装、HTTPS/鉴权/信令、客户端安装和媒体结果。JVB媒体用三客户端或禁P2P，并记录实际JVB链路；两客户端P2P不能证明JVB可用。材料/设备不足列待核验，不虚报完成。知识库唯一台账按短分支→提交推送→合main→核验→删已合分支闭环，保全并发变更。
 
@@ -42,4 +42,4 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 仓库外受限检查点记录任务终点/授权范围、origin与派生值、三库SHA、Run/attempt、N、制品ID/摘要/digest、当前阶段与下一步。恢复先比较真实Run和目标，不重复占号、构建或首装。新秘密通过受限渠道提供，不在聊天粘贴；CA私钥不进Actions/镜像/目标包。
 
-同步安装仅证明文件到位；静态契约回归不证明模型已加载或整链验收。当前公开Windows身份及基础设施是否可用以本次实测为准，不把本文存在当就绪。
+同步安装仅证明文件到位；静态契约回归不证明模型已加载或整链验收。Android签名及基础设施是否可用以本次实测为准，不把本文存在当就绪。

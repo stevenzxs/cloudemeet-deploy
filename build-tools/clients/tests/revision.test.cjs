@@ -33,7 +33,7 @@ test('Forge adapter retires vendor payload verification and excludes build adapt
   assert.equal(config.packagerConfig.buildVersion, '1.0.22.0');
   assert.ok(config.packagerConfig.ignore.some(rule => rule.test('/forge.config.cloudmeet-base.cjs')));
 });
-test('Forge signs main executable and the reviewed maker-wix MSI without OpenVPN assembly', async () => {
+test('Forge removes Windows signing hooks and returns maker-wix MSI unchanged', async () => {
   const vm = require('node:vm');
   const { forgeWrapper } = require('../revision-config.cjs');
   const calls = [];
@@ -53,9 +53,10 @@ test('Forge signs main executable and the reviewed maker-wix MSI without OpenVPN
   // path string; the adapter must load the preserved base config, never itself.
   assert.ok(required.some(file => file.endsWith('/forge.config.cloudmeet-base.cjs')));
   assert.ok(!required.some(file => file.endsWith('/forge.config.js')));
-  await config.hooks.postPackage({}, { outputPaths: ['C:/app'] });
+  assert.equal(config.hooks.postPackage, undefined);
   const output = await config.hooks.postMake({}, results);
   assert.equal(config.packagerConfig.windowsSign, undefined);
-  assert.deepEqual(calls, ['native', 'C:/app/cloudmeet.exe', 'C:/final.msi']);
+  assert.deepEqual(calls, []);
+  assert.ok(!required.some(file => file.endsWith('/signing.cjs')));
   assert.equal(output, results);
 });

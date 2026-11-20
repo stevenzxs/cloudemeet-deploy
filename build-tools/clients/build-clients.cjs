@@ -139,10 +139,6 @@ function preflight(options, config) {
     blockers.push(...androidKeystorePolicyBlockers(java));
   }
   if (options.target !== 'android') {
-    try { require('./signing.cjs').windowsIdentity(); } catch (error) { blockers.push(error.message); }
-    for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'SIGNTOOL_PATH']) {
-      if (!process.env[key]) blockers.push(`Required Windows signing prerequisite missing: ${key}`);
-    }
     exists(path.join(root, 'jitsi-meet-electron/node_modules/@electron-forge/cli/dist/electron-forge.js'), 'Electron Forge dependencies');
     if (!findWix()) blockers.push('Missing WiX v3 candle.exe/light.exe: configure WIX or PATH');
   }
@@ -153,7 +149,7 @@ function preflight(options, config) {
       'Version-derived Android code may be lower than old time-based APK codes; in-place upgrade is NOT guaranteed.',
       'Configured CA is scoped to the deployment host; actual endpoint TLS compatibility is NOT verified.',
       'Preflight is not compilation, artifact signature verification or installation acceptance.',
-      'Windows release requires approved timestamped MSI and main executable signatures; no unsigned delivery.'
+      'Windows EXE/MSI delivery is unsigned; unknown-publisher or SmartScreen warnings are possible. Android retains approved release signing.'
     ] };
 }
 

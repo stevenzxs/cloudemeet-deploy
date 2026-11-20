@@ -151,16 +151,9 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     check('peVersion', peVersion === config.peVersion, peVersion);
     const bytes = fs.readFileSync(exe); const offset = bytes.readUInt32LE(0x3c);
     check('architecture', bytes.readUInt16LE(offset + 4) === 0x8664 && artifact.architecture === 'x64', 'PE AMD64');
-    const signing = require('./signing.cjs');
-    const identity = signing.windowsIdentity();
-    const signatures = [file, exe].map(p => {
-      // Consume the tool's authoritative result; do not reverify after its
-      // temporary private-root trust has already been removed.
-      const value = signing.verify(p);
-      validateWindowsSigner(value, identity.fingerprint);
-      return { file: path.basename(p), ...value };
-    });
-    check('signature', true, JSON.stringify(signatures));
+    // Unsigned is the approved policy, NOT a successful signature check.
+    checks.signing = { required: false, status: 'unsigned',
+      detail: 'UNSIGNED EXE/MSI; Windows may show unknown-publisher or SmartScreen warnings.' };
   } else {
     const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
     const tools = fs.readdirSync(path.join(sdk, 'build-tools')).sort((a,b) => a.localeCompare(b, undefined, { numeric: true })).reverse()

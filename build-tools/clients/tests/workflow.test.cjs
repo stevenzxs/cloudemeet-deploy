@@ -2,18 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
-test('client workflow is manual, pinned, least privilege and signature gated', () => {
+test('client workflow keeps Android signing but removes Windows signing credentials', () => {
   const text = fs.readFileSync(path.join(__dirname, '../../../.github/workflows/build-clients.yml'), 'utf8');
   assert.match(text, /workflow_dispatch:/);
   assert.doesNotMatch(text, /pull_request:|contents: write/);
   assert.match(text, /979a058769a085d0e63e68e6019d5753ed14f96b/);
   assert.match(text, /5d9d14d19b55aa618b3610d1a865e3d77485d46f/);
   assert.match(text, /ANDROID_KEYSTORE_BASE64/);
-  for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'CERTIFICATES_READ_TOKEN']) assert.match(text, new RegExp(key));
-  assert.match(text, /unsigned fallback prohibited/);
-  assert.match(text, /repository: stevenzxs\/cloudmeet-certificates/);
+  for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'CERTIFICATES_READ_TOKEN', 'SIGNTOOL_PATH']) assert.doesNotMatch(text, new RegExp(key));
+  assert.match(text, /debug fallback prohibited/);
   const policy = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../config/signing-policy.json'), 'utf8'));
-  assert.match(text, new RegExp(`ref: ${policy.commit}`));
+  assert.match(policy.android_certificate_der_sha256, /^[0-9a-f]{64}$/);
   assert.match(text, /build-clients.cjs --target/);
   assert.equal((text.match(/node deploy\/build-tools\/clients\/build-clients\.cjs --target/g) || []).length, 1);
   assert.doesNotMatch(text, /--version-record version-assignment\.json --check/);
@@ -35,6 +34,7 @@ test('normal client build retains mandatory preflight before compilation and rep
   const text = fs.readFileSync(path.join(__dirname, '../build-clients.cjs'), 'utf8');
   assert.ok(text.indexOf('const report = preflight(options, config)') < text.indexOf('if (!options.check) await build'));
   assert.match(text, /if \(report\.blockers\.length\) \{ process\.exitCode = 1; return; \}/);
+  assert.doesNotMatch(text, /windowsIdentity|WINDOWS_PFX|SIGNTOOL_PATH/);
   for (const stage of ['Preflight', 'Compile and package', 'Verify final packages', 'Deliver verified packages']) {
     assert.ok(text.includes(`[client-stage] ${stage}`));
   }

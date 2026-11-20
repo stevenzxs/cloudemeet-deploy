@@ -4,12 +4,18 @@ const crypto = require('node:crypto');
 const hash = file => crypto.createHash('sha256').update(fs.readFileSync(file)).digest('hex');
 
 function deliver(manifest, root) {
-  const required = ['version', 'architecture', 'origin', 'ca', 'signature'];
+  const common = ['version', 'architecture', 'origin', 'ca'];
   // Validate the entire batch before creating any release directory.
   for (const artifact of manifest.artifacts) {
     const checks = artifact.checks;
+    const required = artifact.platform === 'windows' ? common : [...common, 'signature'];
     if (!checks || required.some(name => checks[name]?.passed !== true)) {
       throw Error(`Package checks incomplete: ${artifact.file}; required: ${required.join(', ')}`);
+    }
+    if (artifact.platform === 'windows' && (checks.signature !== undefined
+        || checks.signing?.required !== false || checks.signing?.status !== 'unsigned'
+        || typeof checks.signing.detail !== 'string' || !checks.signing.detail.startsWith('UNSIGNED EXE/MSI;'))) {
+      throw Error('Explicit unsigned Windows delivery record required; never claim signature passed');
     }
     if (hash(path.join(manifest.candidate, artifact.file)) !== artifact.sha256) throw Error('Candidate digest changed');
     if (!['windows', 'android'].includes(artifact.platform)
@@ -35,7 +41,7 @@ function deliver(manifest, root) {
       fs.copyFileSync(path.join(manifest.candidate, name), path.join(destination, name));
     }
     fs.writeFileSync(path.join(destination, 'README.txt'), `CloudMeet ${manifest.version}\nOrigin: ${manifest.origin}\n`
-      + `Architectures: ${artifact.architectures.join(', ')}\nSignature: ${artifact.checks.signature.detail}\n`
+      + `Architectures: ${artifact.architectures.join(', ')}\nSignature: ${artifact.platform === 'windows' ? artifact.checks.signing.detail : artifact.checks.signature.detail}\n`
       + evidence.acceptance + '\n');
     const sums = fs.readdirSync(destination).sort().map(name => `${hash(path.join(destination, name))}  ${name}\n`).join('');
     fs.writeFileSync(path.join(destination, 'SHA256SUMS'), sums);

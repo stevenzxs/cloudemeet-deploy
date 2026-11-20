@@ -10,6 +10,13 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 2. 批次范围与授权
 
+### 2026-11-20 用户二次确认：Windows未签名，Android保持签名
+
+- 本节覆盖下文历史Windows必须签名/未签名拒绝/PFX注入要求。已明确提醒这是正常标准流程变更，用户确认Windows取消EXE/MSI代码签名，再确认Android保留现有应用签名、两端HTTPS CA不变，并授权修改提交推送及启动一次新联合Actions。
+- Windows正式交付取消EXE/MSI签名钩子、PFX/SignTool/证书库检出的构建前提和验签门禁；新产物/说明/审计明确标记unsigned，不写signature passed，不安装代码签名根证书或验证时间戳。可能有未知发布者/SmartScreen告警，不承诺公众信任。既有签名工具/身份/Secrets及历史包保留，不自动删除。
+- Android继续现有keystore及批准DER指纹校验，不改debug身份、不关闭APK签名；HTTPS公开CA及端点限定信任、版本/rN、入口、ABI、摘要和其余包检查保持。服务端签名/证书策略无变更。
+- 本任务沿用amd64七服务+Electron/Android、https://118.193.36.35:8443，main闭环、150备份同步后仅新开一次联合Actions并允许GHCR发布；不部署、不取消旧Run、不延长外层35分钟。
+
 ### 2026-11-19 标准流程固定选择（用户批准）
 
 - 短提示词仅需本次完整origin与终点；已给入口不再问，IPv4入口直接派生同机MEDIA_HOST，域名必须当前解析及同机身份核验，歧义才阻断；媒体端口取受控配置，不要求用户重填版本/媒体地址。
@@ -128,6 +135,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/network-audit.py`、`build-tools/tests/test_network_audit.py` | 地址/端口声明清单、目标派生和最终Compose审计；无网络辅助回归，新包目标启动前复用 |
 | `build-tools/NETWORK-AUDIT-PLAN.md` | 本次网络参数审计实施清单，非规范 |
 | `build-tools/STANDARD-FLOW-PLAN.md` | 标准流程修复计划及范围/验证记录，不另立规范 |
+| `build-tools/WINDOWS-UNSIGNED-PLAN.md` | 用户批准Windows取消代码签名、Android保持签名的实施/验证计划，非规范源 |
 | `build-tools/delivery-target.py`、`build-tools/tests/test_standard_flow.py` | 入口统一派生、包外实例配置与短提示词契约辅助回归，不调度/占号/部署 |
 | `config/signing-policy.json`、`build-tools/clients/signing.cjs`、`build-tools/clients/tests/signing.test.cjs` | 证书库固定工具/批准公开身份引用、调用适配与签名拒绝回归，不维护第二份签名实现 |
 | `build-tools/clients/tests/trust-result.test.cjs` | 证书工具受控信任范围内权威结果的调用与拒绝路径回归，不安装证书、不使用私钥 |
