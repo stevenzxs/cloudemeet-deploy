@@ -16,9 +16,10 @@ const sdkTool = (dir, base) => path.join(dir, process.platform === 'win32'
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
 
 function validateAndroidSigner(output, expected) {
-  // Modern apksigner prints lowercase without colons; older releases print
-  // uppercase with colons; tolerate both (and SHA256/SHA-256 spellings).
-  const signers = [...output.matchAll(/^Signer #\d+ certificate SHA-?256 digest:\s*([0-9a-fA-F:]+)\s*$/gim)]
+  // apksigner <= 36 prints "Signer #1 certificate SHA-256 digest:"; build-tools
+  // 37 prints scheme-prefixed "V2 Signer: certificate SHA-256 digest:". Tolerate
+  // both, uppercase/colon variants and SHA256/SHA-256 spellings.
+  const signers = [...output.matchAll(/^(?:V\d+(?:\.\d+)? Signer:|Signer #\d+) certificate SHA-?256 digest:\s*([0-9a-fA-F:]+)\s*$/gim)]
     .map(m => m[1].replaceAll(':', '').toLowerCase());
   if (!output.includes('Verifies')) throw Error('Android package signature does not verify');
   if (signers.length !== 1) throw Error(`Expected exactly one APK signer certificate, apksigner reported ${signers.length}; output excerpt: ${JSON.stringify(output.replace(/[A-Za-z0-9+/=]{48,}/g, '<b64>').slice(0, 500))}`);
