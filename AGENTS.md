@@ -168,7 +168,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/offline-runtime/certificate.py` | 公共目标证书安全解包/摘要、SAN及链/密钥预检，对外换证、仅重启gateway与严格HTTPS响应验证；不执行证书包脚本 |
 | `build-tools/tests/test_certificate.py` | origin拒绝规则、证书归档路径及CA私钥拒绝、可选本机证书清单回归，不连接服务器 |
 | `build-tools/README.md` | 统一入口参数、artifact内容、已有Docker依赖契约及辅助检查方法；非另一份规范 |
-| `build-tools/clients/build-clients.cjs` | Windows MSI/Android统一构建入口；显式读取config/client.env，提供只读预检查、锁、临时配置恢复及产物摘要；失败报告退出/启动错误与脱敏尾日志，脱敏诊断进入audit，原始候选日志禁止整体上传；最终检查后交付 |
+| `build-tools/clients/build-clients.cjs` | Windows MSI/Android统一构建入口；显式读取config/client.env，提供只读预检查、锁、临时配置恢复及产物摘要；双端实时输出安全编译日志，完整脱敏诊断追加audit，失败报告退出/启动错误与尾日志，原始候选日志禁止整体上传；最终检查后交付 |
 | `build-tools/clients/core.cjs` | 严格四项配置校验、版本到Android整数转换、WiX路径识别与锁/临时文件恢复公共实现 |
 | `build-tools/clients/README.md`、`build-tools/clients/.gitignore` | 客户端工具操作说明及本机锁/旧状态文件忽略边界，非并列规范 |
 | `.github/workflows/build-clients.yml` | 双客户端手动Actions入口候选，固定源码及材料SHA、签名缺项拒绝、仅上传核验制品；CA获取/工具链/发布尚待补齐，不触发即视为验收 |
@@ -410,6 +410,12 @@ flowchart TD
 - 回滚保存本实例旧配置/补丁/镜像身份和一致性数据备份，评估数据库兼容；不能覆盖更新后的用户数据或无故换证书/秘密。恢复后重新验证数据、接口和会议。
 
 ## 8. 客户端编译与签名
+
+### 2026-11-20 用户二次确认：双客户端实时编译日志
+
+- Android和Electron统一入口实时向Actions控制台输出子进程stdout/stderr的完整行及回车进度，退出时补齐末行，不再只在失败时输出尾部。保留普通signing/password等诊断文字，仅遮盖已知真实凭据值、明确凭据字段值和私钥内容；不直传未过滤的原始输出或环境。
+- 脱敏审计日志追加保存完整输出，不再仅保留64KiB；内存失败摘要仍限尾部，原始候选日志不整体上传。单行超过1MiB的异常输出以显式占位报告，不静默截断。客户端子输出加前缀避免被解释为Actions命令。不得据日志改造宣称编译性能/完整产品验收通过。
+- 本次批准修改/辅助回归、提交合main、台账与150备份同步，不授权新开/重跑Actions、正式占号、部署或改变签名/CA/验包/35分钟超时；既有固定Run不热更新。
 
 ### 2026-11-20 用户二次确认：无冲突重复配置
 

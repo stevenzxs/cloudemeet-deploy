@@ -31,43 +31,61 @@ function argumentsFor(args) {
 }
 
 function sanitizeBuildLog(text, env) {
+  text = text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '');
   text = text.replace(/-----BEGIN ([A-Z ]*PRIVATE KEY)-----[\s\S]*?(?:-----END \1-----|$)/g, '[REDACTED PRIVATE KEY]');
   const secrets = Object.entries(env).filter(([name, value]) => value && /PASSWORD|PASSPHRASE|TOKEN|SECRET|KEYSTORE|PFX|CREDENTIAL|AUTHORIZATION/i.test(name))
     .flatMap(([, value]) => [String(value), encodeURIComponent(value), JSON.stringify(String(value)).slice(1, -1)])
     .sort((a, b) => b.length - a.length);
   for (const value of secrets) text = text.split(value).join('[REDACTED]');
-  return text.replace(/\x1b\[[0-9;]*[A-Za-z]/g, '').split(/\r?\n/).map(line =>
-    /password|passphrase|authorization|bearer\s|token\s*[:=]|secret\s*[:=]|signtool.*\s\/p\s/i.test(line)
-      ? '[REDACTED credential-bearing line]' : line).join('\n');
+  const value = `(?:"[^"\\r\\n]*"|'[^'\\r\\n]*'|[^\\s;,&]+)`;
+  return text.replace(new RegExp(`(\\b(?:[\\w.-]*(?:password|passphrase|token|secret)|authorization)["']?\\s*[:=]\\s*(?:Bearer\\s+|Basic\\s+)?|\\bBearer\\s+|\\/p\\s+)${value}`, 'gi'),
+    '$1[REDACTED]');
 }
 
-async function run(exe, args, cwd, env, logfile) {
+async function run(exe, args, cwd, env, logfile, output = process.stderr) {
+  const logEnv = { ...env };
+  // Android passwords live in the provisioned properties file, not the build
+  // environment. Mask their exact values without printing or forwarding them.
+  const props = path.join(cwd, 'keystores/release.keystore.properties');
+  if (fs.existsSync(props)) {
+    for (const [index, match] of [...fs.readFileSync(props, 'utf8').matchAll(/^\s*(?:storePassword|keyPassword)\s*=\s*(.+?)\s*$/gm)].entries()) {
+      logEnv[`SIGNING_PASSWORD_${index}`] = match[1];
+    }
+  }
   const fd = fs.openSync(logfile, 'a');
   let diagnostic = '';
   const auditFile = env.CLOUDMEET_AUDIT_DIR && path.join(env.CLOUDMEET_AUDIT_DIR, `build-${path.basename(logfile)}`);
   if (auditFile) fs.mkdirSync(env.CLOUDMEET_AUDIT_DIR, { recursive: true });
   const retain = text => {
     diagnostic = (diagnostic + text).slice(-65536);
-    if (auditFile) fs.writeFileSync(auditFile, diagnostic);
+    if (auditFile) fs.appendFileSync(auditFile, text);
+    // Prefix child output so it cannot be interpreted as Actions commands.
+    output.write(`[client-build] ${text}`);
   };
-  // Retain only complete sanitized lines while running; incomplete credentials
-  // and unterminated output stay exclusively in the protected raw log.
+  // Buffer split credentials until the line is complete, then stream immediately.
+  // Flush the final unterminated line on close as well.
+  const finishStreams = [];
   const consumeStream = () => {
     let pending = '', privateKey = false, oversized = false;
-    return chunk => {
-    fs.writeSync(fd, chunk);
-    for (const part of chunk.toString('utf8').split(/(?<=\n)/)) {
-      if (!oversized) pending += part;
-      if (pending.length > 1048576) { pending = ''; oversized = true; }
-      if (!part.endsWith('\n')) continue;
+    const flush = () => {
       if (oversized) { retain('[REDACTED oversized line]\n'); oversized = false; }
       else {
         if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(pending)) privateKey = true;
-        retain(privateKey ? '[REDACTED PRIVATE KEY]\n' : sanitizeBuildLog(pending, env));
+        retain(privateKey ? '[REDACTED PRIVATE KEY]\n' : sanitizeBuildLog(pending, logEnv) + '\n');
         if (/-----END [A-Z ]*PRIVATE KEY-----/.test(pending)) privateKey = false;
       }
       pending = '';
-    }
+    };
+    finishStreams.push(() => { if (pending || oversized) flush(); });
+    return chunk => {
+      fs.writeSync(fd, chunk);
+      for (const part of chunk.split(/([\r\n])/)) {
+        if (part === '\n' || part === '\r') { if (pending || oversized) flush(); }
+        else if (!oversized) {
+          pending += part;
+          if (pending.length > 1048576) { pending = ''; oversized = true; }
+        }
+      }
     };
   };
   let result;
@@ -78,7 +96,10 @@ async function run(exe, args, cwd, env, logfile) {
       child.on('error', value => { error = value; });
       child.stdout.setEncoding('utf8').on('data', consumeStream());
       child.stderr.setEncoding('utf8').on('data', consumeStream());
-      child.on('close', (status, signal) => resolve({ error, status, signal }));
+      child.on('close', (status, signal) => {
+        for (const finish of finishStreams) finish();
+        resolve({ error, status, signal });
+      });
     });
   } finally { fs.closeSync(fd); }
   if (result.error || result.status !== 0) {

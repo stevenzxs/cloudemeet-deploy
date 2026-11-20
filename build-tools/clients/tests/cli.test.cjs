@@ -58,6 +58,57 @@ test('diagnostic sanitizer excludes private-key blocks and credential-bearing li
   assert.match(text, /error compiler/);
   for (const secret of ['private bytes', 'Bearer value', 'hidden-value']) assert.ok(!text.includes(secret));
 });
+test('sanitizer preserves signing diagnostics and redacts values rather than whole lines', () => {
+  const { sanitizeBuildLog } = require('../build-clients.cjs');
+  const text = sanitizeBuildLog('signing password validation failed: missing password\n'
+    + 'tokenizer compiled; token count=42\nAuthorization: Bearer hidden-auth; compiler failed\n'
+    + 'password="hidden with spaces"; task failed\nsigntool /p hidden-pass /v compiler-error\n'
+    + 'known=fixture-secret; download failed\n', { BUILD_TOKEN: 'fixture-secret' });
+  for (const message of ['signing password validation failed: missing password', 'tokenizer compiled; token count=42',
+    'compiler failed', 'task failed', '/v compiler-error', 'download failed']) assert.ok(text.includes(message), message);
+  for (const secret of ['hidden-auth', 'hidden with spaces', 'hidden-pass', 'fixture-secret']) assert.ok(!text.includes(secret));
+});
+for (const target of ['android', 'electron']) test(`${target} streams both outputs before exit and retains full audit including EOF`, async () => {
+  const { run } = require('../build-clients.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-stream-'));
+  const release = path.join(dir, 'release');
+  const audit = path.join(dir, 'audit');
+  fs.mkdirSync(path.join(dir, 'keystores'));
+  fs.writeFileSync(path.join(dir, 'keystores/release.keystore.properties'), 'storePassword=fixture-store-value\nkeyPassword=fixture-key-value\n');
+  let output = '', resolveLive;
+  const live = new Promise(resolve => { resolveLive = resolve; });
+  const sink = { write(text) { output += text; if (output.includes('stderr-progress')) resolveLive(); } };
+  const source = `const fs=require('node:fs'); console.log('stdout-progress'); console.error('stderr-progress');
+    process.stdout.write('fixture-');
+    const timer=setInterval(()=>{if(!fs.existsSync(${JSON.stringify(release)}))return;
+      clearInterval(timer);process.stdout.write('secret-value\\n');
+      console.log('-----BEGIN PRIVATE KEY-----');console.log('private-fixture');console.log('-----END PRIVATE KEY-----');
+      console.log('fixture-store-value fixture-key-value');
+      process.stdout.write('download-progress\\r');console.log('::error::fixture-not-an-annotation');
+      console.log('x'.repeat(70000));process.stdout.write('last-line-without-newline');},20);
+    setTimeout(()=>process.exit(9),4000).unref();`;
+  const promise = run(process.execPath, ['-e', source], dir,
+    { ...process.env, CLOUDMEET_AUDIT_DIR: audit, BUILD_TOKEN: 'fixture-secret-value' }, path.join(dir, `${target}.log`), sink);
+  try {
+    await Promise.race([live, new Promise((_, reject) => setTimeout(() => reject(Error('no live build output')), 2000))]);
+    assert.ok(!fs.existsSync(release));
+    assert.match(output, /stdout-progress/);
+  } finally {
+    fs.writeFileSync(release, 'continue');
+    await promise;
+    try {
+      const report = fs.readFileSync(path.join(audit, `build-${target}.log`), 'utf8');
+      for (const text of [output, report]) {
+        assert.match(text, /stdout-progress/); assert.match(text, /stderr-progress/);
+        assert.match(text, /last-line-without-newline/); assert.ok(text.length > 70000);
+        assert.ok(!text.includes('fixture-secret-value')); assert.ok(!text.includes('private-fixture'));
+        assert.ok(!text.includes('fixture-store-value')); assert.ok(!text.includes('fixture-key-value'));
+        assert.match(text, /download-progress/);
+      }
+      assert.ok(!output.split('\n').some(line => line.startsWith('::error::')));
+    } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+  }
+});
 test('candidate creation tolerates a missing temporary parent directory', () => {
   const { createCandidate } = require('../build-clients.cjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-parent-'));

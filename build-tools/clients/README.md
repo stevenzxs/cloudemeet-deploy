@@ -124,12 +124,18 @@ SignTool与公开身份比较。APK要求唯一批准签名DER指纹，不接受
 当前真实Windows身份尚缺，固定工具提交下也无该身份；配置后必须更新受审工具SHA及
 工作流引用再构建，不能临时覆盖身份。实际签名/时间戳/清理及最终包仍须云端验收。
 
-## 失败诊断（2026-11-19）
+## 实时日志与失败诊断（2026-11-20）
+
+Android和Electron通过同一run入口将子进程stdout/stderr逐行实时输出至Actions控制台，
+带`[client-build]`前缀，支持回车进度和退出末行。普通signing/password等错误描述保留，
+只遮盖凭据值/私钥；Android已注入properties中的密码也按值遮盖，不转发到子进程环境。
+脱敏audit日志完整追加保留（不限64KiB），失败摘要仍限尾部；超过1MiB的异常单行明确标记。
+旧Run的固定提交不因本次修改而更新；本机辅助回归不等于新Actions产品验收。
 
 子构建失败时，错误包含实际exit/signal或spawn错误码及脱敏后的最后30行（最多8KiB），
 不再只指向Runner销毁后不可读取的临时文件。原始electron.log/android.log仍留受保护的
-候选目录；不上传整个候选目录、命令参数或环境。脱敏会屏蔽环境中已知秘密值、私钥块及
-凭据行；最多64KiB的脱敏诊断以build-electron.log/build-android.log写入CLOUDMEET_AUDIT_DIR，
+候选目录；不上传整个候选目录、命令参数或环境。脱敏屏蔽已知秘密值、明确凭据字段值及
+私钥块；完整脱敏诊断以build-electron.log/build-android.log写入CLOUDMEET_AUDIT_DIR，
 由工作流现有always审计制品保留14天。不要将秘密写入产品工具自定义日志；脱敏不是秘密管理替代品。
 
 旧Run44023749308（配置e256f5d，2026-11-17）未上传任何artifact，其详细electron.log
