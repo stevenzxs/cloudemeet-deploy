@@ -156,6 +156,12 @@ jobs:
         shell: pwsh
         run: |
           $project = if ('${{ matrix.target }}' -eq 'android') { 'jm' } else { 'jitsi-meet-electron' }
+          if ('${{ matrix.target }}' -eq 'android') {
+            # jm postinstall 的 android-clean-cmake-cache 使用 Unix find 语法；
+            # Windows 上需让 GNU find（Git for Windows 自带）优先于 FIND.EXE。
+            $gnuFind = 'C:\Program Files\Git\usr\bin'
+            if (Test-Path (Join-Path $gnuFind 'find.exe')) { $env:PATH = "$gnuFind;$env:PATH" } else { throw 'GNU find missing' }
+          }
           Push-Location $project
           npm ci
           if ($LASTEXITCODE) { throw 'npm ci failed' }
