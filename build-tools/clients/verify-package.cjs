@@ -43,14 +43,16 @@ function inspectAndroidResources(file, analyzer, aapt, config, requireCa, run = 
     if (!/^res\/[a-zA-Z0-9_./-]+$/.test(value) || value.split('/').includes('..')) throw Error('Unsafe Android resource member');
     return value;
   };
+  const trustMember = requireCa ? member('xml', 'network_security_config') : null;
   const xml = name => normalize(run(analyzer, ['resources', 'xml', '--file', member('xml', name), file]));
   validateAndroidResources(normalize(run(analyzer, ['manifest', 'print', file])),
-    xml('app_restrictions'), requireCa ? xml('network_security_config') : '', config, requireCa);
+    xml('app_restrictions'), requireCa ? xml('network_security_config') : '', config, requireCa,
+    requireCa ? run(aapt, ['dump', 'xmltree', file, trustMember]) : null);
   return requireCa ? member('raw', 'cloudmeet_client_ca') : null;
 }
 
-function validateAndroidResources(manifest, restrictions, trust, config, requireCa) {
-  const script = `import sys,json,xml.etree.ElementTree as E
+function validateAndroidResources(manifest, restrictions, trust, config, requireCa, trustTree = null) {
+  const script = `import sys,json,re,xml.etree.ElementTree as E
 d=json.loads(sys.argv[1]); ns='{http://schemas.android.com/apk/res/android}'
 m=E.fromstring(d['manifest']); app=m if m.tag=='application' else m.find('application')
 assert app is not None
@@ -61,6 +63,32 @@ assert len(matches)==1 and matches[0].get(ns+'defaultValue')==d['origin']
 if d['requireCa']:
   assert app.get(ns+'networkSecurityConfig')=='@xml/network_security_config'
   t=E.fromstring(d['trust'])
+  if d['trustTree'] is not None:
+   # apkanalyzer preserves attributes but drops binary XML character data.
+   # Pair every element/parent with aapt's tree of the SAME compiled member.
+   nodes=list(t.iter()); parents={c:p for p in t.iter() for c in p}
+   stack=[]; count=0; texts={}
+   for line in d['trustTree'].splitlines():
+    element=re.fullmatch(r'( *)E: ([\\w.-]+) \\(line=\\d+\\)\\s*',line)
+    if element:
+     depth=len(element[1])
+     while stack and stack[-1][0]>=depth: stack.pop()
+     if count>=len(nodes): raise ValueError('Android XML structure mismatch')
+     node=nodes[count]; count+=1
+     parent=stack[-1][1] if stack else None
+     if node.tag!=element[2] or parents.get(node) is not parent: raise ValueError('Android XML structure mismatch')
+     stack.append((depth,node))
+    elif re.match(r'\\s*[CT]:',line):
+     text=re.fullmatch(r'( *)C: (".*")\\s*',line)
+     if not text or not stack or len(text[1])<=stack[-1][0]: raise ValueError('Unsupported Android XML character data')
+     try: value=json.loads(text[2])
+     except ValueError: raise ValueError('Unsupported Android XML character data')
+     node=stack[-1][1]; texts[node]=texts.get(node,'')+value
+   if count!=len(nodes): raise ValueError('Android XML structure mismatch')
+   for node in nodes:
+    value=texts.get(node,'')
+    if (node.text or '').strip() and (node.text or '').strip()!=value.strip(): raise ValueError('Android XML character data mismatch')
+    node.text=value
   rules=[x for x in t.iter('domain-config') if any((v.text or '').strip()==d['host'] for v in x.findall('domain'))]
   if not rules: raise ValueError('Android CA scope: matched 0 rules for '+d['host'])
   for rule in rules:
@@ -81,7 +109,7 @@ if d['requireCa']:
    print('Equivalent duplicate Android CA rules: '+str(len(rules)))
 print('verified')`;
   const result = command(PY, ['-B', '-c', script, JSON.stringify({ manifest, restrictions, trust,
-    origin: config.origin, host: config.values.SITE_DOMAIN, requireCa })]);
+    origin: config.origin, host: config.values.SITE_DOMAIN, requireCa, trustTree })]);
   const lines = result.trim().split(/\r?\n/);
   if (lines.pop() !== 'verified') throw Error('Android resource reference validation failed');
   for (const warning of lines) console.warn(warning);

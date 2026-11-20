@@ -8,15 +8,40 @@ const config = parseConfig('SITE_DOMAIN=10.1.2.28\nSITE_SCHEME=https\nSITE_PORT=
 
 test('Android compiled references and renamed members resolve through resource table', () => {
   const inspect = require('../verify-package.cjs').inspectAndroidResources;
+  const tree = host => `E: network-security-config (line=1)
+  E: domain-config (line=2)
+    E: domain (line=3)
+      A: includeSubdomains=(type 0x12)0x0
+      C: "${host}"
+    E: trust-anchors (line=4)
+      E: certificates (line=5)
+        A: src=@0x7f110000`;
+  let compiledTree = tree('10.1.2.28');
   const run = (exe, args) => {
+    if (args[0] === 'dump' && args[1] === 'xmltree') {
+      assert.equal(exe, 'aapt');
+      assert.deepEqual(args, ['dump', 'xmltree', 'fixture.apk', 'res/A.xml']);
+      return compiledTree;
+    }
     if (args[0] === 'dump') return 'spec resource 0x7f150000 pkg:xml/app_restrictions: flags=0\nspec resource 0x7f150006 pkg:xml/network_security_config: flags=0\nspec resource 0x7f110000 pkg:raw/cloudmeet_client_ca: flags=0';
     if (args[0] === 'manifest') return '<application xmlns:android="http://schemas.android.com/apk/res/android" android:networkSecurityConfig="@ref/0x7f150006"><meta-data android:name="android.content.APP_RESTRICTIONS" android:resource="@ref/0x7f150000"/></application>';
     if (args[1] === 'value') return ({app_restrictions:'res/Kt.xml',network_security_config:'res/A.xml',cloudmeet_client_ca:'res/C.crt'})[args[args.indexOf('--name')+1]];
     if (args.includes('res/Kt.xml')) return `<restrictions xmlns:android="http://schemas.android.com/apk/res/android"><restriction android:key="SERVER_URL" android:defaultValue="${config.origin}"/></restrictions>`;
-    if (args.includes('res/A.xml')) return '<network-security-config><domain-config><domain>10.1.2.28</domain><trust-anchors><certificates src="@ref/0x7f110000"/></trust-anchors></domain-config></network-security-config>';
+    // Real apkanalyzer output loses binary XML character data, not just refs.
+    if (args.includes('res/A.xml')) return '<network-security-config><domain-config><domain includeSubdomains="false"/><trust-anchors><certificates src="@ref/0x7f110000"/></trust-anchors></domain-config></network-security-config>';
     throw Error('Unexpected resource command');
   };
   assert.equal(inspect('fixture.apk','analyzer','aapt',config,true,run), 'res/C.crt');
+  compiledTree = tree('other.example');
+  assert.throws(() => inspect('fixture.apk','analyzer','aapt',config,true,run), /matched 0/);
+  compiledTree = tree('10.1.2.28').replace('    E: trust-anchors', '      E: trust-anchors');
+  assert.throws(() => inspect('fixture.apk','analyzer','aapt',config,true,run), /structure mismatch/);
+  compiledTree = tree('10.1.2.28').replace('C: "10.1.2.28"', 'C: not-a-quoted-string');
+  assert.throws(() => inspect('fixture.apk','analyzer','aapt',config,true,run), /character data/);
+  compiledTree = '';
+  assert.throws(() => inspect('fixture.apk','analyzer','aapt',config,true,run), /structure mismatch/);
+  compiledTree = tree('10.1.2.28').replace('    E: domain (line=3)', '    E: other (line=3)');
+  assert.throws(() => inspect('fixture.apk','analyzer','aapt',config,true,run), /structure mismatch/);
 });
 
 test('all batch audit phases are staged without changing bytes', () => {
