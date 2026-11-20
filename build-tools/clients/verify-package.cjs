@@ -18,8 +18,10 @@ const quote = value => "'" + value.replaceAll("'", "''") + "'";
 function validateAndroidSigner(output, expected) {
   const signers = [...output.matchAll(/^Signer #\d+ certificate SHA-256 digest:\s*([0-9a-f:]+)\s*$/gim)]
     .map(m => m[1].replaceAll(':', '').toLowerCase());
-  if (!/^[0-9a-f]{64}$/.test(expected || '') || !output.includes('Verifies')
-      || signers.length !== 1 || signers[0] !== expected) throw Error('Approved Android signer mismatch');
+  if (!output.includes('Verifies')) throw Error('Android package signature does not verify');
+  if (signers.length !== 1) throw Error(`Expected exactly one APK signer certificate, apksigner reported ${signers.length}`);
+  if (!/^[0-9a-f]{64}$/.test(expected || '')) throw Error('Approved Android identity fingerprint required');
+  if (signers[0] !== expected) throw Error(`Approved Android signer mismatch: APK signer ${signers[0]} != policy ${expected}`);
   return signers[0];
 }
 function validateWindowsSigner(value, expected) {

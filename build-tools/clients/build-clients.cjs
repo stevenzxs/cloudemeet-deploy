@@ -61,6 +61,33 @@ function run(exe, args, cwd, env, logfile) {
   }
 }
 
+function androidKeystorePolicyBlockers(java) {
+  const dir = path.join(root, 'jm/android/keystores');
+  const propsFile = path.join(dir, 'release.keystore.properties');
+  const keystore = path.join(dir, 'release.keystore');
+  if (!fs.existsSync(propsFile) || !fs.existsSync(keystore)) return [];
+  if (!java) return [];
+  const props = {};
+  try {
+    for (const line of fs.readFileSync(propsFile, 'utf8').split(/\r?\n/)) {
+      if (!line.trim() || line.trim().startsWith('#')) continue;
+      const key = line.split('=')[0].trim();
+      props[key] = line.slice(line.indexOf('=') + 1).trim();
+    }
+  } catch { return ['Android signing properties unreadable; re-provision signing secrets']; }
+  if (!props.storePassword || !props.keyAlias) return ['Android signing properties incomplete; re-provision signing secrets'];
+  const keytool = path.join(path.dirname(java), process.platform === 'win32' ? 'keytool.exe' : 'keytool');
+  const result = spawnSync(keytool, ['-list', '-v', '-keystore', keystore,
+    '-storepass', props.storePassword, '-alias', props.keyAlias],
+    { encoding: 'utf8', windowsHide: true, timeout: 60000 });
+  const match = /SHA-?256:\s*([0-9a-f:]+)/i.exec(result.stdout || '');
+  if (result.status !== 0 || !match) return ['Android keystore certificate fingerprint could not be established; re-provision signing secrets via certificate repository android/provision-secrets.py'];
+  const actual = match[1].replaceAll(':', '').toLowerCase();
+  const expected = require('./signing.cjs').policy.android_certificate_der_sha256;
+  if (actual !== expected) return [`CI Android keystore certificate ${actual} does not match approved signing policy ${expected}; re-provision ANDROID_KEYSTORE secrets via certificate repository android/provision-secrets.py`];
+  return [];
+}
+
 function preflight(options, config) {
   const blockers = [];
   if (!config.assignment) blockers.push('Version allocation missing: diagnostic baseline only; release builds disabled');
@@ -80,6 +107,7 @@ function preflight(options, config) {
     if (!java || !fs.existsSync(java)) blockers.push('JAVA_HOME must point to an installed JDK');
     const sdk = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
     if (!sdk || !fs.existsSync(path.join(sdk, 'platform-tools'))) blockers.push('ANDROID_HOME/ANDROID_SDK_ROOT with installed SDK required');
+    blockers.push(...androidKeystorePolicyBlockers(java));
   }
   if (options.target !== 'android') {
     try { require('./signing.cjs').windowsIdentity(); } catch (error) { blockers.push(error.message); }
@@ -171,11 +199,16 @@ async function build(options, config, report) {
         const project = path.join(root, 'jitsi-meet-electron');
         const metadata = path.join(project, 'package.json');
         const pkg = JSON.parse(fs.readFileSync(metadata, 'utf8')); pkg.version = config.version;
-        pkg.config = { ...pkg.config, forge: './cloudmeet.forge.cjs' };
         const started = Date.now();
+        // electron-forge 7 prefers an existing forge.config.js over the package.json
+        // config.forge path string, so the adapter must occupy forge.config.js itself;
+        // the source config is preserved beside it as forge.config.cloudmeet-base.cjs
+        // (both are restored/removed by withFiles after the build).
+        const nativeForge = path.join(project, 'forge.config.js');
         const changes = [[metadata, JSON.stringify(pkg, null, 2) + '\n'],
           [path.join(project, 'cloudmeet-version.json'), JSON.stringify(config.assignment, null, 2) + '\n'],
-          [path.join(project, 'cloudmeet.forge.cjs'), require('./revision-config.cjs').forgeWrapper(project, config.assignment)],
+          [path.join(project, 'forge.config.cloudmeet-base.cjs'), fs.readFileSync(nativeForge, 'utf8')],
+          [nativeForge, require('./revision-config.cjs').forgeWrapper(project, config.assignment)],
           [path.join(project, 'deployment.env'), Object.entries(config.values).filter(([key]) => !['CLIENT_VERSION', 'CLIENT_CA_FILE'].includes(key)).map(([key, value]) => `${key}=${value}`).join('\n') + '\n'],
           [path.join(project, 'client-trust.json'), JSON.stringify({ origin: config.origin, caFile: ca ? 'client-ca.crt' : null }) + '\n']];
         if (ca) changes.push([path.join(project, 'client-ca.crt'), ca.pem]);

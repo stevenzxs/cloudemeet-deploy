@@ -31,7 +31,7 @@ test('Forge adapter retires vendor payload verification and excludes build adapt
   assert.equal(typeof config.hooks.preMake, 'function');
   assert.equal(config.packagerConfig.appVersion, '1.0.22');
   assert.equal(config.packagerConfig.buildVersion, '1.0.22.0');
-  assert.ok(config.packagerConfig.ignore.some(rule => rule.test('/cloudmeet.forge.cjs')));
+  assert.ok(config.packagerConfig.ignore.some(rule => rule.test('/forge.config.cloudmeet-base.cjs')));
 });
 test('Forge signs main executable and the reviewed maker-wix MSI without OpenVPN assembly', async () => {
   const vm = require('node:vm');
@@ -39,14 +39,20 @@ test('Forge signs main executable and the reviewed maker-wix MSI without OpenVPN
   const calls = [];
   const config = { hooks: { postPackage: async () => calls.push('native') }, packagerConfig: { ignore: [], windowsSign: { forbidden: true } }, makers: [] };
   const results = [{ artifacts: ['C:/final.msi'] }];
+  const required = [];
   const sandbox = { module: { exports: {} }, require: file => {
+    required.push(file.replaceAll('\\', '/'));
     if (file === 'node:path') return require(file);
     if (file.endsWith('signing.cjs')) return { sign: file => calls.push(file.replaceAll('\\', '/')) };
-    if (file.endsWith('forge.config.js')) return config;
+    if (file.endsWith('forge.config.cloudmeet-base.cjs')) return config;
     if (file.endsWith('unified-msi.cjs') || file.endsWith('build-openvpn-bundle.cjs')) throw Error('OpenVPN assembly must not be invoked');
     throw Error(file);
   } };
   vm.runInNewContext(forgeWrapper('C:/source', { versions: { msi_version: '1.0.22', pe_version: '1.0.22.0' } }), sandbox);
+  // electron-forge 7 resolves forge.config.js before the package.json config.forge
+  // path string; the adapter must load the preserved base config, never itself.
+  assert.ok(required.some(file => file.endsWith('/forge.config.cloudmeet-base.cjs')));
+  assert.ok(!required.some(file => file.endsWith('/forge.config.js')));
   await config.hooks.postPackage({}, { outputPaths: ['C:/app'] });
   const output = await config.hooks.postMake({}, results);
   assert.equal(config.packagerConfig.windowsSign, undefined);
