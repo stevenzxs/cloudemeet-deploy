@@ -82,7 +82,7 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: stevenzxs/jitsi-meet-electron
-          ref: bee7389737ac93b28b2987861166a744c361beb8
+          ref: 5d9d14d19b55aa618b3610d1a865e3d77485d46f
           path: jitsi-meet-electron
           persist-credentials: false
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
