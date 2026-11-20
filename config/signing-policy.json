@@ -1,6 +1,6 @@
 {
   "repository": "stevenzxs/cloudmeet-certificates",
-  "commit": "a69a574e5ef21ce3f0cedd19a250bdfa9392bd3a",
+  "commit": "0f514983cfc0a0cfac491cae0044847c0d184bc8",
   "android_certificate_der_sha256": "6c8897672e567b6be645bbe4435c2fc9fa85663cf7cc9ed8de46364eebb7e815",
   "windows_identity": "windows/public/identity.json",
   "timestamp_url": "http://timestamp.digicert.com"
