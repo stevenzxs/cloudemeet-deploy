@@ -108,8 +108,9 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
     const signing = require('./signing.cjs');
     const identity = signing.windowsIdentity();
     const signatures = [file, exe].map(p => {
-      signing.verify(p); // SignTool verifies all signatures and RFC3161 timestamp.
-      const value = JSON.parse(ps(`$s=Get-AuthenticodeSignature -LiteralPath ${quote(p)}; $h=[Security.Cryptography.SHA256]::Create(); try { $fingerprint=([BitConverter]::ToString($h.ComputeHash($s.SignerCertificate.RawData))).Replace('-','').ToLowerInvariant() } finally { $h.Dispose() }; @{status=$s.Status.ToString();signer=$fingerprint;timestamp=($null -ne $s.TimeStamperCertificate)} | ConvertTo-Json -Compress`));
+      // Consume the tool's authoritative result; do not reverify after its
+      // temporary private-root trust has already been removed.
+      const value = signing.verify(p);
       validateWindowsSigner(value, identity.fingerprint);
       return { file: path.basename(p), ...value };
     });

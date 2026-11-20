@@ -9,7 +9,7 @@ test('Android always repackages APK while retaining dependency compilation cache
   assert.deepEqual(androidTasks(), [':app:packageRelease', '--rerun', ':app:assembleRelease']);
 });
 const { parseConfig } = require('../core.cjs');
-test('failed child retains sanitized diagnostics and reports the actual exit code', () => {
+test('failed child retains sanitized diagnostics and reports the actual exit code', async () => {
   const { run } = require('../build-clients.cjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-diagnostics-'));
   const env = { ...process.env, WINDOWS_PFX_PASSWORD: 'fixture-private-password',
@@ -20,7 +20,7 @@ test('failed child retains sanitized diagnostics and reports the actual exit cod
       console.error(process.env.WINDOWS_PFX_PASSWORD);
       console.error(process.env.WINDOWS_PFX_BASE64);
       console.error('password=unregistered-secret'); process.exit(7);`;
-    assert.throws(() => run(process.execPath, ['-e', source], dir, env, path.join(dir, 'electron.log')),
+    await assert.rejects(run(process.execPath, ['-e', source], dir, env, path.join(dir, 'electron.log')),
       error => /exit=7/.test(error.message) && /Forge fixture compiler error/.test(error.message)
         && !error.message.includes('fixture-private') && !error.message.includes('unregistered-secret'));
     const report = fs.readFileSync(path.join(env.CLOUDMEET_AUDIT_DIR, 'build-electron.log'), 'utf8');
@@ -31,13 +31,26 @@ test('failed child retains sanitized diagnostics and reports the actual exit cod
     assert.match(fs.readFileSync(path.join(dir, 'electron.log'), 'utf8'), /fixture-private-password/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
-test('spawn errors remain distinct from a nonzero compiler exit', () => {
+test('spawn errors remain distinct from a nonzero compiler exit', async () => {
   const { run } = require('../build-clients.cjs');
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-spawn-'));
   try {
-    assert.throws(() => run(path.join(dir, 'missing-executable'), [], dir, {}, path.join(dir, 'android.log')),
+    await assert.rejects(run(path.join(dir, 'missing-executable'), [], dir, {}, path.join(dir, 'android.log')),
       /spawn=ENOENT/);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+test('diagnostics are retained before a running child exits without partial credential leakage', async () => {
+  const { run } = require('../build-clients.cjs');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-live-'));
+  const audit = path.join(dir, 'audit');
+  const promise = run(process.execPath, ['-e', "console.log('phase-start');process.stdout.write('fixture-secret');setTimeout(()=>process.exit(0),1800)"],
+    dir, { ...process.env, CLOUDMEET_AUDIT_DIR: audit, WINDOWS_PFX_PASSWORD: 'fixture-secret-value' }, path.join(dir, 'electron.log'));
+  try {
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    const report = fs.readFileSync(path.join(audit, 'build-electron.log'), 'utf8');
+    assert.match(report, /phase-start/);
+    assert.ok(!report.includes('fixture-secret'));
+  } finally { await promise; fs.rmSync(dir, { recursive: true, force: true }); }
 });
 test('diagnostic sanitizer excludes private-key blocks and credential-bearing lines', () => {
   const { sanitizeBuildLog } = require('../build-clients.cjs');

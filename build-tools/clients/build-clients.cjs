@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const crypto = require('node:crypto');
-const { spawnSync } = require('node:child_process');
+const { spawn, spawnSync } = require('node:child_process');
 const { parseConfig, versionCode, withLock, withFiles, findWix } = require('./core.cjs');
 const { readCa, androidTrust } = require('./ca-config.cjs');
 const { auditGenerated, auditPackages, writeAudit, inventorySources } = require('./network-audit.cjs');
@@ -41,20 +41,49 @@ function sanitizeBuildLog(text, env) {
       ? '[REDACTED credential-bearing line]' : line).join('\n');
 }
 
-function run(exe, args, cwd, env, logfile) {
+async function run(exe, args, cwd, env, logfile) {
   const fd = fs.openSync(logfile, 'a');
+  let diagnostic = '';
+  const auditFile = env.CLOUDMEET_AUDIT_DIR && path.join(env.CLOUDMEET_AUDIT_DIR, `build-${path.basename(logfile)}`);
+  if (auditFile) fs.mkdirSync(env.CLOUDMEET_AUDIT_DIR, { recursive: true });
+  const retain = text => {
+    diagnostic = (diagnostic + text).slice(-65536);
+    if (auditFile) fs.writeFileSync(auditFile, diagnostic);
+  };
+  // Retain only complete sanitized lines while running; incomplete credentials
+  // and unterminated output stay exclusively in the protected raw log.
+  const consumeStream = () => {
+    let pending = '', privateKey = false, oversized = false;
+    return chunk => {
+    fs.writeSync(fd, chunk);
+    for (const part of chunk.toString('utf8').split(/(?<=\n)/)) {
+      if (!oversized) pending += part;
+      if (pending.length > 1048576) { pending = ''; oversized = true; }
+      if (!part.endsWith('\n')) continue;
+      if (oversized) { retain('[REDACTED oversized line]\n'); oversized = false; }
+      else {
+        if (/-----BEGIN [A-Z ]*PRIVATE KEY-----/.test(pending)) privateKey = true;
+        retain(privateKey ? '[REDACTED PRIVATE KEY]\n' : sanitizeBuildLog(pending, env));
+        if (/-----END [A-Z ]*PRIVATE KEY-----/.test(pending)) privateKey = false;
+      }
+      pending = '';
+    }
+    };
+  };
   let result;
   try {
-    result = spawnSync(exe, args, { cwd, env, stdio: ['ignore', fd, fd], windowsHide: true });
+    result = await new Promise(resolve => {
+      const child = spawn(exe, args, { cwd, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+      let error;
+      child.on('error', value => { error = value; });
+      child.stdout.setEncoding('utf8').on('data', consumeStream());
+      child.stderr.setEncoding('utf8').on('data', consumeStream());
+      child.on('close', (status, signal) => resolve({ error, status, signal }));
+    });
   } finally { fs.closeSync(fd); }
   if (result.error || result.status !== 0) {
     // Raw logs remain protected in the candidate. Never upload that directory,
     // command arguments, or the child environment (which can contain signing material).
-    const diagnostic = sanitizeBuildLog(fs.readFileSync(logfile, 'utf8'), env).slice(-65536);
-    if (env.CLOUDMEET_AUDIT_DIR) {
-      fs.mkdirSync(env.CLOUDMEET_AUDIT_DIR, { recursive: true });
-      fs.writeFileSync(path.join(env.CLOUDMEET_AUDIT_DIR, `build-${path.basename(logfile)}`), diagnostic);
-    }
     const reason = result.error ? `spawn=${result.error.code || 'unknown'}` : `exit=${result.status}, signal=${result.signal || 'none'}`;
     const tail = diagnostic.split('\n').slice(-30).join('\n').slice(-8192);
     throw Error(`Build step failed (${path.basename(exe)}; ${reason}); protected log: ${logfile}\nSanitized build output:\n${tail}`);
@@ -224,7 +253,7 @@ async function build(options, config, report) {
           // Use the resolved PATH instead, also supporting portable WiX directories.
           const buildEnv = { ...env, [pathKey]: `${wix}${path.delimiter}${env[pathKey] || ''}` };
           delete buildEnv.WIX;
-          run(process.execPath, [path.join(project, 'node_modules/@electron-forge/cli/dist/electron-forge.js'), 'make', '--platform=win32', '--arch=x64'], project,
+          await run(process.execPath, [path.join(project, 'node_modules/@electron-forge/cli/dist/electron-forge.js'), 'make', '--platform=win32', '--arch=x64'], project,
             buildEnv, path.join(candidate, 'electron.log'));
           manifest.artifacts.push(...collect(path.join(project, 'out/make/wix/x64'), candidate, '.msi', started,
             () => ({ platform: 'windows', architecture: 'x64', architectures: ['x64'] })));
@@ -257,11 +286,11 @@ async function build(options, config, report) {
           }));
           const gradleArgs = [...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'];
           if (process.platform === 'win32') {
-            run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...gradleArgs], path.join(project, 'android'), env, path.join(candidate, 'android.log'));
+            await run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...gradleArgs], path.join(project, 'android'), env, path.join(candidate, 'android.log'));
           } else {
             const wrapper = path.join(project, 'android', 'gradlew');
             fs.chmodSync(wrapper, 0o755);
-            run(wrapper, gradleArgs, path.join(project, 'android'), env, path.join(candidate, 'android.log'));
+            await run(wrapper, gradleArgs, path.join(project, 'android'), env, path.join(candidate, 'android.log'));
           }
           manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });

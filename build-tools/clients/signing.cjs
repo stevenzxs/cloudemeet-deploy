@@ -19,12 +19,29 @@ function windowsIdentity() {
 function invoke(script, file) {
   const identity = windowsIdentity();
   if (!process.env.SIGNTOOL_PATH || !fs.existsSync(process.env.SIGNTOOL_PATH)) throw Error('Verified Windows SignTool required');
-  const args = ['-NoProfile', '-File', path.join(certificateRoot, 'windows', script),
+  let args = ['-NoProfile', '-File', path.join(certificateRoot, 'windows', script),
     '-Path', file, '-Identity', identity.file, '-SignTool', process.env.SIGNTOOL_PATH];
   if (script === 'sign-package.ps1') args.push('-TimestampUrl', policy.timestamp_url);
-  const result = spawnSync('powershell.exe', args, { stdio: 'inherit', windowsHide: true });
+  const verification = script === 'verify-signature.ps1';
+  if (verification) {
+    const quote = value => "'" + value.replaceAll("'", "''") + "'";
+    // The reviewed tool validates chain, identity and timestamp inside its
+    // temporary trust scope, then returns the verified public certificate hash.
+    args = ['-NoProfile', '-Command', `$ErrorActionPreference='Stop'; $r = & ${quote(path.join(certificateRoot, 'windows', script))} -Path ${quote(file)} -Identity ${quote(identity.file)} -SignTool ${quote(process.env.SIGNTOOL_PATH)}; if (!$r.CertificateSHA256) { throw 'Verification result missing' }; 'CLOUDMEET_VERIFIED:' + (@{status='Valid';signer=$r.CertificateSHA256;timestamp=$true} | ConvertTo-Json -Compress)`];
+  }
+  const env = { ...process.env };
+  // pwsh's module path can prevent Windows PowerShell 5.1 loading Security.
+  for (const key of Object.keys(env)) if (key.toLowerCase() === 'psmodulepath') delete env[key];
+  const result = spawnSync('powershell.exe', args, { ...(verification ? { encoding: 'utf8' } : { stdio: 'inherit' }), env, windowsHide: true });
   if (result.error || result.status !== 0) throw Error('Approved Windows signing/verification failed');
+  if (verification) {
+    const records = [...(result.stdout || '').matchAll(/^CLOUDMEET_VERIFIED:(.+)$/gm)];
+    if (records.length !== 1) throw Error('Authoritative Windows verification result missing');
+    const value = JSON.parse(records[0][1]);
+    if (value.status !== 'Valid' || value.signer !== identity.fingerprint || value.timestamp !== true) throw Error('Approved timestamped Windows signature required');
+    return value;
+  }
 }
 function sign(file) { invoke('sign-package.ps1', file); }
-function verify(file) { invoke('verify-signature.ps1', file); }
+function verify(file) { return invoke('verify-signature.ps1', file); }
 module.exports = { policy, windowsIdentity, sign, verify };
