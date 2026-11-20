@@ -60,3 +60,40 @@ test('Forge removes Windows signing hooks and returns maker-wix MSI unchanged', 
   assert.ok(!required.some(file => file.endsWith('/signing.cjs')));
   assert.equal(output, results);
 });
+test('Forge pins the actual WiX ProductVersion after its four-field conversion', async () => {
+  const vm = require('node:vm');
+  const { forgeWrapper } = require('../revision-config.cjs');
+  let calls = 0;
+  const native = { hooks: {}, packagerConfig: { ignore: [] }, makers: [
+    { name: '@electron-forge/maker-wix', config: { beforeCreate: async creator => {
+      calls++; creator.windowsCompliantVersion = '9.9.9.9';
+    } } },
+    { name: '@electron-forge/maker-zip', config: { untouched: true } },
+  ] };
+  const otherMaker = native.makers[1];
+  const sandbox = { module: { exports: {} }, require: file => file === 'node:path' ? require(file) : native };
+  vm.runInNewContext(forgeWrapper('C:/source', { versions: {
+    msi_version: '1.0.33', pe_version: '1.0.33.0', client_version: '1.0.21+r12',
+  } }), sandbox);
+  const maker = sandbox.module.exports.makers[0];
+  const creator = { semanticVersion: maker.config.version, windowsCompliantVersion: '1.0.33.0' };
+  await maker.config.beforeCreate(creator);
+  assert.equal(calls, 1);
+  assert.equal(creator.windowsCompliantVersion, '1.0.33');
+  assert.equal(creator.semanticVersion, '1.0.33');
+  assert.equal(native.makers[1], otherMaker);
+});
+test('Forge supplies the WiX version hook when the source has no beforeCreate', async () => {
+  const vm = require('node:vm');
+  const { forgeWrapper } = require('../revision-config.cjs');
+  const native = { hooks: {}, packagerConfig: { ignore: [] }, makers: [
+    { name: '@electron-forge/maker-wix', config: {} },
+  ] };
+  const sandbox = { module: { exports: {} }, require: file => file === 'node:path' ? require(file) : native };
+  vm.runInNewContext(forgeWrapper('C:/source', { versions: {
+    msi_version: '1.0.65535', pe_version: '1.0.65535.0',
+  } }), sandbox);
+  const creator = { windowsCompliantVersion: '1.0.65535.0' };
+  await sandbox.module.exports.makers[0].config.beforeCreate(creator);
+  assert.equal(creator.windowsCompliantVersion, '1.0.65535');
+});

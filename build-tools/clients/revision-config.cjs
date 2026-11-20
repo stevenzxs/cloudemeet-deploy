@@ -40,7 +40,19 @@ config.packagerConfig.ignore = [...config.packagerConfig.ignore, /^\\/forge\\.co
 // payload verification and unified MSI assembly are retired. The reviewed
 // maker-wix MSI is delivered unsigned and becomes the final artifact.
 config.hooks.preMake = async () => {};
-config.makers = config.makers.map(m => m.name === '@electron-forge/maker-wix' ? { ...m, config: { ...m.config, version: ${JSON.stringify(v.msi_version)} } } : m);
+config.makers = config.makers.map(m => {
+  if (m.name !== '@electron-forge/maker-wix') return m;
+  const beforeCreate = m.config?.beforeCreate;
+  return { ...m, config: { ...m.config, version: ${JSON.stringify(v.msi_version)},
+    beforeCreate: async function (creator) {
+      if (beforeCreate) await beforeCreate.call(this, creator);
+      // electron-wix-msi appends .0 even to a three-field version. Pin the
+      // allocated MSI ProductVersion before create(), not by editing a built MSI
+      // or relaxing the final strict version check. PE buildVersion stays separate.
+      creator.windowsCompliantVersion = ${JSON.stringify(v.msi_version)};
+    },
+  } };
+});
 config.hooks.postMake = async (_config, results) => results;
 module.exports = config;
 `;

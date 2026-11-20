@@ -10,6 +10,13 @@
 - 旧 /opt/cloudmeet-jks 数据保留未动；未改 202 生产与其他实例。
 # 当前执行记录
 
+## 2026-11-20 MSI ProductVersion三段契约适配修复
+
+- r12 Run44725880096 attempt1 Electron已经完成Forge/WiX制作，最终MSI版本检查失败，不是旧签名钩子超时。失败产品MSI没有上传，不能声称已读取该产品实际版本；已取得Electron脱敏构建/失败审计及job日志，配置d09a57a，MSI批准分配1.0.33。
+- 排查计划：核对maker-wix构造与electron-wix-msi版本转换→新增先失败回归→在已有beforeCreate扩展点修复三段ProductVersion→同工具链真实最小MSI验证→辅助回归/摘要检查→提交合main与150备份同步。仅修已批准契约的实现，不放宽检查或改变映射；不改旧包/分配号、产品源码、Android签名/CA、35分钟超时，不自动新开或重跑Actions、不部署。
+- 确定性复现：electron-wix-msi将version=1.0.33转换为windowsCompliantVersion=1.0.33.0，现有最终检查严格期待1.0.33。适配器在maker-wix调用create之前执行原beforeCreate后固定批准值；不改依赖源码或成品MSI，不修改最终严格检查器。PE buildVersion仍为1.0.33.0，显示/rN与平台映射均保留。
+- 新增两项回归先失败后通过（已有异步钩子保留、无钩子/上限值），本机客户端45/45通过。真实MakerWix+electron-wix-msi+WiX3.11.2最小stub MSI重现旧1.0.33.0、新1.0.33，均用WindowsInstaller只读查询确认，证据Temp/opencode/msi-maker-contract-e2fXf4；非全产品编译/安装验证。提交、摘要及150验证见唯一台账，真实产品新配置Actions结果仍待授权验证。
+
 ## 2026-11-20 Windows取消代码签名，Android保持签名
 
 - 经正常流程变更提醒和用户二次确认：Windows EXE/MSI取消签名钩子及PFX/SignTool/私有证书工具检出前提；不再安装签名根或验签/时间戳，审计与交付明确unsigned及未知发布者/SmartScreen风险，不写signature passed。原签名工具/身份/Secrets保留，非修复其内部阻塞。
