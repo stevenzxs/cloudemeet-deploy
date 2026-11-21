@@ -10,7 +10,7 @@
   },
   "clients": {
     "electron": {"repository": "https://github.com/stevenzxs/jitsi-meet-electron.git", "commit": "5d9d14d19b55aa618b3610d1a865e3d77485d46f"},
-    "android": {"repository": "https://github.com/stevenzxs/jm.git", "commit": "979a058769a085d0e63e68e6019d5753ed14f96b"}
+    "android": {"repository": "https://github.com/stevenzxs/jm.git", "commit": "a4012af4a20c257b327af1c9bd34d654ec6642e9"}
   },
   "lifecycle": {"repository": "https://github.com/jitsi/docker-jitsi-meet.git", "commit": "276801c7fd4233f7288ba95bd132c219852c7ac7"}
 }

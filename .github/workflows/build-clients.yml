@@ -88,7 +88,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: stevenzxs/jm
-          ref: 979a058769a085d0e63e68e6019d5753ed14f96b
+          # Reviewed jm/main permission fix; keep the checkout immutable.
+          ref: a4012af4a20c257b327af1c9bd34d654ec6642e9
           path: jm
           persist-credentials: false
       - name: Android signing prerequisite

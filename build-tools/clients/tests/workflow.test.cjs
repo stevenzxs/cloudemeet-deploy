@@ -6,7 +6,6 @@ test('client workflow keeps Android signing but removes Windows signing credenti
   const text = fs.readFileSync(path.join(__dirname, '../../../.github/workflows/build-clients.yml'), 'utf8');
   assert.match(text, /workflow_dispatch:/);
   assert.doesNotMatch(text, /pull_request:|contents: write/);
-  assert.match(text, /979a058769a085d0e63e68e6019d5753ed14f96b/);
   assert.match(text, /5d9d14d19b55aa618b3610d1a865e3d77485d46f/);
   assert.match(text, /ANDROID_KEYSTORE_BASE64/);
   for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'CERTIFICATES_READ_TOKEN', 'SIGNTOOL_PATH']) assert.doesNotMatch(text, new RegExp(key));
@@ -28,6 +27,22 @@ test('client workflow keeps Android signing but removes Windows signing credenti
   assert.doesNotMatch(text, /path:.*(?:cloudmeet-clients-|electron\.log|android\.log)/);
   for (const line of text.split('\n').filter(x => x.includes('uses:') && !x.includes('uses: ./.github/workflows/'))) {
     assert.match(line, /@[0-9a-f]{40}\s*$/);
+  }
+});
+test('client checkouts match source locks and Android pins the reviewed main fix', () => {
+  const root = path.join(__dirname, '../../..');
+  const text = fs.readFileSync(path.join(root, '.github/workflows/build-clients.yml'), 'utf8');
+  const sources = JSON.parse(fs.readFileSync(path.join(root, 'build-tools/sources.json'), 'utf8'));
+  assert.equal(sources.clients.android.repository, 'https://github.com/stevenzxs/jm.git');
+  assert.equal(sources.clients.android.commit, 'a4012af4a20c257b327af1c9bd34d654ec6642e9');
+  for (const source of Object.values(sources.clients)) {
+    const repository = source.repository.replace('https://github.com/', '').replace(/\.git$/, '');
+    const checkout = text.split('\n').filter(line => !line.trimStart().startsWith('#')).join('\n')
+      .split(/\n\s*- uses: /).find(step => step.includes(`repository: ${repository}\n`));
+    assert.ok(checkout, `Missing checkout for ${repository}`);
+    const ref = checkout.match(/^\s+ref: (\S+)\s*$/m)?.[1];
+    assert.match(ref || '', /^[0-9a-f]{40}$/, 'Source checkout must use a full SHA, not a floating branch');
+    assert.equal(ref, source.commit, `Workflow/source lock mismatch for ${repository}`);
   }
 });
 test('normal client build retains mandatory preflight before compilation and reports stages', () => {
