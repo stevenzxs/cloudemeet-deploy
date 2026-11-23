@@ -55,6 +55,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 3. 目录与唯一流程
 
+版本Runner维护：`build-tools/controller/cloudmeet-version-runner.service`定义150专用非特权宿主systemd隔离边界；`build-tools/controller/README.md`记录替换、原台账迁移/独立恢复及回退方法。用户本次选择停用旧id21、启用新Runner，保留历史，不默认恢复旧进程。文件存在不代表服务安装或恢复已验证。
+
 - 客户端目录最新用户确认覆盖下文旧架构路径：新增交付使用release/clients/windows/<x64|arm64>/<批次>/或release/clients/android/<armeabi-v7a|arm64-v8a|x86_64|universal>/<批次>/。不生成32位x86；多ABI归universal并记录实际集合。当前Windows仅实现x64，不默认新增arm64编译；历史目录不迁移。候选仍留Temp，按相同平台/架构分类，不自动晋级。
 
 - `deploy/release/` 是唯一新增交付入口，架构名称使用 `amd64`、`aarch64`。不再建立或下载到 `deploy/debug/`。release是交付用途，不等同编译器构建模式或签名身份。
