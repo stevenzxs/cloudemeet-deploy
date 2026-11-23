@@ -20,7 +20,7 @@ permissions:
 jobs:
   version:
     permissions:
-      contents: read
+      contents: write
     uses: ./.github/workflows/revision-allocation.yml
     with:
       material_commit: ${{ inputs.material_commit }}
@@ -30,7 +30,7 @@ jobs:
     secrets: inherit
     uses: ./.github/workflows/build-package.yml
     permissions:
-      contents: read
+      contents: write
       actions: read
       packages: write
     with:
@@ -53,7 +53,7 @@ jobs:
   clients:
     needs: version
     permissions:
-      contents: read
+      contents: write
     uses: ./.github/workflows/build-clients.yml
     secrets: inherit
     with:

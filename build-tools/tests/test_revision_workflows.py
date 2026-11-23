@@ -28,13 +28,15 @@ class RevisionWorkflowTests(unittest.TestCase):
 
     def test_allocator_is_persistent_and_not_an_artifact_counter(self):
         text = (ROOT / '.github/workflows/revision-allocation.yml').read_text()
-        self.assertIn('cloudmeet-version-controller', text)
-        self.assertIn('CLOUDMEET_VERSION_LEDGER', text)
+        self.assertIn('runs-on: ubuntu-24.04', text)
+        self.assertIn('CLOUDMEET_LEDGER_ANCHOR', text)
+        self.assertIn('contents: write', text)
+        self.assertNotIn('self-hosted', text)
         self.assertNotIn('initialize', text)
-        self.assertNotIn('contents: write', text)
 
     def test_controller_joint_inheritance_retry_and_scope_binding(self):
-        import revision_ledger
+        import revision_git_ledger
+        import subprocess as sp
         spec = importlib.util.spec_from_file_location('controller', ROOT / 'build-tools/allocate-workflow.py')
         controller = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(controller)
@@ -48,19 +50,38 @@ class RevisionWorkflowTests(unittest.TestCase):
             (root / 'config/version-policy.json').write_text(json.dumps(policy))
             (root / 'config/h5-source.json').write_text(json.dumps({'commit':'f'*40}))
             (root / 'build-tools/sources.json').write_bytes((ROOT / 'build-tools/sources.json').read_bytes())
-            ledger = Path(tmp) / 'persistent.sqlite'
+            # Bootstrap a synthetic migrated fixture on a local bare remote, never live state.
+            import revision_ledger
+            ledger = Path(tmp) / 'fixture.sqlite'
             revision_ledger.initialize(ledger, policy)
+            initial_request = dict(repository='stevenzxs/cloudemeet-deploy', workflow='fixture', run_id='99',
+                                   configuration_sha='b'*40, task='fixture', scope=['server'], sources={'web':'c'*40})
+            revision_ledger.allocate(ledger, policy, initial_request)
+            remote = Path(tmp) / 'remote.git'
+            seed = Path(tmp) / 'seed'
+            sp.run(['git', 'init', '--bare', str(remote)], check=True, capture_output=True)
+            sp.run(['git', 'init', str(seed)], check=True, capture_output=True)
+            def git(*args):
+                return sp.check_output(['git', '-C', str(seed), *args], text=True).strip()
+            git('config', 'user.name', 'Test')
+            git('config', 'user.email', 'test@example.invalid')
+            git('checkout', '--orphan', 'cloudmeet-revision-ledger')
+            (seed / 'ledger.json').write_text(json.dumps(revision_git_ledger.export_sqlite(ledger, policy)))
+            git('add', 'ledger.json')
+            git('commit', '-m', 'fixture')
+            git('push', str(remote), 'HEAD:refs/heads/cloudmeet-revision-ledger')
+            anchor = git('rev-parse', 'HEAD')
             output = Path(tmp) / 'output'
             env = dict(GITHUB_SHA='a' * 40, MATERIAL_SHA='a' * 40, GITHUB_RUN_ID='100',
                        GITHUB_RUN_ATTEMPT='1', GITHUB_REPOSITORY='stevenzxs/cloudemeet-deploy',
                        GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_REF='refs/heads/main',
                        GITHUB_WORKFLOW_REF='stevenzxs/cloudemeet-deploy/.github/workflows/build-joint.yml@refs/heads/main',
-                       VERSION_LEDGER=str(ledger), GITHUB_OUTPUT=str(output),
+                       LEDGER_REMOTE=str(remote), LEDGER_ANCHOR=anchor, GITHUB_OUTPUT=str(output),
                        REQUEST_SCOPE='["server","electron","android"]', INHERITED_ASSIGNMENT='')
             previous = Path.cwd()
             try:
                 os.chdir(root)
-                with patch.dict(os.environ, env, clear=True), patch.object(controller.subprocess, 'check_output', return_value='a' * 40):
+                with patch.dict(os.environ, env, clear=True), patch.object(controller, 'configuration_sha', return_value='a' * 40):
                     controller.main()
                     first = json.loads(output.read_text().split('assignment=', 1)[1])
                     os.environ['GITHUB_RUN_ATTEMPT'] = '2'

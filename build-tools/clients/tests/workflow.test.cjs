@@ -5,7 +5,11 @@ const path = require('node:path');
 test('client workflow keeps Android signing but removes Windows signing credentials', () => {
   const text = fs.readFileSync(path.join(__dirname, '../../../.github/workflows/build-clients.yml'), 'utf8');
   assert.match(text, /workflow_dispatch:/);
-  assert.doesNotMatch(text, /pull_request:|contents: write/);
+  assert.doesNotMatch(text, /pull_request:/);
+  const jobs = text.split('\njobs:\n')[1];
+  assert.match(jobs, /version:\n    permissions:\n      contents: write\n    uses: .\/\.github\/workflows\/revision-allocation.yml/);
+  assert.equal((text.match(/contents: write/g) || []).length, 1, 'Only allocator may write ledger');
+  assert.doesNotMatch(jobs.slice(jobs.indexOf('\n  build:')), /contents: write/);
   assert.match(text, /e0274a69aafb76fc0999c887339951ea5ee6dc93/);
   assert.match(text, /ANDROID_KEYSTORE_BASE64/);
   for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'CERTIFICATES_READ_TOKEN', 'SIGNTOOL_PATH']) assert.doesNotMatch(text, new RegExp(key));

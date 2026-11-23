@@ -47,20 +47,19 @@ Docker build中的依赖和构建层缓存允许复用，但输出应用镜像�
 
 `.github/workflows/build-joint.yml`一次分配后调用七服务及双客户端工作流；
 独立服务端/客户端入口使用相同命名空间，子工作流只核验已有父Run记录。
-`revision_versions.py`派生显示与平台字段，`revision_ledger.py`使用SQLite
-BEGIN IMMEDIATE原子持久化，已分配失败不回收，同Run attempt复用并追加attempt证据。
+`revision_versions.py`派生显示与平台字段，`revision_git_ledger.py`在专用
+cloudmeet-revision-ledger分支用非强推Git CAS持久化；已分配失败不回收，同Run attempt复用并追加attempt证据。
 包内来源记录和provenance/version-assignment.json绑定完整分配身份。
 
 目前**配置已批准启用、控制端未就绪**：config/version-policy.json的approved=true，
 服务端基线11248.0.1；用户批准以现存正式包Android1021/MSI1.0.21为兼容基线，
 不明更早测试包不在覆盖升级保证内，核验摘要见VERSION-ACTIVATION.md。客户端映射为
 1.0.21+rN、Android int('1021'+N)、MSI 1.0.(21+N)、PE 1.0.(21+N).0。
-仍需另行部署专用150 Runner标签cloudmeet-version-controller、
-限制Runner组只允许审阅工作流/main、受限用户和仓库外绝对路径变量
-CLOUDMEET_VERSION_LEDGER。不得将通用公开PR Runner接入持久台账。
-台账初始化必须显式授权，自动任务不初始化，不从Release/Actions保留列表重建。
-SQLite备份恢复须对照独立Run证据确认最新高水位；普通摘要/事务不能检测整库旧快照回滚，
-未经核对不得恢复分配。当前未安装Runner、未创建正式台账、未触发Actions。
+当前批准方案为GitHub-hosted ubuntu-24.04分配，不恢复旧Runner id21或安装新150 Runner。
+现存SQLite r1–r14须完整只读迁移，迁移计划与边界见controller/README.md；本次未发布ledger分支、
+未设置CLOUDMEET_LEDGER_ANCHOR、未迁移或分配正式编号。缺锚/分支拒绝自动初始化。
+独立备份保留最近7天，不取消备份；启用前验证备份恢复及独立Run高水位，不能只信有效旧快照。
+GitHub仓库写权限、分支防改写和实际Actions验收仍须分别核验。
 
 首次实际交付前仍需核验Windows签名身份/适用签名要求、真实MSI/PE/APK映射和覆盖升级；
 代码辅助回归不代表签名/云端/客户端/媒体通过。服务原生版本仍见sources.json，

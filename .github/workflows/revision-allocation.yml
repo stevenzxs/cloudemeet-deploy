@@ -15,12 +15,12 @@ on:
       assignment:
         value: ${{ jobs.allocate.outputs.assignment }}
 permissions:
-  contents: read
+  contents: write
 jobs:
   allocate:
-    # Dedicated persistent 150 controller only; no product build or signing here.
-    runs-on: [self-hosted, linux, cloudmeet-version-controller]
-    timeout-minutes: 5
+    # Ephemeral hosted runner; state lives only on the dedicated ledger branch.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
     outputs:
       assignment: ${{ steps.record.outputs.assignment }}
     steps:
@@ -34,7 +34,12 @@ jobs:
           MATERIAL_SHA: ${{ inputs.material_commit }}
           REQUEST_SCOPE: ${{ inputs.scope }}
           INHERITED_ASSIGNMENT: ${{ inputs.assignment }}
-          VERSION_LEDGER: ${{ vars.CLOUDMEET_VERSION_LEDGER }}
-        run: python3 -B build-tools/allocate-workflow.py
+          LEDGER_ANCHOR: ${{ vars.CLOUDMEET_LEDGER_ANCHOR }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          export LEDGER_AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
+          echo "::add-mask::${LEDGER_AUTH_HEADER}"
+          unset GH_TOKEN
+          python3 -B build-tools/allocate-workflow.py
       - name: Verify revision contract after persistent allocation (failure still consumes revision)
         run: python3 -B -m unittest discover -s build-tools/tests -p 'test_revision*.py'

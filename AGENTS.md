@@ -55,7 +55,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 3. 目录与唯一流程
 
-版本Runner维护：`build-tools/controller/cloudmeet-version-runner.service`定义150专用非特权宿主systemd隔离边界；`build-tools/controller/README.md`记录替换、原台账迁移/独立恢复及回退方法。用户本次选择停用旧id21、启用新Runner，保留历史，不默认恢复旧进程。文件存在不代表服务安装或恢复已验证。
+版本分配维护（2026-11-23用户二次确认简化）：GitHub-hosted ubuntu-24.04执行分配，专用cloudmeet-revision-ledger分支持久仅追加台账，普通非强推Git提交/push CAS与有界重试；保持原namespace、赋值契约、失败占号/重跑复用及子流程核验。旧id21保持offline，不恢复、不部署新150自托管Runner；原systemd文件仅历史保留。迁移须完整保留现有r1–r14及attempt，无新占号、不初始化/重置原SQLite；远端发布和变量启用须另行执行。独立备份保留最近7天，不取消备份。build-tools/controller/README.md仅记录实施/迁移状态，非独立规范。
 
 - 客户端目录最新用户确认覆盖下文旧架构路径：新增交付使用release/clients/windows/<x64|arm64>/<批次>/或release/clients/android/<armeabi-v7a|arm64-v8a|x86_64|universal>/<批次>/。不生成32位x86；多ABI归universal并记录实际集合。当前Windows仅实现x64，不默认新增arm64编译；历史目录不迁移。候选仍留Temp，按相同平台/架构分类，不自动晋级。
 
@@ -170,8 +170,10 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `config/version-policy.json` | 已批准基线/映射及现存正式交付包数字版本上限；配置批准不等于控制Runner已就绪 |
 | `build-tools/VERSION-ACTIVATION.md` | 用户批准的启用范围、现存APK/MSI只读核验与摘要证据，不是独立规范 |
 | `build-tools/revision_versions.py`、`build-tools/tests/test_revision_versions.py` | 版本派生、Run/配置绑定及范围/并发/重试/损坏拒绝回归，测试只使用临时台账 |
-| `build-tools/revision_ledger.py` | 仓库外SQLite原子持久分配；初始化须单独审批，丢失不自动重建 |
-| `build-tools/allocate-workflow.py`、`.github/workflows/revision-allocation.yml` | 专用控制Runner的受控分配/父批次核验，无产品构建和Secrets；当前未安装启用 |
+| `build-tools/revision_ledger.py` | 历史SQLite实现及临时测试夹具；正式旧库只读迁移，不再作为新Actions分配入口 |
+| `build-tools/revision_git_ledger.py`、`build-tools/tests/test_revision_git_ledger.py` | 专用分支仅追加Git CAS、锚定历史校验、SQLite只读导出及本地bare remote并发/重试/损坏拒绝回归，不访问正式台账 |
+| `build-tools/controller/README.md`、`build-tools/controller/cloudmeet-version-runner.service` | 当前受控迁移/7天备份计划与历史自托管单元（禁止新安装/恢复），未宣称云端启用 |
+| `build-tools/allocate-workflow.py`、`.github/workflows/revision-allocation.yml` | GitHub-hosted专用分支分配/父批次核验，无产品构建或签名Secrets；迁移未发布时拒绝启用 |
 | `.github/workflows/build-joint.yml`、`build-tools/tests/test_revision_workflows.py` | 七服务和双客户端共享一次顶层Run分配的编排及静态回归，不代表云端验收 |
 | `build-tools/clients/revision-config.cjs`、`build-tools/clients/tests/revision.test.cjs` | 消费统一版本记录、Forge映射适配及显示/平台字段测试，不新增产品编译实现 |
 | `build-tools/clients/network-audit.cjs`、`build-tools/clients/tests/network-audit.test.cjs` | 双客户端源码端点清单、生成参数及最终包审计报告与拒绝路径测试 |
@@ -342,7 +344,7 @@ H5新增维护清单：`config/h5-source.json`固定原创源码/首次基线；
 - 本次用户采用平台映射：客户端基线1.0.21，Android versionName及Electron应用显示1.0.21+rN；Android versionCode为十进制1021拼接N（r1=10211、r2=10212、r10=102110、r100=1021100）；MSI ProductVersion=1.0.(21+N)、PE FileVersion=1.0.(21+N).0。MSI major/minor≤255、第三段≤65535；Android正整数≤2100000000，必须超过核验的历史最高版本，否则阻断，不卸载/清数据绕过。
 - 用户最终确认服务端基线为11248.0.1（撤回本次先选11248.0.2的回答）；客户端基线仍为1.0.21。七服务保留各自上游/源码SHA与依赖身份，交付显示版本不冒充各服务原生版本；容器tag使用B-rN加Run/attempt隔离身份。
 - `config/client.env`继续唯一提供客户端入口及三段基线；`config/version-policy.json`显式绑定同一基线、1021及历史上限。派生修订号仅来自受控分配记录，不允许手填VERSION或配置默认值绕过。配置/源码SHA、父Run及attempt证据随包记录。
-- 持久SQLite台账放Git工作树外，专用150控制Runner串行事务分配，绑定命名空间/基线、任务、Run、配置和源码身份。初始化、备份恢复、Runner组隔离/审批与安装另行执行；禁止丢失后按成功Release重建计数。自校验摘要不是签名，不替代可信Runner与持久状态保护。
+- 当前批准的分配方案为GitHub-hosted Runner＋专用仅追加ledger分支，绑定原命名空间/基线、任务、Run、配置和源码身份。普通非强推CAS及有界并发重试，分配后远端复读确认；父/子共享原赋值。完整只读迁移原SQLite r1–r14，不重置/新占号，旧Runner不恢复。独立备份保留最近7天；迁移锚、远端台账、备份恢复与高水位核验未就绪时阻断，不从Release重建或使用过期副本。摘要不是签名，仓库写权限也不等于已安装分支保护。
 - 用户2026-11-19另行批准启用配置：approved=true，现存正式交付包只读核验的Android最高1021、MSI最高1.0.21作为本次升级兼容基线。不明的更早时间计数测试APK明确排除在本次兼容保证外，用户已批准此范围；发现更高历史版时阻断受影响升级，不卸载/清数据/改签名绕过。控制Runner、正式台账/备份恢复仍未配置或验收，本次不正式占号、不触发构建/签名/发布/部署。下文旧手填版本/禁止自动递增/旧versionCode公式由本节覆盖，历史制品不追改。
 
 ### 2026-11-19 用户确认：七服务与双客户端网络参数审计

@@ -32,7 +32,7 @@ concurrency:
 jobs:
   version:
     permissions:
-      contents: read
+      contents: write
     uses: ./.github/workflows/revision-allocation.yml
     with:
       material_commit: ${{ inputs.material_commit }}
