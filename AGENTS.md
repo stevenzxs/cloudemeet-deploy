@@ -155,6 +155,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/delivery-target.py`、`build-tools/tests/test_standard_flow.py` | 入口统一派生、包外实例配置与短提示词契约辅助回归，不调度/占号/部署 |
 | `config/signing-policy.json`、`build-tools/clients/signing.cjs`、`build-tools/clients/tests/signing.test.cjs` | 证书库固定工具/批准公开身份引用、调用适配与签名拒绝回归，不维护第二份签名实现 |
 | `build-tools/clients/tests/trust-result.test.cjs` | 证书工具受控信任范围内权威结果的调用与拒绝路径回归，不安装证书、不使用私钥 |
+| `build-tools/clients/tests/shortcuts.test.cjs` | 已有中文快捷方式需求的Forge适配及最终MSI Shortcut表回归，拒绝英文/缺失/重复项和错误目标；不安装应用、不修改旧统一MSI脚本 |
 | `build-tools/REVISION-PLAN.md` | 联合版本改造计划、验证记录及未启用门槛，非规范 |
 | `config/version-policy.json` | 已批准基线/映射及现存正式交付包数字版本上限；配置批准不等于控制Runner已就绪 |
 | `build-tools/VERSION-ACTIVATION.md` | 用户批准的启用范围、现存APK/MSI只读核验与摘要证据，不是独立规范 |

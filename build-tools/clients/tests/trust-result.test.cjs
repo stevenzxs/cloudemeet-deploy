@@ -35,6 +35,7 @@ test('Windows final inspection keeps content gates without loading any signing t
     version: '1.0.21+r12', origin: 'https://example.test:8443' };
   const pe = Buffer.alloc(256); pe.writeUInt32LE(64, 0x3c); pe.writeUInt16LE(0x8664, 68);
   let originValid = true;
+  let shortcutName = '云会议';
   const sandbox = { module: { exports: {} }, process: { platform: 'win32', env: {} }, require(name) {
     if (name === 'node:path') return path;
     if (name === 'node:fs') return { readdirSync: () => ['app.asar','cloudmeet.exe'].map(name => ({name,isDirectory:()=>false})), readFileSync: () => pe };
@@ -44,6 +45,10 @@ test('Windows final inspection keeps content gates without loading any signing t
       assert.equal(exe, 'powershell.exe');
       if (script.includes('ProductVersion')) return {status:0,stdout:config.msiVersion};
       if (script.includes('FileVersion')) return {status:0,stdout:config.peVersion};
+      if (script.includes('FROM Shortcut')) return {status:0,stdout:JSON.stringify([
+        {id:'MyDesktopShortcut',directory:'DesktopFolder',name:shortcutName,target:'[APPLICATIONROOTDIRECTORY]cloudmeet.exe'},
+        {id:'ApplicationStartMenuShortcut',directory:'ApplicationProgramsFolder',name:shortcutName,target:'[APPLICATIONROOTDIRECTORY]cloudmeet.exe'},
+      ])};
       throw Error('Unexpected Windows command');
     } };
     if (name === './ca-config.cjs') return {};
@@ -58,9 +63,12 @@ test('Windows final inspection keeps content gates without loading any signing t
   vm.runInNewContext(fs.readFileSync(path.resolve(__dirname,'../verify-package.cjs'),'utf8'), sandbox);
   const verify = () => sandbox.module.exports.verifyPackage('client.msi',{platform:'windows',architecture:'x64'},config,null,'workspace','scratch');
   const checks = verify();
-  for (const key of ['version','displayVersion','peVersion','architecture','origin','ca']) assert.equal(checks[key].passed,true);
+  for (const key of ['version','displayVersion','peVersion','architecture','origin','ca','shortcuts']) assert.equal(checks[key].passed,true);
   assert.equal(checks.signature,undefined);
   assert.equal(checks.signing.status,'unsigned');
+  shortcutName = 'CloudMeet';
+  assert.throws(verify,/shortcut/i);
+  shortcutName = '云会议';
   originValid = false;
   assert.throws(verify,/origin mismatch/);
 });

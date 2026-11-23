@@ -6,6 +6,8 @@
 
 Android保持现有keystore、Actions Secrets安全注入和最终唯一批准DER SHA256核验，不换debug身份。两端继续检查实际版本、平台/ABI、入口、公开CA和摘要；安装/TLS/会议结果单列。原Windows工具/身份/Secrets保留为历史，不用于本入口，不自动删除。当前辅助回归不代替新Actions最终产品验包。
 
+2026-11-23中文快捷方式回归修复：当前maker-wix显式使用`shortcutName: '云会议'`，并设置MSI中文代码页；不改变CloudMeet产品/安装身份或`cloudmeet.exe`。最终验包读取MSI `Shortcut`表，核对桌面、开始菜单两项的中文长名称及主程序目标，英文/缺项/重复项/错误目标立即失败。旧统一MSI脚本及旧测试不改；此修复没有重新构建或修改历史安装包，旧快捷方式残留和真实升级行为仍需另行实装核验。
+
 规范见`../../AGENTS.md`。工具位于deploy/build-tools/clients，业务源码仍在deploy的同级目录。在工作区根执行时使用deploy/build-tools/clients/build-clients.cjs，Node无需新增依赖：
 
 ```powershell

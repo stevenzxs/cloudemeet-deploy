@@ -15,6 +15,30 @@ const sdkTool = (dir, base) => path.join(dir, process.platform === 'win32'
   ? (base === 'aapt' ? 'aapt.exe' : `${base}.bat`) : base);
 const quote = value => "'" + value.replaceAll("'", "''") + "'";
 
+function inspectWindowsShortcuts(file, run = ps) {
+  const rows = JSON.parse(run(`[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$ErrorActionPreference = 'Stop'
+$i = New-Object -ComObject WindowsInstaller.Installer
+$d = $i.OpenDatabase(${quote(file)}, 0)
+$v = $d.OpenView('SELECT Shortcut, Directory_, Name, Target FROM Shortcut')
+$v.Execute()
+$rows = @()
+while ($r = $v.Fetch()) {
+  $rows += [PSCustomObject]@{ id=$r.StringData(1); directory=$r.StringData(2); name=$r.StringData(3); target=$r.StringData(4) }
+}
+ConvertTo-Json -InputObject @($rows) -Compress`));
+  const expected = [['MyDesktopShortcut', 'DesktopFolder'],
+    ['ApplicationStartMenuShortcut', 'ApplicationProgramsFolder']];
+  if (!Array.isArray(rows) || rows.length !== expected.length || expected.some(([id, directory]) => {
+    const matches = rows.filter(row => row.id === id);
+    const row = matches[0];
+    return matches.length !== 1 || row.directory !== directory || typeof row.name !== 'string'
+      || row.name.split('|').at(-1) !== '云会议'
+      || row.target !== '[APPLICATIONROOTDIRECTORY]cloudmeet.exe';
+  })) throw Error('MSI desktop/start menu shortcut name or target mismatch');
+  return rows;
+}
+
 function validateAndroidSigner(output, expected) {
   // apksigner <= 36 prints "Signer #1 certificate SHA-256 digest:"; build-tools
   // 37 prints scheme-prefixed "V2 Signer: certificate SHA-256 digest:". Tolerate
@@ -125,6 +149,7 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
   if (artifact.platform === 'windows') {
     const version = ps(`$i=New-Object -ComObject WindowsInstaller.Installer; $d=$i.OpenDatabase(${quote(file)},0); $v=$d.OpenView('SELECT Value FROM Property WHERE Property = ''ProductVersion'''); $v.Execute(); $r=$v.Fetch(); $r.StringData(1)`).trim();
     check('version', Boolean(config.assignment) && version === config.msiVersion, version);
+    check('shortcuts', true, inspectWindowsShortcuts(file));
     const out = path.join(scratch, 'msi-payload');
     command('msiexec.exe', ['/a', file, '/qn', `TARGETDIR=${out}`]);
     const files = [];
@@ -191,4 +216,4 @@ function verifyPackage(file, artifact, config, ca, workspace, scratch) {
   }
   return checks;
 }
-module.exports = { verifyPackage, validateAndroidResources, inspectAndroidResources, validateAndroidSigner, validateWindowsSigner };
+module.exports = { verifyPackage, inspectWindowsShortcuts, validateAndroidResources, inspectAndroidResources, validateAndroidSigner, validateWindowsSigner };

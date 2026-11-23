@@ -256,3 +256,10 @@ JSON/Markdown随独立Actions审计制品及包provenance保存。新包首次�
 双客户端增加源码清单、编译前临时配置核对、最终包检查与摘要审计。
 源码清单review-required并非全部动态地址已审阅；未执行Actions或真实出包/安装。
 测试细节见唯一知识库台账；历史output布局失败未删除或掩盖。
+# 2026-11-23 Electron中文快捷方式回归修复
+
+- 范围：用户要求旧脚本不动，修复当前有效maker-wix名称及辅助回归；止于源码/配置/台账main闭环，不触发Actions、占号、产品打包、发布、SSH或安装。
+- 根因：中文名称位于旧unified-msi组包器；当前适配器已绕过该组包器，原生maker-wix缺shortcutName而回落CloudMeet。Electron固定源码更新为e0274a69aafb76fc0999c887339951ea5ee6dc93，显式中文名称及936代码页，保留产品/制造商/exe/安装身份。源配置7/7定向回归通过，新增名称断言先失败后通过。
+- 最终检查直接读取MSI Shortcut表，验证桌面/开始菜单中文长名称、唯一行及cloudmeet.exe目标；适配器hook和版本并存、错误名称/缺项/重复/目标拒绝回归通过。Windows Installer COM临时无载荷数据库验证实际UTF-8读取，未安装应用、不构建产品。
+- Electron全套131项127通过4失败：private-ca live远端115:443拒绝连接、server-trust既有源码断言、unified-msi两项旧英文断言；原固定提交隔离提取后定向复现同4项失败（10项6通过4失败）。旧脚本/旧测试未改，不以此记录宣称全套通过，不关闭相关安全/交付未验项。
+- 新Actions最终MSI、用户已安装包身份/Shortcut表、升级清理旧快捷方式、150副本/活会话及目标验收均待核验。证据仅限本次辅助验证；最终配置SHA/main结果同步唯一台账。

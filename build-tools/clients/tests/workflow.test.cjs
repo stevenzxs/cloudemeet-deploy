@@ -6,7 +6,7 @@ test('client workflow keeps Android signing but removes Windows signing credenti
   const text = fs.readFileSync(path.join(__dirname, '../../../.github/workflows/build-clients.yml'), 'utf8');
   assert.match(text, /workflow_dispatch:/);
   assert.doesNotMatch(text, /pull_request:|contents: write/);
-  assert.match(text, /5d9d14d19b55aa618b3610d1a865e3d77485d46f/);
+  assert.match(text, /e0274a69aafb76fc0999c887339951ea5ee6dc93/);
   assert.match(text, /ANDROID_KEYSTORE_BASE64/);
   for (const key of ['WINDOWS_PFX_BASE64', 'WINDOWS_PFX_PASSWORD', 'CERTIFICATES_READ_TOKEN', 'SIGNTOOL_PATH']) assert.doesNotMatch(text, new RegExp(key));
   assert.match(text, /debug fallback prohibited/);
