@@ -59,7 +59,7 @@ def host_os():
             (line.split('=',1) for line in Path('/etc/os-release').read_text().splitlines() if '=' in line)}
 
 
-def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=None):
+def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=None,registry=None):
     certificate=None
     if verify_origin is not None:
         spec=importlib.util.spec_from_file_location('target_certificate',root/'certificate.py')
@@ -68,6 +68,18 @@ def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=Non
     verifier.verify_checksums(root)
     manifest=json.loads((root/'candidate.json').read_text())
     verifier.require_ready(manifest)
+    if manifest.get('client_origin') and manifest['client_origin']!=verify_origin:
+        raise ValueError('Deployment origin differs from built clients')
+    if manifest.get('client_ca_sha256'):
+        spec=importlib.util.spec_from_file_location('client_trust',root/'image_transport.py')
+        trust=importlib.util.module_from_spec(spec);spec.loader.exec_module(trust)
+        trust.require_ca(manifest,root/'cert/ca.crt')
+    transport=None
+    if manifest.get('image_transport')=='registry':
+        spec=importlib.util.spec_from_file_location('image_transport',root/'image_transport.py')
+        transport=importlib.util.module_from_spec(spec);spec.loader.exec_module(transport)
+        if registry is None:raise ValueError('Online first installation requires verified registry record')
+        transport.require_material(registry,manifest)
     child_env=dict(os.environ)
     external=None
     if target_env is not None or manifest.get('network_audit_required'):
@@ -118,23 +130,7 @@ def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=Non
     if engine.returncode or engine.stdout.strip() not in platforms.get(architecture,[]):
         raise ValueError('A matching existing Docker engine is required; offline engine installation remains a separate gate')
     runner(verifier.compose_prefix(root,manifest)+['version'],check=True,timeout=20)
-    archives=manifest.get('image_archives',{})
-    if set(archives)!=set(manifest['images']):
-        raise ValueError('Incomplete image archive set')
-    # Check every archive and existing tag before importing the first image.
-    for service,(tag,identity) in manifest['images'].items():
-        record=archives[service]
-        if record['tag']!=tag or record['image_id']!=identity or Path(record['file']).name!=record['file']:
-            raise ValueError('Archive identity does not match service')
-        archive=root/'images'/record['file']
-        if archive.stat().st_size!=record['bytes'] or verifier.sha256_file(archive)!=record['sha256']:
-            raise ValueError('Archive integrity failure')
-        local=runner(['docker','image','inspect',tag],capture_output=True,text=True,timeout=20)
-        check_local_identity(json.loads(local.stdout)[0] if local.returncode==0 else None,identity,architecture,archive)
-    for service,(tag,identity) in manifest['images'].items():
-        runner(['docker','image','load','--input',str(root/'images'/archives[service]['file'])],check=True,timeout=600)
-        local=runner(['docker','image','inspect',tag],capture_output=True,text=True,check=True,timeout=20)
-        check_local_identity(json.loads(local.stdout)[0],identity,architecture,root/'images'/archives[service]['file'])
+    acquire_images(root,manifest,verifier,runner,registry,transport)
     runner([sys.executable,'-B',str(root/'initialize.py')],check=True,timeout=30,env=child_env)
     runner([sys.executable,'-B',str(root/'start.py'),'--start'],check=True,timeout=180,env=child_env)
     if certificate is not None:
@@ -148,17 +144,51 @@ def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=Non
     print('First-start commands completed. Target CA/TLS, signaling, clients and media must still be accepted.')
 
 
+def acquire_images(root,manifest,verifier,runner,registry=None,transport=None):
+    architecture=manifest.get('architecture','amd64')
+    if manifest.get('image_transport')=='registry':
+        transport.pull_images(registry,runner)
+        transport.bind_local_tags(registry,manifest,runner)
+        return
+    archives=manifest.get('image_archives',{})
+    if set(archives)!=set(manifest['images']):
+        raise ValueError('Incomplete image archive set')
+    # Check every archive and existing tag before importing the first image.
+    for service,(tag,identity) in manifest['images'].items():
+        record=archives[service]
+        if record['tag']!=tag or record['image_id']!=identity or Path(record['file']).name!=record['file']:
+            raise ValueError('Archive identity does not match service')
+        archive=root/'images'/record['file']
+        if archive.stat().st_size!=record['bytes'] or verifier.sha256_file(archive)!=record['sha256']:
+            raise ValueError('Archive integrity failure')
+        local=runner(['docker','image','inspect',tag],capture_output=True,text=True,timeout=20)
+        if local.returncode!=0 and 'No such image' not in (local.stderr or ''):
+            raise ValueError('Cannot establish local image absence: '+service)
+        check_local_identity(json.loads(local.stdout)[0] if local.returncode==0 else None,identity,architecture,archive)
+    for service,(tag,identity) in manifest['images'].items():
+        runner(['docker','image','load','--input',str(root/'images'/archives[service]['file'])],check=True,timeout=600)
+        local=runner(['docker','image','inspect',tag],capture_output=True,text=True,check=True,timeout=20)
+        check_local_identity(json.loads(local.stdout)[0],identity,architecture,root/'images'/archives[service]['file'])
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--first-install',action='store_true',required=True)
     parser.add_argument('--verify-origin',required=True)
     parser.add_argument('--target-env',type=Path,help='Explicit public instance parameters outside package')
+    parser.add_argument('--registry',type=Path)
+    parser.add_argument('--registry-sha256')
     args=parser.parse_args()
     root=Path(__file__).resolve().parent
     spec=importlib.util.spec_from_file_location('package_verifier',root/'install.py')
     verifier=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)
-    deploy(root,verifier,verify_origin=args.verify_origin,target_env=args.target_env)
+    record=None
+    if args.registry:
+        if hashlib.sha256(args.registry.read_bytes()).hexdigest()!=args.registry_sha256:
+            raise ValueError('Untrusted registry record')
+        record=json.loads(args.registry.read_text())
+    deploy(root,verifier,verify_origin=args.verify_origin,target_env=args.target_env,registry=record)
 
 
 if __name__=='__main__':

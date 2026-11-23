@@ -46,6 +46,8 @@ def main():
     parser.add_argument('--server-package',type=Path,required=True)
     parser.add_argument('--verify-origin',required=True)
     parser.add_argument('--target-env',type=Path,required=True,help='Public instance configuration outside package')
+    parser.add_argument('--registry',type=Path,help='Online installation: separately hash-verified registry.json')
+    parser.add_argument('--registry-sha256')
     args=parser.parse_args()
     if os.geteuid()!=0: raise ValueError('Run setup.py with sudo/root')
     os.umask(0o077)
@@ -71,8 +73,13 @@ def main():
     shutil.copyfile(cert,root/'cert.tar.gz');(root/'cert.tar.gz').chmod(0o600)
     module.preflight(root,args.verify_origin)
     module.unpack_certificate(root/'cert.tar.gz',root/'cert')
-    subprocess.run([sys.executable,'-B',str(root/'deploy.py'),'--first-install',
-                    '--verify-origin',args.verify_origin,'--target-env',str(args.target_env.absolute())],check=True,cwd=str(root))
+    command=[sys.executable,'-B',str(root/'deploy.py'),'--first-install',
+             '--verify-origin',args.verify_origin,'--target-env',str(args.target_env.absolute())]
+    if args.registry:
+        if hashlib.sha256(args.registry.read_bytes()).hexdigest()!=args.registry_sha256:
+            raise ValueError('Registry checksum mismatch')
+        command+=['--registry',str(args.registry.resolve()),'--registry-sha256',args.registry_sha256]
+    subprocess.run(command,check=True,cwd=str(root))
 
 
 if __name__=='__main__': main()

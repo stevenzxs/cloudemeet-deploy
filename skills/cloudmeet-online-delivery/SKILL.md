@@ -35,10 +35,12 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 3. **统一参数**：运行 `python3 -B build-tools/delivery-target.py --origin <origin>` 预览；IPv4直接复用MEDIA_HOST，域名用当前解析及独立核验的同机IPv4，经 `--verified-target-ipv4` 输入工具，歧义阻断。MEDIA_PORT来自受控target.env，不从网页端口猜。将工具输出的入口三项更新到唯一config/client.env，CLIENT_VERSION保持批准基线。包外实例配置通过 `--target-env <仓库外绝对路径>` 创建，不修改包内文件。修改/测试后提交推送并合入main，再固定最终完整SHA；只推任务分支不算完成。
 4. **联合构建/发布**：审阅当前 `build-joint.yml`、复用工作流的触发器/权限/Secrets/目标；显式 material_commit=本次最终配置SHA、118 architecture=amd64、在本次授权发布范围内 publish_images=true。不要用旧actions.py的手填--version示例调度新入口。新顶层Run在产品测试/构建前分配N，失败取消占号、同Run重跑复用、子流程继承；不另开客户端Run重复占号。不在150/目标机/Windows编译服务端，不自动离线回退。
 5. **跟踪与制品**：调度前落盘意图和任务ID，查询关联Run，记录head_sha/Run ID/attempt；HTTP204不等于成功。有限等待，网络超时先查状态，不重新dispatch。核验完成结论、实际矩阵、artifact来源/外层摘要、内层SHA256SUMS、七镜像固定digest和config身份。双客户端最终APK/MSI/PE版本、ABI、origin、CA必须通过；Android比对批准签名身份，Windows记录unsigned及未知发布者/SmartScreen风险，不写验签通过。其余门禁失败仍阻断。
-6. **首装**：先核验材料和目标无既有安装；用本批setup.py及摘要、server归档及摘要、独立安全传输的cert.tar.gz、包外target.env，经 `setup.py --server-package <包> --verify-origin <origin> --target-env <外部绝对路径>` 首装。线上固定digest拉取由经审阅流程安排，setup只消费已验配套材料，不在目标编译或隐式下载。保留CA v1、复用有效同CA目标叶证书；核验链/SAN/期限/密钥配对、客户端限定信任和备份恢复，不把“无CA轮换”写成“不安装叶证书”。新CA轮换仍另批。失败保留数据/秘密/证书/目录，按已完成阶段记录，禁止清理重装或假称旧残留镜像可回滚。
+6. **发布后选择与目标执行**：七服务与双客户端全部成功才联合发布；七镜像GHCR固定digest及客户端/公开材料GitHub Release持久保存，draft全部资产上传后公开，部分失败不称完整发布。运行`delivery-route.py --origin <已构建origin>`，只补问缺失的首次/升级、服务器地址、入口；已有值复用。入口/公开CA必须匹配构建结果，不能发布后改值冒充客户端已适配。首装用本批setup.py/摘要、无镜像online归档/摘要、registry/独立可信摘要、独立安全传输的cert.tar.gz及包外target.env：`setup.py --server-package <包> --verify-origin <origin> --target-env <外部绝对路径> --registry <registry.json> --registry-sha256 <可信摘要>`，按digest拉取，不编译。已有实例只能走升级，不用首装覆盖。升级从新材料运行`online_update.py`，必填`--root`/`--project`/`--target-env`/`--verify-origin`/`--ca`/`--candidate`/`--registry`/`--registry-sha256`，默认只读；已授权更新时加`--apply`。严格绑定七容器归属，核对配置/补丁兼容、TLS/API及空闲后备份；当前仅image-only，不自动配置/schema迁移。保留数据/秘密/CA/证书，失败旧image ID恢复服务，不恢复数据库覆盖新数据。新CA轮换仍另批，失败保留目录和阶段，不清理重装。
 7. **验收与闭环**：分别报告构建、签名、发布、制品核验、安装、HTTPS/鉴权/信令、客户端安装和媒体结果。JVB媒体用三客户端或禁P2P，并记录实际JVB链路；两客户端P2P不能证明JVB可用。材料/设备不足列待核验，不虚报完成。知识库唯一台账按短分支→提交推送→合main→核验→删已合分支闭环，保全并发变更。
 
 ## 断点与停止
+
+离线是显式附加节点而非pull失败回退：使用同库cloudmeet-deploy-offline Skill及offline-export.py，从已发布固定digest导出，不新占rN/重新编译。目标首装/升级共用公共安装核心，离线升级显式--offline-package，只load不pull。需要已有匹配Linux Docker Engine；包内Compose不等于完整引擎首装闭包。脚本/Skill到位不代表上述真实发布或安装已验收。
 
 仓库外受限检查点记录任务终点/授权范围、origin与派生值、三库SHA、Run/attempt、N、制品ID/摘要/digest、当前阶段与下一步。恢复先比较真实Run和目标，不重复占号、构建或首装。新秘密通过受限渠道提供，不在聊天粘贴；CA私钥不进Actions/镜像/目标包。
 

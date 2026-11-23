@@ -11,7 +11,7 @@ on:
         options: [amd64, arm64]
         required: true
       publish_images:
-        description: Explicitly approved publication of exact seven service images (no deployment)
+        description: Approved joint GHCR and two-client Release publication (no deployment)
         type: boolean
         default: false
 permissions:
@@ -35,7 +35,19 @@ jobs:
     with:
       material_commit: ${{ inputs.material_commit }}
       architecture: ${{ inputs.architecture }}
-      publish_images: ${{ inputs.publish_images }}
+      publish_images: false
+      assignment: ${{ needs.version.outputs.assignment }}
+  publish:
+    needs: [version, server, clients]
+    if: inputs.publish_images
+    permissions:
+      contents: write
+      actions: read
+      packages: write
+    uses: ./.github/workflows/publish-release.yml
+    with:
+      material_commit: ${{ inputs.material_commit }}
+      architecture: ${{ inputs.architecture }}
       assignment: ${{ needs.version.outputs.assignment }}
   clients:
     needs: version

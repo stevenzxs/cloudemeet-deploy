@@ -1,0 +1,73 @@
+name: Publish verified joint delivery
+on:
+  workflow_call:
+    inputs:
+      material_commit:
+        type: string
+        required: true
+      architecture:
+        type: string
+        required: true
+      assignment:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 60
+    permissions:
+      contents: write
+      actions: read
+      packages: write
+    env:
+      TARGET_ARCH: ${{ inputs.architecture }}
+      ALLOCATION_JSON: ${{ inputs.assignment }}
+      VERSION_RECORD: ${{ github.workspace }}/version-assignment.json
+      VERSION: ${{ fromJSON(inputs.assignment).versions.server_version }}
+      BATCH: ${{ fromJSON(inputs.assignment).versions.server_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.material_commit }}
+          persist-credentials: false
+      - name: Verify reviewed configuration
+        env:
+          MATERIAL_COMMIT: ${{ inputs.material_commit }}
+        run: |
+          test "$MATERIAL_COMMIT" = "$GITHUB_SHA"
+          test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
+          sha256sum -c build-tools/inputs.sha256
+          printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: downloads
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: client-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: client-downloads
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: cloudmeet-${{ inputs.architecture == 'amd64' && 'amd64' || 'aarch64' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: server-downloads
+      - name: Validate both clients and prepare immutable Release assets before any publication
+        run: python3 -B build-tools/joint-release.py prepare
+      - name: Authenticate to GHCR only
+        run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Publish exact seven images, then Release assets
+        run: |
+          python3 -B build-tools/publish.py
+          python3 -B build-tools/joint-release.py publish
+      - name: Remove registry session
+        if: always()
+        run: docker logout ghcr.io
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: registry-${{ github.run_id }}-${{ github.run_attempt }}
+          path: publication/
+          if-no-files-found: warn
+          retention-days: 14

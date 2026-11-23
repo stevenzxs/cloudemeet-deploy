@@ -5,6 +5,19 @@ description: Use when producing CloudMeet / Jitsi offline deployment bundles for
 
 # CloudMeet 离线部署包产出技能
 
+## 当前线上后置离线附加节点（2026-11-23）
+
+本节操作覆盖下文旧“离线源码构建/另造install.sh/uninstall.sh/浮动tag”示例；下文保留为历史材料组织参考，不能用它绕过AGENTS及知识库。当前不另造安装核心、不因pull失败自动离线回退，不把历史架构/地址当默认值。
+
+1. 先读现行AGENTS及知识库/台账；本次明确启用离线附加节点后，核对已发布七服务registry固定digest、源码及构建配置SHA、OS/架构、可拉取权限、可信摘要与同版本公开线上材料。客户端origin/公开CA在原构建前已确定，后续部署入口必须匹配。缺权限/证据阻断，不重编译、不新占rN。
+2. 在已批准且具有匹配Linux Docker Engine的导出机，从干净受审配置SHA执行`python3 -B build-tools/offline-export.py --source <已可信核验解压的线上材料> --registry <registry.json> --registry-sha256 <独立可信摘要> --destination <全新目录>`。固定digest拉取并核验image ID/平台后save，组装同版本配置/补丁/公共运行时、INSTALL、registry及SHA256SUMS，复读最终归档。另输出setup.py/摘要；拒绝覆盖已有目录/归档。配置SHA单独记录，不冒充原镜像构建配置SHA。
+3. 传输前后核验可信外层摘要，解包后核验全量内部摘要及镜像归档身份。保留发布digest、image ID及归档SHA256的区别：save/load不保证RepoDigest恢复。包不含Secrets、运行数据、CA私钥或目标叶私钥；目标专属cert.tar.gz另行安全传输。当前含原生Compose、要求已有匹配Docker Engine，不声称无Docker首装闭包或任意发行版兼容。
+4. 离线包同时提供首装与image-only升级材料：首装经`setup.py --server-package <offline.tar.gz> --verify-origin <匹配origin> --target-env <包外绝对路径>`，不传registry拉取选项，拒绝已有目录/秘密/数据；升级经新材料`online_update.py --offline-package <新材料目录> --candidate <目录/candidate.json> --registry <目录/registry.json> --registry-sha256 <独立可信摘要> --root <实际实例> --project <实际project> --target-env <外部绝对路径> --verify-origin <origin> --ca <公开根>`。默认只读；实际目标执行另按本次安装/升级授权加--apply。目标不pull/build/联网补缺。
+5. 公共升级严格核验七容器归属/运行、配置/补丁一致、TLS/API、空闲、SQLite一致性备份；保留数据/秘密/CA/证书及无关服务，失败旧image ID恢复，不覆盖新数据库。不自动配置/schema迁移，不以删除旧数据实现“首装”。破坏性清理、CA轮换另行审批。
+6. 交付至release/<amd64|aarch64>/server/<新批次>并复核摘要；列实际路径、来源、安装前提与未验项。材料完整不等于真实Docker导出、目标首装/升级、回滚演练、客户端或非P2P JVB媒体验收已通过。本次流程维护不运行上述实际操作，不同步150安装副本。
+
+## 历史参考（不作为上述新附加节点执行入口）
+
 目录约定：服务端及依赖从`deploy/release/<amd64|aarch64>/{server,dependencies}/`交付，客户端独立从`deploy/release/clients/<架构>/<批次>/`交付，clients与amd64、aarch64同级。完整包通过材料/架构/配置引用/摘要校验即可输出release，附INSTALL、来源与前置条件；不要求安装测试。不得重建deploy/debug，不删除其他历史材料，已有批次不因文档更新而迁移。完整规范仅由deploy/AGENTS.md负责。
 
 按 **收集打包参数 → 生成内容清单 → 用户确认 → 逐工件获取/构建并报告 → 组装校验 → 交付报告** 执行。历史实例只是排坑证据，不是默认地址、平台或内容。本次仅要求编写方案/评估时不执行构建，也不连接任何服务器。

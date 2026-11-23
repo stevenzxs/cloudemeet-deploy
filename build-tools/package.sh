@@ -481,6 +481,7 @@ PY
     JITSI_ROLE_CHECK_SECRET=RENDER_ONLY \
         "$output/bin/docker-compose" -f "$output/jitsi-base.yaml" config --quiet
     python3 -B "$output/install.py" --verify-only
+    python3 -B "$tools/online-material.py" --source "$output" --destination "$output-online"
     tar -czf "$output.tar.gz" -C "$(dirname "$output")" "$(basename "$output")"
     (cd "$(dirname "$output")"; sha256sum "$(basename "$output").tar.gz" > "$(basename "$output").tar.gz.sha256")
     # Re-read the actual final archive, not only the staging directory.

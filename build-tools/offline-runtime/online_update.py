@@ -19,13 +19,13 @@ SERVICES=('gateway','app-web','api','web','prosody','jicofo','jvb')
 
 
 def validate_registry(record):
-    if (record.get('status')!='PUBLISHED_NOT_DEPLOYED' or record.get('architecture')!='amd64'
+    if (record.get('status')!='PUBLISHED_NOT_DEPLOYED' or record.get('architecture') not in ('amd64','arm64')
             or set(record.get('images',{}))!=set(SERVICES)):
-        raise ValueError('Complete amd64 seven-service publication required')
+        raise ValueError('Complete seven-service publication required')
     for service,image in record['images'].items():
         if (not re.fullmatch('ghcr.io/stevenzxs/cloudmeet-'+service+r'@sha256:[0-9a-f]{64}',image['reference'])
                 or not re.fullmatch(r'sha256:[0-9a-f]{64}',image['image_id'])
-                or image['platform']!='linux/amd64'):
+                or image['platform']!='linux/'+record['architecture']):
             raise ValueError('Unpinned or invalid image: '+service)
 
 
@@ -38,27 +38,56 @@ def require_compatible_material(old,new):
         raise ValueError('Image-only update requires identical reviewed external patches')
 
 
-def capture(*args):
-    return subprocess.check_output(args,stderr=subprocess.PIPE,text=True)
+def require_configuration_compatible(old_root,new_root):
+    def sums(root):
+        return {name:checksum for checksum,name in
+                (line.split('  ',1) for line in (root/'SHA256SUMS').read_text().splitlines())}
+    old=sums(old_root);new=sums(new_root)
+    for name in ('jitsi.env','Caddyfile','docker-compose.yml','target.env','target.py','initialize.py','start.py'):
+        if (name in old or name in new) and old.get(name)!=new.get(name):
+            raise ValueError('Image-only upgrade requires reviewed configuration migration: '+name)
+    # Base Compose differs per batch only in project name and image identities.
+    def normalized(root):
+        data=json.loads((root/'jitsi-base.yaml').read_text());data.pop('name',None)
+        for service in data.get('services',{}).values():service.pop('image',None)
+        return data
+    if normalized(old_root)!=normalized(new_root):
+        raise ValueError('Image-only upgrade requires reviewed Compose migration')
 
 
-def compose(root,project):
-    spec=importlib.util.spec_from_file_location('online_target',root/'target.py')
-    target=importlib.util.module_from_spec(spec);spec.loader.exec_module(target)
-    os.environ.update(target.load_target(root/'target.env'))
-    command=[str(root/'bin/docker-compose'),'--project-name',project,'--project-directory',str(root)]
-    for name in ('jitsi.env','.env'):command+=['--env-file',str(root/name)]
-    for name in ('jitsi-base.yaml','docker-compose.yml','source-images.yaml'):command+=['-f',str(root/name)]
-    return command
+def capture(*args,env=None):
+    return subprocess.check_output(args,stderr=subprocess.PIPE,text=True,env=env)
+
+
+def instance_context(root,project,target_env=None):
+    spec=importlib.util.spec_from_file_location('instance_start',root/'start.py')
+    start=importlib.util.module_from_spec(spec);spec.loader.exec_module(start)
+    command=start.compose_command(root,target_env)
+    command[1:1]=['--project-name',project] if command[0]!='docker' else []
+    if command[0]=='docker':command[2:2]=['--project-name',project]
+    return command,start.runtime_environment(root,target_env)
 
 
 def is_idle(stats):
     return isinstance(stats.get('conferences'),dict) and not stats['conferences']
 
 
-def idle():
+def require_ownership(info,root,project):
+    services=[]
+    for item in info:
+        labels=item.get('Config',{}).get('Labels',{})
+        if (labels.get('com.docker.compose.project')!=project or
+                labels.get('com.docker.compose.project.working_dir')!=str(root) or
+                not item.get('State',{}).get('Running')):
+            raise ValueError('Container ownership/running state mismatch')
+        services.append(labels.get('com.docker.compose.service'))
+    if len(services)!=7 or set(services)!=set(SERVICES):
+        raise ValueError('Expected each selected service exactly once')
+
+
+def idle(project):
     # Existing JVB internal REST endpoint: fail closed if statistics unavailable.
-    ids=capture('docker','ps','-q','--filter','label=com.docker.compose.project=cloudmeet-1124801-local-1',
+    ids=capture('docker','ps','-q','--filter','label=com.docker.compose.project='+project,
                 '--filter','label=com.docker.compose.service=jvb').split()
     if len(ids)!=1:raise ValueError('Expected exact existing JVB')
     stats=json.loads(capture('docker','exec',ids[0],'curl','--fail','--silent',
@@ -80,53 +109,79 @@ def health(origin,ca):
 
 
 def main():
-    import fcntl
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--registry',type=Path,required=True)
     parser.add_argument('--registry-sha256',required=True)
     parser.add_argument('--root',type=Path,required=True)
+    parser.add_argument('--project',required=True)
+    parser.add_argument('--verify-origin',required=True)
+    parser.add_argument('--target-env',type=Path,required=True)
+    parser.add_argument('--offline-package',type=Path,help='Explicit offline upgrade; never pulls')
     parser.add_argument('--candidate',type=Path,required=True)
     parser.add_argument('--ca',type=Path,required=True)
     parser.add_argument('--apply',action='store_true')
     args=parser.parse_args()
+    import fcntl
     os.umask(0o077)
     if hashlib.sha256(args.registry.read_bytes()).hexdigest()!=args.registry_sha256:
         raise ValueError('Untrusted registry manifest bytes')
     record=json.loads(args.registry.read_text());validate_registry(record)
-    root=args.root.resolve();project='cloudmeet-1124801-local-1';origin='https://118.193.36.35:8443'
-    if str(root)!='/opt/cloudmeet/11248.0.1':raise ValueError('Unreviewed instance path')
-    command=compose(root,project)
+    root=args.root.resolve();project=args.project;origin=args.verify_origin
+    if not re.fullmatch(r'[a-z0-9][a-z0-9_-]{0,127}',project):raise ValueError('Invalid Compose project')
+    spec=importlib.util.spec_from_file_location('origin_certificate',Path(__file__).with_name('certificate.py'))
+    cert=importlib.util.module_from_spec(spec);spec.loader.exec_module(cert)
+    cert.origin_host(origin)
+    command,environment=instance_context(root,project,args.target_env.absolute())
     candidate_material=json.loads(args.candidate.read_text())
     require_compatible_material(json.loads((root/'candidate.json').read_text()),candidate_material)
+    require_configuration_compatible(root,args.candidate.resolve().parent)
     if candidate_material['batch']!=record['batch'] or candidate_material['deployment_commit']!=record['configuration_commit']:
         raise ValueError('New material/publication mismatch')
-    old=json.loads(capture(*command,'config','--format','json'))
+    spec=importlib.util.spec_from_file_location('image_transport',Path(__file__).with_name('image_transport.py'))
+    transport=importlib.util.module_from_spec(spec);spec.loader.exec_module(transport)
+    transport.require_material(record,candidate_material)
+    transport.require_origin(candidate_material,origin)
+    transport.require_ca(candidate_material,args.ca)
+    spec=importlib.util.spec_from_file_location('new_material_verifier',Path(__file__).with_name('install.py'))
+    verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
+    verifier.verify_checksums(args.candidate.resolve().parent);verifier.require_ready(candidate_material)
+    offline=None
+    if args.offline_package:
+        offline=args.offline_package.resolve()
+        if args.candidate.resolve()!=offline/'candidate.json':raise ValueError('Offline candidate must belong to package')
+        spec=importlib.util.spec_from_file_location('offline_verifier',Path(__file__).with_name('install.py'))
+        verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
+        verifier.verify_checksums(offline);verifier.require_ready(candidate_material)
+        if candidate_material.get('image_transport')=='registry':raise ValueError('Offline upgrade requires image archives')
+    old=json.loads(capture(*command,'config','--format','json',env=environment))
     if set(old['services'])!=set(SERVICES):raise ValueError('Unexpected existing service set')
-    ids=capture(*command,'ps','-q').split()
+    ids=capture(*command,'ps','-q',env=environment).split()
     if len(ids)!=7:raise ValueError('Expected seven existing running containers')
     info=json.loads(capture('docker','inspect',*ids))
-    for item in info:
-        labels=item['Config']['Labels']
-        if (labels['com.docker.compose.project']!=project or
-                labels['com.docker.compose.project.working_dir']!=str(root)):
-            raise ValueError('Container ownership mismatch')
-    health(origin,args.ca);idle()
+    require_ownership(info,root,project)
+    health(origin,args.ca);idle(project)
     print('Existing instance, strict TLS/API and idle state verified; apply =',args.apply)
     if not args.apply:return
     with (root/'.online-update.lock').open('a') as lock:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
-        for image in record['images'].values():
-            subprocess.run(['docker','pull',image['reference']],check=True)
-            actual=json.loads(capture('docker','image','inspect',image['reference']))[0]
-            if actual['Id']!=image['image_id'] or actual['Os']+'/'+actual['Architecture']!=image['platform']:
-                raise ValueError('Pulled image identity mismatch')
-        idle()
+        if offline:
+            spec=importlib.util.spec_from_file_location('offline_import',Path(__file__).with_name('deploy.py'))
+            importer=importlib.util.module_from_spec(spec);spec.loader.exec_module(importer)
+            for service in SERVICES:
+                provenance=json.loads((offline/'provenance'/(service+'.json')).read_text())
+                verifier.verify_image_archive(offline/'images'/provenance['archive'],provenance)
+            importer.acquire_images(offline,candidate_material,verifier,subprocess.run)
+        else:
+            transport.pull_images(record)
+        idle(project)
         backup=root/'update-backups'/datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         backup.mkdir(parents=True,mode=0o700)
         target=root/'source-images.yaml'
         for name in ('source-images.yaml','jitsi-base.yaml','docker-compose.yml','Caddyfile','.env','target.env','jitsi.env'):
             shutil.copy2(root/name,backup/name)
             (backup/name).chmod(0o600)
+        shutil.copy2(args.target_env,backup/'external-target.env')
+        (backup/'external-target.env').chmod(0o600)
         for db in (root/'data/api').glob('*.db'):
             with sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True) as source:
                 with sqlite3.connect(backup/db.name) as destination:source.backup(destination)
@@ -134,29 +189,32 @@ def main():
                              {'image':x['Image'],'pull_policy':'never'} for x in info}}
         (backup/'rollback-images.json').write_text(json.dumps(rollback))
         (backup/'registry.json').write_bytes(args.registry.read_bytes())
-        override=backup/'new-images.json';override.write_text(json.dumps(image_override(record)))
-        candidate=json.loads(capture(*command,'-f',str(override),'config','--format','json'))
+        replacement=image_override(record)
+        if offline:
+            replacement={'services':{s:{'image':record['images'][s]['image_id'],'pull_policy':'never'} for s in SERVICES}}
+        override=backup/'new-images.json';override.write_text(json.dumps(replacement))
+        candidate=json.loads(capture(*command,'-f',str(override),'config','--format','json',env=environment))
         for service in SERVICES:
             before=dict(old['services'][service]);after=dict(candidate['services'][service])
             for key in ('image','pull_policy'):before.pop(key,None);after.pop(key,None)
             if before!=after:raise ValueError('Image update changed product configuration')
         try:
-            target.write_text(json.dumps(image_override(record),indent=2)+'\n')
-            subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True)
+            target.write_text(json.dumps(replacement,indent=2)+'\n')
+            subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=environment)
             for attempt in range(20):
                 try:health(origin,args.ca);break
                 except Exception:
                     if attempt==19:raise
                     time.sleep(5)
-            running=json.loads(capture('docker','inspect',*capture(*command,'ps','-q').split()))
-            if len(running)!=7:raise ValueError('Missing containers')
+            running=json.loads(capture('docker','inspect',*capture(*command,'ps','-q',env=environment).split()))
+            require_ownership(running,root,project)
             for item in running:
                 service=item['Config']['Labels']['com.docker.compose.service']
                 if item['Image']!=record['images'][service]['image_id'] or not item['State']['Running']:
                     raise ValueError('Running image mismatch')
         except Exception:
             target.write_text(json.dumps(rollback))
-            subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True)
+            subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=environment)
             health(origin,args.ca)
             # Keep exact image-ID override until operator review; original bytes saved above.
             raise

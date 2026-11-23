@@ -10,6 +10,15 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 2. 批次范围与授权
 
+### 2026-11-23 用户二次确认：线上联合发布与离线附加交付
+
+- 本节是已单独提醒并确认的正常流程变更，覆盖下文旧的发布顺序、默认no-pull及首装/升级选择口径；历史批次、字节、Run与证据不追改。用户要求先修改验证配置库脚本并完成main闭环，再同步知识库。本次维护不授权正式占号、Actions、产品构建、发布、SSH、150同步或118/r14升级。
+- 正常新联合交付：构建前固定双客户端完整origin和公开CA、批准源码与配置SHA；Actions同一顶层Run共享rN完整构建七服务及Electron/Android，全部成功且材料检查通过后才联合发布。七镜像发布GHCR并核验固定digest/config身份；客户端及同版本公开配置、补丁、公共安装工具、来源与摘要持久发布GitHub Release，不以14天Actions artifact代替持久交付。先建draft，全部资产上传成功后公开；部分镜像或资产失败不得宣称联合发布完成，不覆盖已有批次。
+- 发布后只补问缺失的首次部署/升级、部署服务器地址、入口地址；已有值复用。入口必须与已构建客户端origin/CA一致，不能发布后改入口冒充客户端已适配。升级另核实实际实例目录、Compose project和包外target.env；历史实例路径不作为默认值。未取得必要选择/授权不自动SSH或apply。
+- 线上首次部署使用setup.py、无镜像的公开材料包、独立可信registry摘要、目标专属证书包和包外target.env，目标按七个固定digest拉取，不在目标编译。首次安装拒绝既有目录/秘密/数据，不是清理重装。升级复用公共online_update.py，默认只读，显式apply后pull；当前仅image-only，外置补丁或受保护配置变化拒绝自动迁移。核验七容器归属、运行状态、严格TLS/API及所选project会议空闲，一致性备份后更新；失败用旧image ID恢复服务，不覆盖更新后数据库。
+- 离线包是显式批准的附加节点：从已发布固定digest拉取并核验后save/load，不重新编译、不新分配rN，不因目标pull失败自动回退。包包含七镜像归档、同版本配置/补丁/公共首装与升级工具、来源清单、INSTALL及内外摘要，记录原发布digest、image ID、源码/镜像构建配置SHA和离线导出配置SHA。首装及升级复用同一公共安装核心，目标不联网补包；当前要求已有匹配Linux Docker Engine，含原生Compose，不冒称无Docker首装闭包或全平台已实装。
+- 线上/离线均保留数据、秘密、CA/证书和无关服务，CA私钥不入包；Android原身份签名、Windows unsigned及端点限定HTTPS信任不变。配置/schema迁移、清理重装、CA轮换与新危险操作另行审批。构建、联合发布、材料交付、安装/升级、客户端及非P2P JVB媒体验收分别记录；辅助回归不替代Actions或目标验收。
+
 ### 2026-11-20 用户二次确认：Windows未签名，Android保持签名
 
 - 本节覆盖下文历史Windows必须签名/未签名拒绝/PFX注入要求。已明确提醒这是正常标准流程变更，用户确认Windows取消EXE/MSI代码签名，再确认Android保留现有应用签名、两端HTTPS CA不变，并授权修改提交推送及启动一次新联合Actions。
@@ -135,6 +144,13 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/network-audit.py`、`build-tools/tests/test_network_audit.py` | 地址/端口声明清单、目标派生和最终Compose审计；无网络辅助回归，新包目标启动前复用 |
 | `build-tools/NETWORK-AUDIT-PLAN.md` | 本次网络参数审计实施清单，非规范 |
 | `build-tools/STANDARD-FLOW-PLAN.md` | 标准流程修复计划及范围/验证记录，不另立规范 |
+| `build-tools/DELIVERY-CONTRACT-PLAN.md` | 线上/离线交付流程实施计划、批准边界及辅助验证记录，非规范 |
+| `build-tools/delivery-route.py` | 发布后首次/升级、服务器、入口及实例缺参提示，只生成计划，不SSH/apply |
+| `build-tools/online-material.py` | 同批完整材料派生无镜像线上包，绑定客户端origin/公开CA，最终归档复读校验 |
+| `build-tools/offline-export.py` | 显式附加节点，固定digest拉取后导出离线首装/升级包及setup摘要，不编译/占号 |
+| `build-tools/joint-release.py`、`.github/workflows/publish-release.yml` | 七服务和双客户端完成后核对身份、准备资产、发布GHCR及draft→公开Release，失败不报联合完成 |
+| `build-tools/offline-runtime/image_transport.py` | 公共registry身份/平台、客户端origin/CA、pull及本地tag冲突拒绝，不编译 |
+| `build-tools/tests/test_delivery_contract.py`、`build-tools/tests/test_delivery_assets.py` | 选择/归档/发布与离线导出回归；Docker、GitHub及目标变更均mock，不代表实机验收 |
 | `build-tools/WINDOWS-UNSIGNED-PLAN.md` | 用户批准Windows取消代码签名、Android保持签名的实施/验证计划，非规范源 |
 | `build-tools/delivery-target.py`、`build-tools/tests/test_standard_flow.py` | 入口统一派生、包外实例配置与短提示词契约辅助回归，不调度/占号/部署 |
 | `config/signing-policy.json`、`build-tools/clients/signing.cjs`、`build-tools/clients/tests/signing.test.cjs` | 证书库固定工具/批准公开身份引用、调用适配与签名拒绝回归，不维护第二份签名实现 |
@@ -161,7 +177,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/maven-route.py`、`build-tools/tests/test_maven_route.py` | API/Jicofo/JVB的Central依赖逐项阿里云优先、仅404回退Central；回环代理、严格上游TLS/校验及选路审计，专用仓库不覆盖；定向回归不构建产品 |
 | `build-tools/publish.py` | 已成功组包后显式发布同run七镜像；逐项校验归档、平台、源码及镜像config身份，核对远端digest，保留部分发布与未部署状态，不重编译 |
 | `build-tools/actions.py`、`build-tools/tests/test_actions.py` | 仓库限定Actions API调度/状态及参数/认证边界回归；凭据文件仓库外600，意图先落盘防止断线重发，不代表Hermes模型调用及制品验证已验收 |
-| `build-tools/offline-runtime/online_update.py`、`build-tools/tests/test_online_update.py` | 既有118实例image-only更新入口及固定七digest/空闲状态/保留配置回归；严格TLS前检、全部pull后SQLite一致性备份、失败恢复旧image ID，无重建/清数据，配置补丁变化须另行审核适配 |
+| `build-tools/offline-runtime/online_update.py`、`build-tools/tests/test_online_update.py` | 显式绑定实际root/project/target.env的image-only更新，线上pull/离线load共用；严格TLS/归属/空闲与配置兼容检查、一致性备份和旧image ID恢复，不清数据 |
 | `build-tools/tests/test_publish.py` | 发布显式审批及registry config身份绑定回归，不冒充真实push验证 |
 | `build-tools/ONLINE-PLAN.md` | 2026-11-17线上整链实施清单及门禁/剩余证据，非独立规范 |
 | `build-tools/setup.py` | 目标侧组合入口，校验server摘要、安全解压新目录，暂存管理员旁置cert.tar.gz并预检，调用公共首装；Actions独立输出脚本和摘要，不带私钥 |

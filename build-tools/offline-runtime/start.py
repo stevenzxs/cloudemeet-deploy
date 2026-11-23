@@ -116,7 +116,10 @@ def validate_local_images(root,manifest):
     identity_check=importlib.util.module_from_spec(spec); spec.loader.exec_module(identity_check)
     for service,(tag,identity) in manifest['images'].items():
         info=json.loads(subprocess.check_output(['docker','image','inspect',tag]))[0]
-        record=manifest['image_archives'][service]
+        record=manifest.get('image_archives',{}).get(service)
+        if manifest.get('image_transport')=='registry':
+            identity_check.check_local_identity(info,identity,manifest.get('architecture','amd64'))
+            continue
         if Path(record['file']).name!=record['file']:
             raise ValueError('Unsafe image archive path')
         identity_check.check_local_identity(info,identity,manifest.get('architecture','amd64'),

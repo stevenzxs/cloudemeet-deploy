@@ -5,7 +5,9 @@ description: Use when deploying, updating, migrating, verifying or rolling back 
 
 # CloudMeet 交互式部署技能
 
-标准线上整链或origin短句请求先加载同库 `../cloudmeet-online-delivery/SKILL.md`，按当前规范复用固定选择，不重复确认版本/媒体IP/Windows签名/首装入口。Windows正式包必须批准身份签名，不提供未签名交付选项。本文旧手填version及逐步确认示例不适用于新的联合rN入口。
+标准线上整链或origin短句请求先加载同库 `../cloudmeet-online-delivery/SKILL.md`，按当前规范复用固定选择，不重复确认版本/媒体IP/Windows签名/首装入口。Windows明确unsigned，Android保持原批准身份签名，两端HTTPS限定信任不变。本文旧手填version、Windows签名及逐步确认示例不适用于新的联合rN入口。
+
+2026-11-23操作入口：先七服务+双客户端构建及联合GHCR/持久Release发布，发布后只补问缺失的first/upgrade、server、匹配客户端origin；first不等于删除旧数据。线上setup显式registry/可信摘要按digest首装，既有实例使用新材料online_update.py并明确root/project/target.env，默认只读、授权后--apply。离线附加节点用offline-export.py从固定digest导出，同一公共首装/升级核心，升级加--offline-package只load；不重新编译或占号。具体参数见build-tools/README.md；下文历史手填版本和旧actions.py调度示例不是新联合交付入口，不能据此选择旧118路径或清理重装。
 
 目录约定：服务端及依赖从`deploy/release/<amd64|aarch64>/{server,dependencies}/`交付，客户端从`deploy/release/clients/<架构>/<批次>/`交付，clients与amd64、aarch64同级。`deploy/config/`为公共配置目标。不得重建deploy/debug，不删除或改写其他历史材料；已有客户端批次并未因文档更新而迁移。完整规范仅由deploy/AGENTS.md负责。
 

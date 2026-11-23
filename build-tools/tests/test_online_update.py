@@ -1,6 +1,7 @@
 import importlib.util
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 
 class OnlineUpdateTests(unittest.TestCase):
@@ -43,6 +44,21 @@ class OnlineUpdateTests(unittest.TestCase):
         new={'patches':{'patches/web/custom.css':'b'}}
         with self.assertRaises(ValueError):m.require_compatible_material(old,new)
         m.require_compatible_material(old,old)
+
+    def test_instance_ownership_requires_each_service_exactly_once(self):
+        m=self.module();root=Path('/opt/custom/r13');project='reviewed-r13'
+        info=[{'Config':{'Labels':{'com.docker.compose.project':project,
+              'com.docker.compose.project.working_dir':str(root),
+              'com.docker.compose.service':s}},'State':{'Running':True}} for s in m.SERVICES]
+        m.require_ownership(info,root,project)
+        info[-1]['Config']['Labels']['com.docker.compose.service']='gateway'
+        with self.assertRaises(ValueError):m.require_ownership(info,root,project)
+
+    def test_idle_uses_selected_project_not_historical_instance(self):
+        m=self.module()
+        with patch.object(m,'capture',side_effect=['jvb-id','{"conferences":{}}']) as capture:
+            m.idle('reviewed-r13')
+        self.assertIn('label=com.docker.compose.project=reviewed-r13',capture.call_args_list[0].args)
 
 
 if __name__=='__main__':unittest.main()

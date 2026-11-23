@@ -23,7 +23,8 @@ class RevisionWorkflowTests(unittest.TestCase):
     def test_joint_has_single_parent_assignment(self):
         text = (ROOT / '.github/workflows/build-joint.yml').read_text()
         self.assertEqual(text.count('revision-allocation.yml'), 1)
-        self.assertEqual(text.count('assignment: ${{ needs.version.outputs.assignment }}'), 2)
+        self.assertEqual(text.count('assignment: ${{ needs.version.outputs.assignment }}'), 3)
+        self.assertIn('needs: [version, server, clients]', text)
 
     def test_allocator_is_persistent_and_not_an_artifact_counter(self):
         text = (ROOT / '.github/workflows/revision-allocation.yml').read_text()

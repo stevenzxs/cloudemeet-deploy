@@ -7,7 +7,17 @@
 CloudMeet标准联合交付/短提示词操作入口见 `../skills/cloudmeet-online-delivery/SKILL.md`。
 唯一用户参数是完整origin及任务终点，`delivery-target.py --origin <origin>`只读派生统一网络值；
 `--target-env <仓库外路径>`另存实例配置，不改不可变包。联合工作流为build-joint.yml，
-Windows必须批准身份签名，无未签名降级。规则安装/辅助回归不是端到端交付通过。
+Windows明确unsigned，Android保持原批准身份签名；两端HTTPS限定信任不变。规则安装/辅助回归不是端到端交付通过。
+
+## 线上发布与离线附加节点（2026-11-23）
+
+- 联合入口`build-joint.yml`先完成七服务和两客户端；`publish_images=true`只在本次发布已授权时启用，调用`publish-release.yml`核对同Run/attempt、分配记录、配置/源码身份、origin及公开CA。七镜像发布GHCR；MSI/APK、无镜像线上材料、setup.py、registry及摘要持久发布同一GitHub Release。draft资产全部上传后才公开，失败保留部分状态，不覆盖同批标签。
+- `delivery-route.py --origin <已构建入口>`只提示缺少的first/upgrade和server，不SSH。已有选择用`--mode`/`--server`传入；升级须补实际`--root`/`--project`/`--target-env`。入口/CA构建前确定，发布后不得静默改变。
+- 线上首装：先可信核验Release的SHA256SUMS，独立安全提供相邻cert.tar.gz，使用`python3 -B setup.py --server-package <online.tar.gz> --verify-origin <origin> --target-env <包外绝对路径> --registry <registry.json> --registry-sha256 <可信摘要>`。setup拒绝已有解压目录，安装核心按digest拉取。需要已有匹配Linux Docker Engine，包内Compose不等于Docker首装能力。
+- 线上升级：从已核验新材料运行`python3 -B <新材料>/online_update.py --root <实际实例> --project <实际project> --target-env <包外绝对路径> --verify-origin <origin> --ca <公开根> --candidate <新材料>/candidate.json --registry <registry.json> --registry-sha256 <可信摘要>`，默认只读；本次升级已授权时加`--apply`。仅image-only，外置补丁或配置变化须另行迁移适配，不能清数据重装绕过。
+- 离线导出：在已批准且Docker可用的匹配Linux构建/导出机，以干净固定配置SHA执行`python3 -B build-tools/offline-export.py --source <已核验解压线上材料> --registry <registry.json> --registry-sha256 <可信摘要> --destination <全新批次目录>`。从registry固定digest拉取/核验后save，不编译/新占rN；保留原镜像构建配置SHA，另记导出配置SHA。输出离线归档/摘要和setup.py/摘要，目标不联网补包。
+- 离线首装同setup命令但不传registry；离线升级同升级命令并加`--offline-package <新材料目录>`，registry使用包内文件的独立可信摘要，只load不pull。保留秘密/数据/CA，七容器归属、空闲、SQLite一致性备份和旧image ID恢复均不省略。
+- 本次仅辅助脚本回归；未触发真实Actions、GHCR/Release发布、Docker、目标安装/升级或媒体。历史r14不恢复、不追改，真实验收另行授权。
 
 本节是服务端Actions入口；Windows MSI/Android APK的独立本机构建入口为
 `clients/build-clients.cjs`，配置唯一读取`deploy/config/client.env`，先运行

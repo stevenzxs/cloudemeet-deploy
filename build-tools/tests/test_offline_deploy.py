@@ -137,7 +137,7 @@ class DeployTests(unittest.TestCase):
             (root/'candidate.json').write_text(json.dumps({'images':{'jvb':['tag','sha256:approved']},'image_archives':{'jvb':record}}))
             verifier=Mock(); verifier.sha256_file.return_value='digest'
             verifier.compose_prefix.return_value=['docker','compose']
-            responses=[Mock(returncode=0,stdout='linux/amd64'),Mock(),Mock(returncode=1,stdout=''),Mock(),
+            responses=[Mock(returncode=0,stdout='linux/amd64'),Mock(),Mock(returncode=1,stdout='',stderr='Error: No such image: tag'),Mock(),
                        Mock(returncode=0,stdout=json.dumps([{'Id':'sha256:wrong'}]))]
             runner=Mock(side_effect=responses)
             with patch.object(self.mod.os,'geteuid',return_value=0):

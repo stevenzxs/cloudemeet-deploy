@@ -153,7 +153,7 @@ def require_ready(manifest):
                 or compose.get('file') != 'bin/docker-compose'
                 or not re.fullmatch('[0-9a-f]{64}', compose.get('sha256', ''))
                 or not manifest.get('requires')
-                or set(manifest.get('image_archives', {})) != SERVICES):
+                or (manifest.get('image_transport')!='registry' and set(manifest.get('image_archives', {})) != SERVICES)):
             raise ValueError('Incomplete packaged material contract')
     images=manifest.get('images',{})
     if set(images)!=SERVICES:
@@ -280,7 +280,8 @@ def main():
             if (record['image_id'] != image[1] or record['tag'] != image[0]
                     or record['batch'] != manifest['batch']):
                 raise ValueError('Package provenance mismatch')
-            verify_image_archive(root/'images'/record['archive'], record)
+            if manifest.get('image_transport')!='registry':
+                verify_image_archive(root/'images'/record['archive'], record)
     if args.dependency_plan:
         dependency_plan(root)
     print(json.dumps({'status':'PASS_PACKAGE_INTEGRITY_ONLY','files':count,
