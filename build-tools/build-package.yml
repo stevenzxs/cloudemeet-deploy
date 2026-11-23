@@ -20,6 +20,9 @@ on:
         type: boolean
 
   workflow_call:
+    secrets:
+      H5_SOURCE_READ_TOKEN:
+        required: true
     inputs:
       material_commit:
         type: string
@@ -188,6 +191,23 @@ jobs:
               records.append({key: artifact.get(key) for key in ('id','name','digest','size_in_bytes','created_at')})
           pathlib.Path('incoming/artifacts.json').write_text(json.dumps(records, indent=2) + '\n')
           PY
+      - name: Read immutable H5 source identity
+        id: h5
+        run: |
+          python3 -B - <<'PY' >> "$GITHUB_OUTPUT"
+          import json,re
+          lock=json.load(open('config/h5-source.json'))
+          assert lock['repository']=='stevenzxs/jitsi-weixin'
+          assert re.fullmatch('[0-9a-f]{40}',lock['commit'])
+          print('commit='+lock['commit'])
+          PY
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: stevenzxs/jitsi-weixin
+          ref: ${{ steps.h5.outputs.commit }}
+          path: h5-source
+          token: ${{ secrets.H5_SOURCE_READ_TOKEN }}
+          persist-credentials: false
       - name: Assemble complete package and check material integrity only
         run: |
           printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"

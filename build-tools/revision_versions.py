@@ -45,8 +45,8 @@ def derive(policy, revision):
     if numeric_version(msi) <= numeric_version(policy.get('previous_msi_version')):
         raise ValueError('MSI historical upgrade floor not exceeded')
     return dict(revision=revision, server_version=f'{server}+r{revision}',
-                server_tag=f'{server}-r{revision}', client_version=f'{client}+r{revision}',
-                android_code=code, msi_version=msi, pe_version=msi + '.0')
+                 server_tag=f'{server}-r{revision}', client_version=f'{client}+r{revision}',
+                 android_code=code, msi_version=msi, pe_version=msi + '.0')
 
 
 def validate_request(request):
@@ -59,7 +59,7 @@ def validate_request(request):
     if not request.get('task') or not request.get('workflow'):
         raise ValueError('Task and top-level workflow identity required')
     scope = request.get('scope')
-    if not isinstance(scope, list) or not scope or len(scope) != len(set(scope)) or set(scope) - {'server', 'electron', 'android'}:
+    if not isinstance(scope, list) or not scope or len(scope) != len(set(scope)) or set(scope) - {'server', 'h5', 'electron', 'android'}:
         raise ValueError('Explicit scope required')
     sources = request.get('sources')
     if not isinstance(sources, dict) or not sources or any(not re.fullmatch(r'[0-9a-f]{40}', s) for s in sources.values()):

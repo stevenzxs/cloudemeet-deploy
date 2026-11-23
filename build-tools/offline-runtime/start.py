@@ -139,6 +139,14 @@ def main():
     verifier=importlib.util.module_from_spec(spec)
     spec.loader.exec_module(verifier)
     verifier.require_ready(manifest)
+    # H5 is part of new joint deliveries; old immutable packages retain their entry.
+    h5_module = None
+    if 'h5' in manifest:
+        spec=importlib.util.spec_from_file_location('h5_start',root/'h5.py')
+        h5_module=importlib.util.module_from_spec(spec);spec.loader.exec_module(h5_module)
+        h5_module.verify_package(root,manifest)
+        if (root/'h5-runtime').exists() or (root/'h5-runtime').is_symlink():
+            raise ValueError('First-start refuses existing H5 runtime')
     # Validate exact locally imported identities before creating any data.
     validate_local_images(root,manifest)
     command=compose_command(root)
@@ -214,6 +222,9 @@ def main():
                  *(root/'data/jitsi/storage/prosody').rglob('*'),
                  *(root/'data/jitsi/prosody').rglob('*')]:
         os.chown(path,uid,gid)
+    if h5_module:
+        release=h5_module.prepare_release(root/'h5-runtime',root/'h5/public',manifest['h5'],manifest['client_origin'])
+        h5_module.activate(root/'h5-runtime',release)
     subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=runtime_env)
     subprocess.run(command+['ps'],check=True,env=runtime_env)
     print('Services started; TLS, signaling and media acceptance still required. Preserve target CA volumes.')

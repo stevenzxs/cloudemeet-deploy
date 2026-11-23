@@ -87,7 +87,7 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         self.assertNotIn('packages: write', workflow.split('jobs:',1)[0])
         self.assertEqual(workflow.count('packages: write'),1)
         self.assertIn('needs: [version, build, package]',workflow)
-        self.assertNotIn('secrets.', workflow)
+        self.assertEqual(re.findall(r'secrets\.([A-Z0-9_]+)',workflow),['H5_SOURCE_READ_TOKEN'])
         self.assertNotIn('continue-on-error', workflow)
 
     def test_orchestrator_has_no_legacy_or_cross_run_fallback(self):
@@ -184,6 +184,22 @@ PUBLIC_ORIGIN=$PUBLIC_URL
             repo = Path(temp)
             tools = repo / 'build-tools'
             tools.mkdir()
+            # Synthetic staging entry only: generator fixture has no Git/npm source checkout.
+            # Real staging identity and rejection cases are tested separately.
+            (tools/'stage-h5.py').write_text('''import json,sys
+from pathlib import Path
+sys.path.insert(0,str(Path(sys.argv[3])))
+import h5
+out=Path(sys.argv[3])
+public=out/'h5/public'
+for name in h5.PUBLIC_FILES:
+    path=public/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('fixture')
+manifest=json.loads((out/'candidate.json').read_text())
+manifest['h5']=h5.describe(public,{'source_commit':'f'*40,'configuration_commit':manifest['deployment_commit'],'version_assignment':manifest['version_assignment']})
+(out/'candidate.json').write_text(json.dumps(manifest))
+caddy=out/'Caddyfile';caddy.write_text(h5.gateway_caddy(caddy.read_text()))
+base=out/'jitsi-base.yaml';data=json.loads(base.read_text());data['services']['gateway']['volumes'].append('./h5-runtime:/srv/cloudmeet-h5:ro');base.write_text(json.dumps(data))
+''')
             shutil.copyfile(ROOT / 'build-tools/sources.json', tools / 'sources.json')
             shutil.copyfile(ROOT / 'build-tools/network-audit.py', tools / 'network-audit.py')
             sources = json.loads((tools / 'sources.json').read_text())
@@ -261,7 +277,7 @@ print(json.dumps(data))
             self.assertEqual(compose['services']['gateway']['ports'], ['${HTTPS_PORT:?required}:443', '${HTTP_PORT:?required}:80'])
             self.assertEqual(compose['services']['jvb']['ports'], ['${MEDIA_PORT:?required}:${JVB_PORT:?required}/udp'])
             self.assertIn('https://:443', (out / 'Caddyfile').read_text())
-            self.assertNotIn('redir ', (out / 'Caddyfile').read_text())
+            self.assertIn('redir /cm/h5 /cm/h5/ 308', (out / 'Caddyfile').read_text())
             self.assertEqual(compose['services']['gateway']['environment']['PUBLIC_URL'], '${PUBLIC_URL:?required}')
             self.assertTrue((out / 'INSTALL.md').is_file())
             archive = repo / 'fixture.tar.gz'

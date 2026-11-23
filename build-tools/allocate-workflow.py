@@ -22,6 +22,7 @@ def main():
     sources = json.loads(Path('build-tools/sources.json').read_text())
     identities = {name: item['commit'] for group in ['services', 'clients'] for name, item in sources[group].items()}
     identities['lifecycle'] = sources['lifecycle']['commit']
+    identities['h5'] = json.loads(Path('config/h5-source.json').read_text())['commit']
     scope = json.loads(env['REQUEST_SCOPE'])
     request = dict(repository=env['GITHUB_REPOSITORY'], workflow=env['GITHUB_WORKFLOW_REF'],
                    run_id=env['GITHUB_RUN_ID'], configuration_sha=sha, sources=identities,

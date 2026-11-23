@@ -56,6 +56,9 @@ def assemble(source,destination):
     verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
     verifier.verify_checksums(source)
     manifest=json.loads((source/'candidate.json').read_text());verifier.require_ready(manifest)
+    spec=importlib.util.spec_from_file_location('h5_material',source/'h5.py')
+    h5=importlib.util.module_from_spec(spec);spec.loader.exec_module(h5)
+    h5.verify_package(source,manifest)
     if destination.exists():raise FileExistsError('Refusing existing online material')
     shutil.copytree(source,destination,ignore=shutil.ignore_patterns('images','SHA256SUMS'))
     manifest['image_transport']='registry'

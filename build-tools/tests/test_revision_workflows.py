@@ -46,6 +46,7 @@ class RevisionWorkflowTests(unittest.TestCase):
             (root / 'config').mkdir(parents=True)
             (root / 'build-tools').mkdir()
             (root / 'config/version-policy.json').write_text(json.dumps(policy))
+            (root / 'config/h5-source.json').write_text(json.dumps({'commit':'f'*40}))
             (root / 'build-tools/sources.json').write_bytes((ROOT / 'build-tools/sources.json').read_bytes())
             ledger = Path(tmp) / 'persistent.sqlite'
             revision_ledger.initialize(ledger, policy)

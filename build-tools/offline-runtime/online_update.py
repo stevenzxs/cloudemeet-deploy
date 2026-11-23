@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Existing-instance image-only update. Preserve configuration, secrets and data."""
+"""Existing-instance update with bounded H5 gateway migration; preserve secrets/data."""
 import argparse
 import datetime
 import hashlib
@@ -43,7 +43,10 @@ def require_configuration_compatible(old_root,new_root):
         return {name:checksum for checksum,name in
                 (line.split('  ',1) for line in (root/'SHA256SUMS').read_text().splitlines())}
     old=sums(old_root);new=sums(new_root)
-    for name in ('jitsi.env','Caddyfile','docker-compose.yml','target.env','target.py','initialize.py','start.py'):
+    new_manifest=json.loads((new_root/'candidate.json').read_text()) if (new_root/'candidate.json').exists() else {}
+    h5_enabled='h5' in new_manifest
+    names=('jitsi.env','docker-compose.yml','target.env','target.py','initialize.py') if h5_enabled else ('jitsi.env','Caddyfile','docker-compose.yml','target.env','target.py','initialize.py','start.py')
+    for name in names:
         if (name in old or name in new) and old.get(name)!=new.get(name):
             raise ValueError('Image-only upgrade requires reviewed configuration migration: '+name)
     # Base Compose differs per batch only in project name and image identities.
@@ -51,7 +54,16 @@ def require_configuration_compatible(old_root,new_root):
         data=json.loads((root/'jitsi-base.yaml').read_text());data.pop('name',None)
         for service in data.get('services',{}).values():service.pop('image',None)
         return data
-    if normalized(old_root)!=normalized(new_root):
+    if h5_enabled:
+        spec=importlib.util.spec_from_file_location('h5_compat',Path(__file__).with_name('h5.py'))
+        h5=importlib.util.module_from_spec(spec);spec.loader.exec_module(h5)
+        h5.verify_package(new_root,new_manifest)
+        before=(old_root/'Caddyfile').read_text()
+        first='/cm/h5/' not in before
+        after=(new_root/'Caddyfile').read_text()
+        h5.require_gateway_delta(before,after,first)
+        h5.require_compose_delta(normalized(old_root),normalized(new_root),first)
+    elif normalized(old_root)!=normalized(new_root):
         raise ValueError('Image-only upgrade requires reviewed Compose migration')
 
 
@@ -108,6 +120,23 @@ def health(origin,ca):
                 raise ValueError('API not UP')
 
 
+def h5_health(origin, ca, record):
+    context=ssl.create_default_context(cafile=str(ca))
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),
+                                      urllib.request.HTTPSHandler(context=context))
+    for name, expected in record['files'].items():
+        with opener.open(origin+'/cm/h5/'+name,timeout=15) as response:
+            if response.status!=200 or hashlib.sha256(response.read()).hexdigest()!=expected['sha256']:
+                raise ValueError('H5 served bytes differ from approved material')
+            if name.endswith('.mjs') and response.headers.get_content_type()!='application/javascript':
+                raise ValueError('H5 module MIME type mismatch')
+    with opener.open(origin+'/cm/h5/runtime-config.json',timeout=15) as response:
+        if json.load(response)!={'jitsiOrigin':origin}:
+            raise ValueError('H5 public runtime origin mismatch')
+
+
 def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--registry',type=Path,required=True)
@@ -145,6 +174,11 @@ def main():
     spec=importlib.util.spec_from_file_location('new_material_verifier',Path(__file__).with_name('install.py'))
     verifier=importlib.util.module_from_spec(spec);spec.loader.exec_module(verifier)
     verifier.verify_checksums(args.candidate.resolve().parent);verifier.require_ready(candidate_material)
+    h5_module=None
+    if 'h5' in candidate_material:
+        spec=importlib.util.spec_from_file_location('h5_update',Path(__file__).with_name('h5.py'))
+        h5_module=importlib.util.module_from_spec(spec);spec.loader.exec_module(h5_module)
+        h5_module.verify_package(args.candidate.resolve().parent,candidate_material)
     offline=None
     if args.offline_package:
         offline=args.offline_package.resolve()
@@ -198,7 +232,21 @@ def main():
             before=dict(old['services'][service]);after=dict(candidate['services'][service])
             for key in ('image','pull_policy'):before.pop(key,None);after.pop(key,None)
             if before!=after:raise ValueError('Image update changed product configuration')
+        previous_h5=None
+        h5_switched=False
         try:
+            if h5_module:
+                new_root=args.candidate.resolve().parent
+                release=h5_module.prepare_release(root/'h5-runtime',new_root/'h5/public',candidate_material['h5'],origin)
+                previous_h5=h5_module.activate(root/'h5-runtime',release)
+                h5_switched=True
+                # Only the verified route addition and readonly parent mount may change.
+                # Preserve instance project name and all existing service settings.
+                if '/cm/h5/' not in (root/'Caddyfile').read_text():
+                    (root/'Caddyfile').write_text(h5_module.gateway_caddy((root/'Caddyfile').read_text()))
+                    base=json.loads((root/'jitsi-base.yaml').read_text())
+                    base['services']['gateway']['volumes'].append('./h5-runtime:/srv/cloudmeet-h5:ro')
+                    (root/'jitsi-base.yaml').write_text(json.dumps(base,indent=2)+'\n')
             target.write_text(json.dumps(replacement,indent=2)+'\n')
             subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=environment)
             for attempt in range(20):
@@ -212,7 +260,13 @@ def main():
                 service=item['Config']['Labels']['com.docker.compose.service']
                 if item['Image']!=record['images'][service]['image_id'] or not item['State']['Running']:
                     raise ValueError('Running image mismatch')
+            if h5_module:
+                h5_health(origin,args.ca,candidate_material['h5'])
         except Exception:
+            if h5_switched:
+                h5_module.restore_pointer(root/'h5-runtime',previous_h5)
+                for name in ('Caddyfile','jitsi-base.yaml'):
+                    shutil.copy2(backup/name,root/name)
             target.write_text(json.dumps(rollback))
             subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=environment)
             health(origin,args.ca)
@@ -220,7 +274,7 @@ def main():
             raise
         (backup/'result.json').write_text(json.dumps({'status':'UPDATED_TLS_API_VERIFIED',
             'batch':record.get('batch'),'not_verified':['media','client trust','roles','rollback drill']}))
-        print('Updated seven images; TLS/API verified. Backup:',backup)
+        print('Updated seven images and included H5 if present; TLS/API/static bytes verified. Backup:',backup)
 
 
 if __name__=='__main__':main()

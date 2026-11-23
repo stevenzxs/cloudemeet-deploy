@@ -26,6 +26,18 @@ def load(name,path):
 def hashfile(path):return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def add_h5_fixture(root, manifest):
+    shutil.copyfile(TOOLS/'offline-runtime/h5.py',root/'h5.py')
+    h5=load('h5_fixture',root/'h5.py')
+    public=root/'h5/public'
+    for name in h5.PUBLIC_FILES:
+        path=public/name;path.parent.mkdir(parents=True,exist_ok=True);path.write_text('public fixture')
+    manifest.setdefault('deployment_commit','a'*40)
+    manifest.setdefault('version_assignment',{'fixture':'h5'})
+    manifest['h5']=h5.describe(public,{'source_commit':'f'*40,
+        'configuration_commit':manifest['deployment_commit'],'version_assignment':manifest['version_assignment']})
+
+
 class DeliveryAssetTests(unittest.TestCase):
     def source(self,root):
         root.mkdir();(root/'provenance').mkdir()
@@ -47,6 +59,7 @@ class DeliveryAssetTests(unittest.TestCase):
         manifest={'status':'PACKAGED','package_contract':1,'architecture':'amd64','batch':'batch',
                   'deployment_commit':'a'*40,'compose':{'file':'bin/docker-compose','sha256':'a'*64},
                   'requires':['engine'],'image_transport':'registry','images':images}
+        add_h5_fixture(root,manifest)
         (root/'candidate.json').write_text(json.dumps(manifest))
         (root/'SHA256SUMS').write_text(''.join(hashfile(p)+'  '+p.relative_to(root).as_posix()+'\n' for p in root.rglob('*') if p.is_file()))
         return record
@@ -90,6 +103,7 @@ class DeliveryAssetTests(unittest.TestCase):
                 assignment={'versions':{'client_version':'1.0.21+r15'}}
                 Path('assignment.json').write_text(json.dumps(assignment));Path('config').mkdir()
                 Path('config/version-policy.json').write_text('{}')
+                Path('config/h5-source.json').write_text(json.dumps({'commit':'f'*40}))
                 for target,platform,extension in [('electron','windows','.msi'),('android','android','.apk')]:
                     root=Path('client-downloads')/('client-'+target+'-100-1');root.mkdir(parents=True)
                     file=root/('client'+extension);file.write_bytes(target.encode())
@@ -103,6 +117,7 @@ class DeliveryAssetTests(unittest.TestCase):
                 source=Path('source');self.source(source)
                 candidate=json.loads((source/'candidate.json').read_text())
                 candidate.update(version_assignment=assignment,run_id='100',attempt='1')
+                add_h5_fixture(source,candidate)
                 (source/'candidate.json').write_text(json.dumps(candidate))
                 (source/'SHA256SUMS').write_text(''.join(hashfile(p)+'  '+p.relative_to(source).as_posix()+'\n' for p in source.rglob('*') if p.is_file() and p.name!='SHA256SUMS'))
                 Path('server-downloads').mkdir()

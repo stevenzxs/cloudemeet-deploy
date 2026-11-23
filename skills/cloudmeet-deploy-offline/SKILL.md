@@ -5,6 +5,8 @@ description: Use when producing CloudMeet / Jitsi offline deployment bundles for
 
 # CloudMeet 离线部署包产出技能
 
+2026-11-23增量加入H5：保留原离线附加流程及首次/升级入口，原公开材料增加同批H5静态文件/来源/摘要，复用公共H5校验、路由、只读挂载和版本切换/恢复核心。缺H5的新联合材料拒绝导出；不重新编译/占号，不改变双客户端既有交付位置。下文image-only限制仅对H5精确差异扩展，其他配置/schema变化仍阻断。真实导出/安装/回滚证据分别记录。
+
 ## 当前线上后置离线附加节点（2026-11-23）
 
 本节操作覆盖下文旧“离线源码构建/另造install.sh/uninstall.sh/浮动tag”示例；下文保留为历史材料组织参考，不能用它绕过AGENTS及知识库。当前不另造安装核心、不因pull失败自动离线回退，不把历史架构/地址当默认值。

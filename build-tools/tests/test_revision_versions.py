@@ -38,6 +38,11 @@ class RevisionTests(unittest.TestCase):
             self.assertEqual(out['server_version'], f'11248.0.2+r{n}')
             self.assertEqual(out['server_tag'], f'11248.0.2-r{n}')
 
+    def test_h5_inherits_existing_parent_revision_without_new_counter(self):
+        v, _ = self.modules()
+        self.assertEqual(v.derive(self.policy(),15)['revision'],15)
+        v.validate_request(dict(self.request(),scope=['server','h5','electron','android']))
+
     def test_registered_policy_activation_uses_confirmed_baselines(self):
         v, _ = self.modules()
         policy = json.loads((Path(__file__).resolve().parents[2] / 'config/version-policy.json').read_text())

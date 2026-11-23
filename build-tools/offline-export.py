@@ -32,6 +32,7 @@ def export(source,record,destination):
     transport=load('export_transport',Path(__file__).parent/'offline-runtime/image_transport.py')
     verifier.verify_checksums(source)
     manifest=json.loads((source/'candidate.json').read_text())
+    load('h5_offline',source/'h5.py').verify_package(source,manifest)
     transport.require_material(record,manifest)
     if destination.exists():raise FileExistsError('Refusing existing offline batch')
     archive=destination.with_name(destination.name+'.tar.gz')

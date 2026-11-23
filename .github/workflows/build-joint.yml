@@ -24,9 +24,10 @@ jobs:
     uses: ./.github/workflows/revision-allocation.yml
     with:
       material_commit: ${{ inputs.material_commit }}
-      scope: '["server","electron","android"]'
+      scope: '["server","h5","electron","android"]'
   server:
     needs: version
+    secrets: inherit
     uses: ./.github/workflows/build-package.yml
     permissions:
       contents: read

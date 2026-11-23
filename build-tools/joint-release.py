@@ -91,6 +91,12 @@ def prepare():
         raise ValueError('Server/client deployment origin differs')
     if candidate.get('client_ca_sha256')!=next(iter(cas)):
         raise ValueError('Server/client public CA differs')
+    h5=candidate.get('h5',{})
+    locked=json.loads(Path('config/h5-source.json').read_text())
+    if (h5.get('source_commit')!=locked['commit'] or h5.get('configuration_commit')!=os.environ['GITHUB_SHA']
+            or h5.get('version_assignment')!=assignment):
+        raise ValueError('Joint publication requires same-batch H5')
+    # Public static bytes are covered by the already verified complete archive inventory.
     (destination/'joint-evidence.json').write_text(json.dumps({'status':'PREPARED_NOT_PUBLISHED',
         'configuration_commit':os.environ['GITHUB_SHA'],'run_id':run,'attempt':attempt,
         'origin':origins.pop(),'version_assignment':assignment,'clients':evidence,

@@ -23,6 +23,8 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 ## 实际入口
 
+2026-11-23增量契约：原流程保留，统一交付范围加入H5，成为七服务＋H5＋双客户端。H5锁定于config/h5-source.json，继承原父Run修订号；检查H5_SOURCE_READ_TOKEN最小跨库读权限。首装/升级及离线附加均包含H5，不另开独立批次；双客户端交付位置不变。新公共核心仅额外允许严格H5路由/只读挂载差异，不放开其他配置/schema迁移；旧instance显式证书差异无法匹配时阻断，不覆盖成tls internal。缺H5或真实验证证据不得称完整交付。
+
 - 配置库 stevenzxs/cloudemeet-deploy（历史拼写），持久副本 `/opt/data/workspace/delivery/cloudemeet-deploy`；Git 使用 `core.sshCommand=ssh -F /opt/data/delivery-controller/ssh/config`。知识库在 `/opt/data/workspace/knowledgebase`。只对干净副本快进同步，不 reset 并发工作。
 - gh `/opt/data/delivery-controller/gh`，`GH_CONFIG_DIR=/opt/data/delivery-controller/auth`；不显示认证内容。不用知识库专用凭据执行交付操作。
 - 118既有严格SSH入口 `ssh -F /opt/data/.ssh/config cloudmeet-118`；先只读核对主机身份/架构/容器/卷/目录/端口/资源。历史状态和不可用别名不代替当前事实。其他 origin 必须核验实际目标身份，不能默认为118。

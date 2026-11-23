@@ -462,6 +462,7 @@ for path in out.rglob('*'):
                            or b'-----BEGIN PRIVATE KEY-----' in (path.read_bytes() if path.stat().st_size<2_000_000 else b'')):
         raise ValueError('Secret material in package: '+str(path))
 import subprocess
+subprocess.run(['python3','-B',str(repo/'build-tools/stage-h5.py'),str(repo),str(repo/'h5-source'),str(out),os.environ['VERSION_RECORD']],check=True)
 render_env=dict(os.environ,JWT_APP_SECRET='RENDER_ONLY',JICOFO_AUTH_PASSWORD='RENDER_ONLY',
                 JVB_AUTH_PASSWORD='RENDER_ONLY',JITSI_ROLE_CHECK_SECRET='RENDER_ONLY')
 render_env.update(target)

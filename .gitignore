@@ -9,6 +9,8 @@
 !/config/target.env
 !/config/target.py
 !/config/version-policy.json
+!/config/h5-source.json
+!/docs/
 !/config/signing-policy.json
 !/config/Caddyfile
 !/config/docker-compose.yml
