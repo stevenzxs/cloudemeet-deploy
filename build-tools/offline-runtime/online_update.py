@@ -219,9 +219,6 @@ def main():
         for db in (root/'data/api').glob('*.db'):
             with sqlite3.connect('file:'+str(db)+'?mode=ro',uri=True) as source:
                 with sqlite3.connect(backup/db.name) as destination:source.backup(destination)
-        rollback={'services':{x['Config']['Labels']['com.docker.compose.service']:
-                             {'image':x['Image'],'pull_policy':'never'} for x in info}}
-        (backup/'rollback-images.json').write_text(json.dumps(rollback))
         (backup/'registry.json').write_bytes(args.registry.read_bytes())
         replacement=image_override(record)
         if offline:
@@ -232,49 +229,36 @@ def main():
             before=dict(old['services'][service]);after=dict(candidate['services'][service])
             for key in ('image','pull_policy'):before.pop(key,None);after.pop(key,None)
             if before!=after:raise ValueError('Image update changed product configuration')
-        previous_h5=None
-        h5_switched=False
-        try:
-            if h5_module:
-                new_root=args.candidate.resolve().parent
-                release=h5_module.prepare_release(root/'h5-runtime',new_root/'h5/public',candidate_material['h5'],origin)
-                previous_h5=h5_module.activate(root/'h5-runtime',release)
-                h5_switched=True
-                # Only the verified route addition and readonly parent mount may change.
-                # Preserve instance project name and all existing service settings.
-                if '/cm/h5/' not in (root/'Caddyfile').read_text():
-                    (root/'Caddyfile').write_text(h5_module.gateway_caddy((root/'Caddyfile').read_text()))
-                    base=json.loads((root/'jitsi-base.yaml').read_text())
-                    base['services']['gateway']['volumes'].append('./h5-runtime:/srv/cloudmeet-h5:ro')
-                    (root/'jitsi-base.yaml').write_text(json.dumps(base,indent=2)+'\n')
-            target.write_text(json.dumps(replacement,indent=2)+'\n')
-            subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=environment)
-            for attempt in range(20):
-                try:health(origin,args.ca);break
-                except Exception:
-                    if attempt==19:raise
-                    time.sleep(5)
-            running=json.loads(capture('docker','inspect',*capture(*command,'ps','-q',env=environment).split()))
-            require_ownership(running,root,project)
-            for item in running:
-                service=item['Config']['Labels']['com.docker.compose.service']
-                expected=record['images'][service]['image_id'] if offline else engine_ids[service]
-                if item['Image']!=expected or not item['State']['Running']:
-                    raise ValueError('Running image mismatch')
-            if h5_module:
-                h5_health(origin,args.ca,candidate_material['h5'])
-        except Exception:
-            if h5_switched:
-                h5_module.restore_pointer(root/'h5-runtime',previous_h5)
-                for name in ('Caddyfile','jitsi-base.yaml'):
-                    shutil.copy2(backup/name,root/name)
-            target.write_text(json.dumps(rollback))
-            subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=environment)
-            health(origin,args.ca)
-            # Keep exact image-ID override until operator review; original bytes saved above.
-            raise
+        # Failure leaves the scene untouched for diagnosis; no rollback is performed.
+        if h5_module:
+            new_root=args.candidate.resolve().parent
+            release=h5_module.prepare_release(root/'h5-runtime',new_root/'h5/public',candidate_material['h5'],origin)
+            h5_module.activate(root/'h5-runtime',release)
+            # Only the verified route addition and readonly parent mount may change.
+            # Preserve instance project name and all existing service settings.
+            if '/cm/h5/' not in (root/'Caddyfile').read_text():
+                (root/'Caddyfile').write_text(h5_module.gateway_caddy((root/'Caddyfile').read_text()))
+                base=json.loads((root/'jitsi-base.yaml').read_text())
+                base['services']['gateway']['volumes'].append('./h5-runtime:/srv/cloudmeet-h5:ro')
+                (root/'jitsi-base.yaml').write_text(json.dumps(base,indent=2)+'\n')
+        target.write_text(json.dumps(replacement,indent=2)+'\n')
+        subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=environment)
+        for attempt in range(20):
+            try:health(origin,args.ca);break
+            except Exception:
+                if attempt==19:raise
+                time.sleep(5)
+        running=json.loads(capture('docker','inspect',*capture(*command,'ps','-q',env=environment).split()))
+        require_ownership(running,root,project)
+        for item in running:
+            service=item['Config']['Labels']['com.docker.compose.service']
+            expected=record['images'][service]['image_id'] if offline else engine_ids[service]
+            if item['Image']!=expected or not item['State']['Running']:
+                raise ValueError('Running image mismatch')
+        if h5_module:
+            h5_health(origin,args.ca,candidate_material['h5'])
         (backup/'result.json').write_text(json.dumps({'status':'UPDATED_TLS_API_VERIFIED',
-            'batch':record.get('batch'),'not_verified':['media','client trust','roles','rollback drill']}))
+            'batch':record.get('batch'),'not_verified':['media','client trust','roles']}))
         print('Updated seven images and included H5 if present; TLS/API/static bytes verified. Backup:',backup)
 
 

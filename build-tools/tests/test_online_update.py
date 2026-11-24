@@ -60,5 +60,12 @@ class OnlineUpdateTests(unittest.TestCase):
             m.idle('reviewed-r13')
         self.assertIn('label=com.docker.compose.project=reviewed-r13',capture.call_args_list[0].args)
 
+    def test_failure_leaves_scene_without_rollback(self):
+        path=Path(__file__).parents[1]/'offline-runtime/online_update.py'
+        source=path.read_text(encoding='utf-8')
+        self.assertNotIn('rollback-images.json',source)
+        self.assertNotIn('restore_pointer',source)
+        self.assertNotIn('rollback drill',source)
+
 
 if __name__=='__main__':unittest.main()
