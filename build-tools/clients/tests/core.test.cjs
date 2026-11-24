@@ -36,6 +36,9 @@ test('WiX discovery accepts portable PATH and WIX directories', () => {
 test('strict config uses explicit version and full outer origin', () => {
   assert.equal(load().parseConfig(config).origin, 'https://47.96.221.94:8443');
   assert.equal(load().parseConfig(config).version, '1.0.19');
+  // Default scheme ports are omitted from the canonical origin (domain:443 entry).
+  assert.equal(load().parseConfig(config.replace('SITE_PORT=8443', 'SITE_PORT=443')).origin, 'https://47.96.221.94');
+  assert.equal(load().parseConfig(config.replace('SITE_PORT=8443', 'SITE_PORT=80').replace('SITE_SCHEME=https', 'SITE_SCHEME=http')).origin, 'http://47.96.221.94');
 });
 test('rejects missing, duplicate, extra and invalid fields', () => {
   const { parseConfig } = load();

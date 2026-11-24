@@ -33,7 +33,10 @@ function parseConfig(text, assignment = null) {
   if (!/^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/.test(version)) throw Error('CLIENT_VERSION must be numeric major.minor.patch');
   const parts = version.split('.').map(Number);
   if (parts[0] > 255 || parts[1] > 255 || parts[2] > 65535) throw Error('CLIENT_VERSION exceeds MSI limits');
-  const origin = `${values.SITE_SCHEME}://${host}:${+values.SITE_PORT}`;
+  const scheme = values.SITE_SCHEME;
+  const port = +values.SITE_PORT;
+  const defaultPort = scheme === 'https' ? 443 : 80;
+  const origin = `${scheme}://${host}${port === defaultPort ? '' : ':' + port}`;
   const result = { values, origin, desktopUrl: `${origin}/cm/desktop`, version };
   if (assignment) {
     const v = assignment.versions;
