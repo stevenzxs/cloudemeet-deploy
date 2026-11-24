@@ -47,3 +47,11 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 仓库外受限检查点记录任务终点/授权范围、origin与派生值、三库SHA、Run/attempt、N、制品ID/摘要/digest、当前阶段与下一步。恢复先比较真实Run和目标，不重复占号、构建或首装。新秘密通过受限渠道提供，不在聊天粘贴；CA私钥不进Actions/镜像/目标包。
 
 同步安装仅证明文件到位；静态契约回归不证明模型已加载或整链验收。Android签名及基础设施是否可用以本次实测为准，不把本文存在当就绪。
+
+## 已核实的常见坑（2026-11-24）
+
+- 仓库规范名是 `stevenzxs/cloudemeet-deploy`。旧拼写 `cloudmeet-deploy` 只剩重定向：`gh api`/`gh run list` 用旧名会 404，git 传输仍可能成功，不能据此判断仓库不存在或另建仓库。
+- H5 源 `stevenzxs/jitsi-weixin` 当前为 public：按 `config/h5-source.json` 固定提交匿名检出即可。`H5_SOURCE_READ_TOKEN` 值失效时，强制携带会让 `actions/checkout` 发送无效认证头并报 `could not read Username`；该 secret 已改为 optional，不要再无条件传入。
+- 无人值守 cron 会话禁止 sudo 与危险命令：升级 apply 必须在 118 以 root 写实例目录、备份并执行 compose，只能在交互会话或显式开启 `approvals.cron_mode` 的会话中执行；cron 内只做只读目标核验，并如实报告该阻塞。
+- 治理回归与布局检查要求目录名为 `deploy`：在 `/opt/data/workspace/delivery/` 建 `deploy -> cloudemeet-deploy` 软链即可原样运行，不需要改仓库或测试。
+- 150 到 GitHub 的 Release 资产下载经常被限速到几十 KB/s：先核对 `SHA256SUMS` 已下载部分，大资产用 `curl -C -` 断点续传并明确标注“未完成”，不要以 job 成功代替已交付。
