@@ -35,3 +35,21 @@ binding. Fresh local verification on 2026-11-23: Python 142/142 (20.787s), Node
 parses passed. All workflow triggers are manual/reusable, not push-triggered.
 Diff and limited secret-pattern scan are final submission gates. No actionlint or
 gitleaks is installed locally; syntax/pattern checks are not their equivalents.
+
+## 2026-11-24 r16 / Docker 29 compatibility repair
+
+The authorized 118 upgrade stopped before backup or service changes: Docker
+29.1.3 with containerd reports the pulled manifest digest as engine Id, whereas
+the publication records the config digest. Keep these identities distinct.
+The helper verifies platform, exact RepoDigest/Descriptor, SHA256 of original
+GHCR manifest bytes, and its config digest; running containers must match the
+verified local engine Id. Legacy config-ID engines retain their exact check.
+No rebuild, allocation, digest substitution or offline fallback is involved.
+
+Execution plan: reproduce with failing regressions; repair shared pull/local-tag
+checks and online post-update verification; run auxiliary regressions and update
+controlled hashes; commit/push/merge main; install fixed tools separately from
+the unchanged r16 materials and record tool SHA; repeat preflight/apply and verify
+seven images, H5, strict TLS/API, state preservation, and available acceptance.
+Publication configuration remains 974cff638e36b535e67ab20ea8a03d812de30383;
+repair configuration is recorded separately. Never rewrite released package bytes.

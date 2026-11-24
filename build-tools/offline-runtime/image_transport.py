@@ -5,6 +5,8 @@ import re
 import subprocess
 import hashlib
 import ssl
+import urllib.request
+import urllib.parse
 
 SERVICES=('gateway','app-web','api','web','prosody','jicofo','jvb')
 
@@ -47,15 +49,52 @@ def require_material(record,manifest):
             raise ValueError('Material image identity mismatch: '+service)
 
 
+def registry_manifest(reference):
+    """Read exact public GHCR manifest bytes; never normalize JSON before hashing."""
+    match=re.fullmatch(r'ghcr.io/(stevenzxs/cloudmeet-[a-z-]+)@(sha256:[0-9a-f]{64})',reference)
+    if not match:raise ValueError('Invalid pinned public image')
+    repository,digest=match.groups()
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self,*args,**kwargs):return None
+    opener=urllib.request.build_opener(NoRedirect(),urllib.request.HTTPSHandler(context=ssl.create_default_context()))
+    query=urllib.parse.urlencode({'service':'ghcr.io','scope':'repository:'+repository+':pull'})
+    with opener.open('https://ghcr.io/token?'+query,timeout=30) as response:
+        token=json.loads(response.read(1024*1024))['token']
+    request=urllib.request.Request('https://ghcr.io/v2/'+repository+'/manifests/'+digest,
+        headers={'Authorization':'Bearer '+token,'Accept':'application/vnd.docker.distribution.manifest.v2+json, application/vnd.oci.image.manifest.v1+json'})
+    with opener.open(request,timeout=30) as response:
+        raw=response.read(1024*1024+1)
+    if len(raw)>1024*1024:raise ValueError('Registry manifest too large')
+    return raw
+
+
+def require_local_image(item,actual):
+    if actual['Os']+'/'+actual['Architecture']!=item['platform']:
+        raise ValueError('Pulled image platform mismatch')
+    if actual['Id']==item['image_id']:return actual['Id']
+    # containerd image store (Docker 29) exposes manifest ID, not config ID.
+    digest=item['reference'].split('@',1)[1]
+    if (actual['Id']!=digest or actual.get('Descriptor',{}).get('digest')!=digest
+            or item['reference'] not in actual.get('RepoDigests',[])):
+        raise ValueError('Pulled image identity mismatch')
+    raw=registry_manifest(item['reference'])
+    if 'sha256:'+hashlib.sha256(raw).hexdigest()!=digest:
+        raise ValueError('Registry manifest digest mismatch')
+    manifest=json.loads(raw)
+    if manifest.get('schemaVersion')!=2 or manifest.get('config',{}).get('digest')!=item['image_id']:
+        raise ValueError('Registry config identity mismatch')
+    return actual['Id']
+
+
 def pull_images(record,runner=subprocess.run):
     validate(record)
-    for item in record['images'].values():
+    identities={}
+    for service,item in record['images'].items():
         runner(['docker','pull',item['reference']],check=True,timeout=600)
         actual=json.loads(runner(['docker','image','inspect',item['reference']],
                                 check=True,capture_output=True,text=True,timeout=30).stdout)[0]
-        if (actual['Id']!=item['image_id']
-                or actual['Os']+'/'+actual['Architecture']!=item['platform']):
-            raise ValueError('Pulled image identity mismatch')
+        identities[service]=require_local_image(item,actual)
+    return identities
 
 
 def bind_local_tags(record,manifest,runner=subprocess.run):
@@ -65,8 +104,7 @@ def bind_local_tags(record,manifest,runner=subprocess.run):
                      capture_output=True,text=True,timeout=30)
         if local.returncode==0:
             info=json.loads(local.stdout)[0]
-            if info['Id']!=item['image_id'] or info['Os']+'/'+info['Architecture']!=item['platform']:
-                raise ValueError('Refusing conflicting package tag: '+service)
+            require_local_image(item,info)
         elif 'No such image' not in (local.stderr or ''):
             raise ValueError('Cannot establish local image absence: '+service)
     # Preserve package bytes/Compose references; bind the verified digest to its exact tag.

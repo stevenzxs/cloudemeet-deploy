@@ -17,6 +17,47 @@ def load(name,path):
 
 
 class DeliveryContractTests(unittest.TestCase):
+    def docker29_fixture(self):
+        import hashlib
+        raw=json.dumps({'schemaVersion':2,'config':{'digest':'sha256:'+'b'*64}}).encode()
+        digest='sha256:'+hashlib.sha256(raw).hexdigest()
+        ref='ghcr.io/stevenzxs/cloudmeet-gateway@'+digest
+        item={'reference':ref,'image_id':'sha256:'+'b'*64,'platform':'linux/amd64'}
+        actual={'Id':digest,'Os':'linux','Architecture':'amd64','RepoDigests':[ref],
+                'Descriptor':{'digest':digest}}
+        return raw,item,actual
+
+    def test_docker29_pinned_manifest_is_bound_to_config(self):
+        m=load('transport',TOOLS/'offline-runtime/image_transport.py')
+        raw,item,actual=self.docker29_fixture()
+        with patch.object(m,'registry_manifest',return_value=raw) as fetch:
+            self.assertEqual(m.require_local_image(item,actual),actual['Id'])
+            fetch.assert_called_once_with(item['reference'])
+
+    def test_docker29_identity_rejects_tampering_and_wrong_platform(self):
+        import copy
+        m=load('transport',TOOLS/'offline-runtime/image_transport.py')
+        raw,item,actual=self.docker29_fixture()
+        for change in ('bytes','config','descriptor','repo','platform','engine'):
+            bad=copy.deepcopy(actual);expected=dict(item);payload=raw
+            if change=='bytes':payload+=b' '
+            if change=='config':expected['image_id']='sha256:'+'c'*64
+            if change=='descriptor':bad['Descriptor']['digest']='sha256:'+'c'*64
+            if change=='repo':bad['RepoDigests']=[]
+            if change=='platform':bad['Architecture']='arm64'
+            if change=='engine':bad['Id']='sha256:'+'c'*64
+            with self.subTest(change=change),patch.object(m,'registry_manifest',return_value=payload):
+                with self.assertRaises(ValueError):m.require_local_image(expected,bad)
+
+    def test_pulled_engine_ids_are_returned_for_running_container_check(self):
+        m=load('transport',TOOLS/'offline-runtime/image_transport.py')
+        raw,item,actual=self.docker29_fixture()
+        images={s:dict(item,reference=item['reference'].replace('gateway',s)) for s in m.SERVICES}
+        runner=Mock(return_value=Mock(stdout=json.dumps([actual])))
+        with patch.object(m,'require_local_image',return_value=actual['Id']):
+            result=m.pull_images({'status':'PUBLISHED_NOT_DEPLOYED','architecture':'amd64','images':images},runner)
+        self.assertEqual(result,{s:actual['Id'] for s in m.SERVICES})
+
     def test_runtime_ca_must_match_built_clients(self):
         m=load('transport',TOOLS/'offline-runtime/image_transport.py')
         with tempfile.TemporaryDirectory() as tmp:

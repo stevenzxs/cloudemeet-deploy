@@ -87,7 +87,10 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         self.assertNotIn('packages: write', workflow.split('jobs:',1)[0])
         self.assertEqual(workflow.count('packages: write'),1)
         self.assertIn('needs: [version, build, package]',workflow)
-        self.assertEqual(re.findall(r'secrets\.([A-Z0-9_]+)',workflow),['H5_SOURCE_READ_TOKEN'])
+        self.assertEqual(re.findall(r'secrets\.([A-Z0-9_]+)',workflow),[])
+        h5=workflow.split('repository: stevenzxs/jitsi-weixin',1)[1].split('- name:',1)[0]
+        self.assertIn('ref: ${{ steps.h5.outputs.commit }}',h5)
+        self.assertIn('persist-credentials: false',h5)
         self.assertNotIn('continue-on-error', workflow)
 
     def test_orchestrator_has_no_legacy_or_cross_run_fallback(self):

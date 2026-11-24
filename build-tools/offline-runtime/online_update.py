@@ -206,7 +206,7 @@ def main():
                 verifier.verify_image_archive(offline/'images'/provenance['archive'],provenance)
             importer.acquire_images(offline,candidate_material,verifier,subprocess.run)
         else:
-            transport.pull_images(record)
+            engine_ids=transport.pull_images(record)
         idle(project)
         backup=root/'update-backups'/datetime.datetime.now(datetime.timezone.utc).strftime('%Y%m%dT%H%M%S%fZ')
         backup.mkdir(parents=True,mode=0o700)
@@ -258,7 +258,8 @@ def main():
             require_ownership(running,root,project)
             for item in running:
                 service=item['Config']['Labels']['com.docker.compose.service']
-                if item['Image']!=record['images'][service]['image_id'] or not item['State']['Running']:
+                expected=record['images'][service]['image_id'] if offline else engine_ids[service]
+                if item['Image']!=expected or not item['State']['Running']:
                     raise ValueError('Running image mismatch')
             if h5_module:
                 h5_health(origin,args.ca,candidate_material['h5'])
