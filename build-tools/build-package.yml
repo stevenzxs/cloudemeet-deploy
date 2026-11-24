@@ -22,7 +22,8 @@ on:
   workflow_call:
     secrets:
       H5_SOURCE_READ_TOKEN:
-        required: true
+        # Optional: only needed if the H5 source stops being publicly readable.
+        required: false
     inputs:
       material_commit:
         type: string
@@ -212,7 +213,10 @@ jobs:
           repository: stevenzxs/jitsi-weixin
           ref: ${{ steps.h5.outputs.commit }}
           path: h5-source
-          token: ${{ secrets.H5_SOURCE_READ_TOKEN }}
+          # The H5 source is public and pinned by commit SHA plus the verified file
+          # whitelist hashes, so no cross-repo credential is supplied here. A stale or
+          # over-scoped token must never gate or widen this fetch; a private source
+          # requires a deliberate reviewed workflow change instead.
           persist-credentials: false
       - name: Assemble complete package and check material integrity only
         run: |
