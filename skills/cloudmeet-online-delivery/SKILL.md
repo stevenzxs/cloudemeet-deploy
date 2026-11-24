@@ -5,7 +5,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 # CloudMeet 标准线上交付
 
-操作指南，不是第二份规范。先读取知识库 README、standards/project-delivery.md、audits/project-register.md 及配置库 AGENTS.md；核验实际 main/SHA/脏状态，记录本次加载版本。不可访问即阻断，不用会话记忆代替。
+操作指南，不是第二份规范。先安全同步知识库与配置库最新已批准的 origin/main 至本地副本，再读取知识库 README、standards/project-delivery.md、audits/project-register.md 及配置库 AGENTS.md 和执行材料。同步前检查并按现有要求备份，只安全快进，不覆盖或丢弃本地工作；无法安全同步或读取时，报告具体阻塞并停止。
 
 ## 短提示词与固定选择
 
@@ -38,7 +38,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 自动化实施计划见`docs/plans/2026-11-24-delivery-reliability-progress.md`。目前公共入口尚无贯穿全链的编号/计时事件和Hermes真实对话投递适配，不得仅因本节存在宣称已实现；未具备时按可核验事实人工报告，未知历史耗时标未知。后续自动化须从同一持久任务事件呈现，保留事件游标/待投递项，真实通道验证后才能声称自动通知可用。
 
-1. **预检和固定身份**：查询现有GHCR镜像、Run、源码锁定SHA和配置main；明确本次是否要求完整新构建。检查Android两项Secrets、批准DER指纹；Windows不要求代码签名材料/SignTool或私有证书库检出，不安装签名根。检查两端公开HTTPS CA；只看Secrets名称，不读取值。缺材料列准确名称及安全提供位置。
+1. **准备并启动新构建**：同步两库并读取执行材料，使用提示词中的目标入口；源码与构建配置以仓库维护内容为准，不另行分析、挑选或确认版本。只检查本次所需权限、Android签名及公开HTTPS CA材料是否可用，不在此完成全部验收。不查询历史镜像或历史Run，不判断复用，只有启动一次新构建这一个选项。遇到具体阻塞，报告失败动作、错误和停止位置，不作进一步分析。本步骤结束时，输出本步骤成功/失败状态及实际耗时，耗时单位为分钟，作为流程埋点，供后续优化流程使用。
 2. **版本基础设施**：核验受审main的GitHub托管分配器、`cloudmeet-revision-ledger`分支、`CLOUDMEET_LEDGER_ANCHOR`完整SHA、原namespace/policy/r1～r14及独立Run/高水位。原SQLite只读保留，不恢复旧Runner id21。分配器验证锚点后线性仅追加，普通快进push竞争并读回；产品job无额外写权限。最新独立快照须完成隔离恢复核验，滚动备份保留最近7天，不新增定时任务；迁移原始证据不按每日快照清理。客户端检查不等于服务端分支保护。失库/倒退/分叉不自动重建，预检不占号或承诺r1。
 3. **统一参数**：运行 `python3 -B build-tools/delivery-target.py --origin <origin>` 预览；IPv4直接复用MEDIA_HOST，域名用当前解析及独立核验的同机IPv4，经 `--verified-target-ipv4` 输入工具，歧义阻断。MEDIA_PORT来自受控target.env，不从网页端口猜。将工具输出的入口三项更新到唯一config/client.env，CLIENT_VERSION保持批准基线。包外实例配置通过 `--target-env <仓库外绝对路径>` 创建，不修改包内文件。修改/测试后提交推送并合入main，再固定最终完整SHA；只推任务分支不算完成。
 4. **联合构建/发布**：审阅当前 `build-joint.yml`、复用工作流的触发器/权限/Secrets/目标；显式 material_commit=本次最终配置SHA、118 architecture=amd64、在本次授权发布范围内 publish_images=true。不要用旧actions.py的手填--version示例调度新入口。新顶层Run在产品测试/构建前分配N，失败取消占号、同Run重跑复用、子流程继承；不另开客户端Run重复占号。不在150/目标机/Windows编译服务端，不自动离线回退。
