@@ -11,7 +11,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 `按 CloudMeet 标准交付流程，将当前批准源码完整交付到 https://118.193.36.35:8443，执行到部署与验收。`
 
-这是本次明确执行请求；先预检后在所请求范围连续执行，不重复确认固定选择、不要求长提示词或逐步确认。只说“预检/计划/打包”时严格止于该终点，不自动发布/部署。新凭据/材料缺失、目标歧义或超授权操作一次性报告具体阻塞；破坏性操作仍须范围明确的二次批准。
+这是本次明确执行请求；先预检后在所请求范围连续执行，不重复确认固定选择、不要求长提示词或逐步确认。只说“预检/计划/打包”时严格止于该终点，不自动发布/部署。新凭据/材料缺失、目标歧义或超授权操作一次性报告具体阻塞；破坏性操作以请求明确写明的范围为准，已写明删除目标即视为授权直接执行，范围未明时先盘点确认。
 
 现行知识库的后续批准采用GitHub托管Runner与专用Git台账；完整执行请求包含标准链内变量配置、既有历史迁移及独立恢复核验、已有批准签名材料的受控Secrets配置；不额外索取B1/B2/B3/B4/B5确认。不恢复旧150 Runner或重建SQLite计数。实际缺账户权限、真实身份/材料或可信执行能力才报告具体阻塞。此流程修复任务本身不等于已经发起新的完整交付任务。
 
@@ -28,6 +28,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 - 配置库 stevenzxs/cloudemeet-deploy（历史拼写），持久副本 `/opt/data/workspace/delivery/cloudemeet-deploy`；Git 使用 `core.sshCommand=ssh -F /opt/data/delivery-controller/ssh/config`。知识库在 `/opt/data/workspace/knowledgebase`。只对干净副本快进同步，不 reset 并发工作。
 - gh `/opt/data/delivery-controller/gh`，`GH_CONFIG_DIR=/opt/data/delivery-controller/auth`；不显示认证内容。不用知识库专用凭据执行交付操作。
 - 118既有严格SSH入口 `ssh -F /opt/data/.ssh/config cloudmeet-118`；先只读核对主机身份/架构/容器/卷/目录/端口/资源。历史状态和不可用别名不代替当前事实。其他 origin 必须核验实际目标身份，不能默认为118。
+- 域名入口时 CA 公开根不变：客户端信任的是 CA 根而非叶证书。用同一 CA 新签含域名 SAN 的叶证书给服务器，客户端仅改 SITE_DOMAIN 入口重建，不重签 CA、不动客户端 CA 信任。
 - 证书/签名工具和公开身份唯一维护源 stevenzxs/cloudmeet-certificates，固定提交见 `config/signing-policy.json`。不从聊天临时生成签名器/安装器。
 
 ## 一套标准执行顺序
@@ -60,6 +61,6 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 - 仓库规范名是 `stevenzxs/cloudemeet-deploy`。旧拼写 `cloudmeet-deploy` 只剩重定向：`gh api`/`gh run list` 用旧名会 404，git 传输仍可能成功，不能据此判断仓库不存在或另建仓库。
 - H5 源 `stevenzxs/jitsi-weixin` 当前为 public：按 `config/h5-source.json` 固定提交匿名检出即可。`H5_SOURCE_READ_TOKEN` 值失效时，强制携带会让 `actions/checkout` 发送无效认证头并报 `could not read Username`；该 secret 已改为 optional，不要再无条件传入。
-- 无人值守 cron 会话禁止 sudo 与危险命令：升级 apply 必须在 118 以 root 写实例目录、备份并执行 compose，只能在交互会话或显式开启 `approvals.cron_mode` 的会话中执行；cron 内只做只读目标核验，并如实报告该阻塞。
+- 无人值守 cron 会话默认只读，不自动执行破坏性删除或完整交付链这类需用户在场的操作；需 root 的升级 apply/删除仅在交互会话或显式 `approvals.cron_mode=approve` 时执行。cron 遇此请求给出单一阻塞并建议转交互会话，不把完整执行请求拆成逐步审批门禁。
 - 治理回归与布局检查要求目录名为 `deploy`：在 `/opt/data/workspace/delivery/` 建 `deploy -> cloudemeet-deploy` 软链即可原样运行，不需要改仓库或测试。
 - 150 到 GitHub 的 Release 资产下载经常被限速到几十 KB/s：先核对 `SHA256SUMS` 已下载部分，大资产用 `curl -C -` 断点续传并明确标注“未完成”，不要以 job 成功代替已交付。
