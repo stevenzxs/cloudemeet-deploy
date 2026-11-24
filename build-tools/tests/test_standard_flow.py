@@ -45,6 +45,15 @@ class StandardFlow(unittest.TestCase):
         for obsolete in ['最小实施方案', '未签名产物，如实标注', '等用户按确认句式回复']:
             self.assertNotIn(obsolete, skill)
 
+    def test_skill_records_observed_cron_failure_boundaries(self):
+        skill = (ROOT/'skills/cloudmeet-online-delivery/SKILL.md').read_text(encoding='utf-8')
+        for term in ['pipefail', 'git bundle verify', '-verify_hostname',
+                     'cron_mode=approve', 'ghproxy.stevenzxs.cn', '[CRON_FAILURE]',
+                     'PowerShell', 'Run Context']:
+            with self.subTest(term=term):
+                self.assertIn(term, skill)
+        self.assertNotIn('cron 内只做只读目标核验', skill)
+
 
 if __name__ == '__main__':
     unittest.main()
