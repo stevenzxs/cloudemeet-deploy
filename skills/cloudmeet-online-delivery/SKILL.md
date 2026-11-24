@@ -32,6 +32,12 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 ## 一套标准执行顺序
 
+### 对话进度操作约定（2026-11-24已批准，自动化接通待验）
+
+先给本任务固定编号步骤表、目标/终点；按任务范围生成，不给既有发布部署增加构建/占号。每步开始和状态变化向原对话报告`[04/08][执行中] 镜像拉取｜本步01:20｜累计03:15｜已验证4/7`，长步骤约60秒补充有据进展。失败报告现网影响/恢复位置，不重置重试历史，不伪造百分比/ETA；不支持推送须说明，终端日志不是消息送达。恢复/回滚结果不能写成升级成功。
+
+自动化实施计划见`docs/plans/2026-11-24-delivery-reliability-progress.md`。目前公共入口尚无贯穿全链的编号/计时事件和Hermes真实对话投递适配，不得仅因本节存在宣称已实现；未具备时按可核验事实人工报告，未知历史耗时标未知。后续自动化须从同一持久任务事件呈现，保留事件游标/待投递项，真实通道验证后才能声称自动通知可用。
+
 1. **预检和固定身份**：查询现有GHCR镜像、Run、源码锁定SHA和配置main；明确本次是否要求完整新构建。检查Android两项Secrets、批准DER指纹；Windows不要求代码签名材料/SignTool或私有证书库检出，不安装签名根。检查两端公开HTTPS CA；只看Secrets名称，不读取值。缺材料列准确名称及安全提供位置。
 2. **版本基础设施**：核验受审main的GitHub托管分配器、`cloudmeet-revision-ledger`分支、`CLOUDMEET_LEDGER_ANCHOR`完整SHA、原namespace/policy/r1～r14及独立Run/高水位。原SQLite只读保留，不恢复旧Runner id21。分配器验证锚点后线性仅追加，普通快进push竞争并读回；产品job无额外写权限。最新独立快照须完成隔离恢复核验，滚动备份保留最近7天，不新增定时任务；迁移原始证据不按每日快照清理。客户端检查不等于服务端分支保护。失库/倒退/分叉不自动重建，预检不占号或承诺r1。
 3. **统一参数**：运行 `python3 -B build-tools/delivery-target.py --origin <origin>` 预览；IPv4直接复用MEDIA_HOST，域名用当前解析及独立核验的同机IPv4，经 `--verified-target-ipv4` 输入工具，歧义阻断。MEDIA_PORT来自受控target.env，不从网页端口猜。将工具输出的入口三项更新到唯一config/client.env，CLIENT_VERSION保持批准基线。包外实例配置通过 `--target-env <仓库外绝对路径>` 创建，不修改包内文件。修改/测试后提交推送并合入main，再固定最终完整SHA；只推任务分支不算完成。

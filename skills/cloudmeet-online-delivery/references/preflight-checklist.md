@@ -3,6 +3,7 @@
 与同目录上级SKILL一起使用，仅操作索引，不修改知识库/AGENTS规范。
 
 1. 核验知识库/配置库最新main、脏状态、加载SHA；有并发工作不覆盖。
+   在原对话列本次目标/终点和固定编号步骤表；各步状态变化显示本步/累计耗时，重试保留历史，不明间隔标未知。长步骤约60秒有据报告；日志不冒充对话送达。自动化尚待真实投递验证，现按可核验事实呈现，不把Task 1状态基础称完整执行入口。
 2. 固定origin和任务终点；完整值不再问。delivery-target.py只读派生；域名独立核验同机身份。
 3. 查Actions工作流/Run及GHCR镜像权限和身份，不把网络错误当无镜像。
 4. GitHub托管分配器受审main、cloudmeet-revision-ledger分支及CLOUDMEET_LEDGER_ANCHOR、原namespace/policy/r1～r14、独立Run高水位与最近7天快照/隔离恢复证据；缺项不dispatch。不恢复旧150 Runner、不初始化替代SQLite；客户端校验不冒充服务端保护。
