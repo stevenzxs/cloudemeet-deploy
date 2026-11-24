@@ -34,6 +34,25 @@ class RevisionWorkflowTests(unittest.TestCase):
         self.assertNotIn('self-hosted', text)
         self.assertNotIn('initialize', text)
 
+    def test_auth_header_shell_produces_basic_credentials(self):
+        import base64
+        import subprocess
+        text = (ROOT / '.github/workflows/revision-allocation.yml').read_text()
+        script = '\n'.join(line[10:] for line in text.split('        run: |\n', 1)[1].split('          python3 -B', 1)[0].splitlines())
+        result = subprocess.run(['bash', '-e', '-c', script + '\nprintf "%s" "$LEDGER_AUTH_HEADER"'],
+                                env=dict(os.environ, GH_TOKEN='fixture-not-a-secret'), capture_output=True, text=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        expected = 'AUTHORIZATION: basic ' + base64.b64encode(b'x-access-token:fixture-not-a-secret').decode()
+        self.assertEqual(result.stdout.splitlines()[-1], expected)
+
+    def test_product_jobs_explicitly_keep_read_permissions(self):
+        import re
+        for filename, jobs in [('build-package.yml', ['build', 'package']), ('build-clients.yml', ['package'])]:
+            text = (ROOT / '.github/workflows' / filename).read_text()
+            for name in jobs:
+                body = re.split(r'\n  [a-z][a-z_-]*:\n', text.split('\n  ' + name + ':\n', 1)[1], maxsplit=1)[0]
+                self.assertIn('    permissions:\n      contents: read', body)
+
     def test_controller_joint_inheritance_retry_and_scope_binding(self):
         import revision_git_ledger
         import subprocess as sp

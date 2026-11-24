@@ -55,6 +55,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 3. 目录与唯一流程
 
+2026-11-24收尾登记：`docs/plans/2026-11-24-hosted-ledger-closeout.md`为已批准托管台账方案的实施与证据计划，不新增交付路线。既有迁移分支保留四个初始证据文件及其历史，普通追加提交加入规范化`ledger.json`，固定新锚点；分配器逐提交锁定四文件blob身份，不删除/改写证据，不改变r1～r14对象。
+
 版本分配维护（2026-11-23用户二次确认简化）：GitHub-hosted ubuntu-24.04执行分配，专用cloudmeet-revision-ledger分支持久仅追加台账，普通非强推Git提交/push CAS与有界重试；保持原namespace、赋值契约、失败占号/重跑复用及子流程核验。旧id21保持offline，不恢复、不部署新150自托管Runner；原systemd文件仅历史保留。迁移须完整保留现有r1–r14及attempt，无新占号、不初始化/重置原SQLite；远端发布和变量启用须另行执行。独立备份保留最近7天，不取消备份。build-tools/controller/README.md仅记录实施/迁移状态，非独立规范。
 
 - 客户端目录最新用户确认覆盖下文旧架构路径：新增交付使用release/clients/windows/<x64|arm64>/<批次>/或release/clients/android/<armeabi-v7a|arm64-v8a|x86_64|universal>/<批次>/。不生成32位x86；多ABI归universal并记录实际集合。当前Windows仅实现x64，不默认新增arm64编译；历史目录不迁移。候选仍留Temp，按相同平台/架构分类，不自动晋级。

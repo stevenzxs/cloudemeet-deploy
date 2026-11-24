@@ -125,6 +125,22 @@ class GitLedgerTests(unittest.TestCase):
         self.assertEqual(len(pushes), 1)
         self.assertEqual(m.allocate(str(self.remote), self.policy, self.request('102'), anchor=anchor)['versions']['revision'], 3)
 
+    def test_push_timeout_after_remote_commit_is_reconciled(self):
+        m = self.module()
+        anchor = self.publish_fixture(m)
+        original = m.git
+        pushes = []
+        def timeout(root, *args, **kwargs):
+            result = original(root, *args, **kwargs)
+            if args[0] == 'push':
+                pushes.append(args)
+                raise subprocess.TimeoutExpired('git push', 60)
+            return result
+        with patch.object(m, 'git', side_effect=timeout):
+            record = m.allocate(str(self.remote), self.policy, self.request('101'), anchor=anchor, retries=2)
+        self.assertEqual(record['versions']['revision'], 2)
+        self.assertEqual(len(pushes), 1)
+
     def test_push_failure_never_returns_unpublished_assignment(self):
         m = self.module()
         anchor = self.publish_fixture(m)
@@ -137,6 +153,23 @@ class GitLedgerTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'retry limit'):
                 m.allocate(str(self.remote), self.policy, self.request('101'), anchor=anchor, retries=2)
         self.assertEqual(m.allocate(str(self.remote), self.policy, self.request('102'), anchor=anchor)['versions']['revision'], 2)
+
+    def test_preserved_migration_files_are_immutable(self):
+        m = self.module()
+        self.publish_fixture(m)
+        for name in ['identity.json', 'allocations.jsonl', 'attempts.jsonl', 'MIGRATION.md']:
+            (self.seed / name).write_text('preserved migration evidence\n')
+        git(self.seed, 'add', '.')
+        git(self.seed, 'commit', '-m', 'preserved migration anchor')
+        git(self.seed, 'push', str(self.remote), 'HEAD:refs/heads/cloudmeet-revision-ledger')
+        anchor = git(self.seed, 'rev-parse', 'HEAD')
+        self.assertEqual(m.allocate(str(self.remote), self.policy, self.request(), anchor=anchor, create=False), self.first)
+        (self.seed / 'MIGRATION.md').write_text('tampered')
+        git(self.seed, 'add', '.')
+        git(self.seed, 'commit', '-m', 'invalid evidence mutation')
+        git(self.seed, 'push', str(self.remote), 'HEAD:refs/heads/cloudmeet-revision-ledger')
+        with self.assertRaisesRegex(ValueError, 'migration evidence'):
+            m.allocate(str(self.remote), self.policy, self.request(), anchor=anchor, create=False)
 
 
 if __name__ == '__main__':

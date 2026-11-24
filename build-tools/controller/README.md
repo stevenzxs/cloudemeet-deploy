@@ -1,4 +1,4 @@
-# Hosted CloudMeet revision ledger — migration plan (not executed)
+# Hosted CloudMeet revision ledger — migration and recovery
 
 Approved replacement: GitHub-hosted `ubuntu-24.04` allocator and dedicated
 `cloudmeet-revision-ledger` branch in `stevenzxs/cloudemeet-deploy`.
@@ -9,7 +9,9 @@ self-hosted runner, or resume offline runner id21**.
 
 `revision_git_ledger.py` retains the existing policy hash/namespace and assignment
 object unchanged. `ledger.json` contains ordered allocation objects and append-only
-`[run_id, attempt]` evidence. The branch contains only this regular file, no workflow.
+`[run_id, attempt]` evidence. The branch contains this regular file, no workflow.
+The initial four migration evidence files may remain, but their blob identities
+must stay exactly as pinned at the approved anchor; other files are rejected.
 Every commit since the approved migration anchor is checked for linear ancestry,
 contiguous revisions, unique Run IDs, record digests, policy binding and unchanged
 history prefixes. Missing branch, unknown anchor or corrupt history blocks; allocation
@@ -26,7 +28,7 @@ HTTP header (masked, not URL/argv/config-file). No signing/CA Secrets are needed
 No Actions concurrency queue is used: Git CAS handles concurrency without pending-run
 replacement/cancellation. Failed admission before persistence does not claim an allocation.
 
-## Planned migration — separate approval/execution gate
+## Migration — authorized execution with evidence
 
 1. Freeze **all** allocator writers, confirm no active old Run can write SQLite,
    retain old runner id21 offline. Record existing namespace/policy and independent
@@ -40,16 +42,18 @@ replacement/cancellation. Failed admission before persistence does not claim an 
    create a branch, commit, push or allocate. Independently compare all 14 original
    assignment objects, Run IDs, attempts, contiguous r1–r14 and highest Run against
    authoritative evidence; never reconstruct from successful Releases/retained Runs.
-3. In an isolated repository create an orphan `cloudmeet-revision-ledger` with only
-   exported `ledger.json`. Review contents/digests; make one migration commit and
+3. For a missing branch, use a separately authorized orphan migration. For the
+   existing 2026-11-24 branch, preserve its four files/history and append exported
+   `ledger.json` in an ordinary descendant commit. Review contents/digests and
    record its full SHA. Publish only after explicit authorization and verify remote
    exact commit/tree/data. Set `CLOUDMEET_LEDGER_ANCHOR` to this independently approved
-   SHA; missing variable deliberately blocks all new allocation. No production branch
-   or variable has been created/changed by this implementation task.
-4. Keep independent daily immutable ledger branch bundles/snapshots and high-water
+   SHA; missing variable deliberately blocks all new allocation. Record execution
+   evidence separately; this document alone does not prove activation.
+4. Keep independent immutable ledger branch bundles/snapshots and high-water
    evidence **for the last 7 days** (not zero backups; do not cancel existing backup
-   jobs). Before activation, designate the restricted backup destination/scheduler,
-   verify a restore in isolation and retention behavior. Retain migration evidence
+   jobs). Before activation/dispatch, record the restricted backup destination,
+   verify a restore in isolation and retention behavior. Do not introduce a new
+   scheduled job without a separate request. Retain migration evidence
    and original SQLite history; do not prune them merely as rolling daily backups.
    This change does not install/alter any live backup scheduler or delete backups.
 5. Review/merge the allocator implementation and coordinate KB/installed instructions
@@ -74,3 +78,22 @@ from force rewriting/deleting the remote branch. Branch rules/access policy are 
 owner decision, not claimed here as installed. Fork PRs must not receive write tokens.
 Real GitHub token permissions, rules, network failure/readback and end-to-end delivery
 remain unverified; local bare-remote tests are not cloud acceptance.
+
+## 2026-11-24 execution checkpoint
+
+Canonical migration anchor: `484f7cb59010816daef2beda54d94db69e5f3764`,
+ordinary child of `13f75580e4b65f87407c2285f186c44c8882326d`.
+The initial four files and 14 original assignments/attempts are unchanged; the
+canonical state matches a SQLite backup-API snapshot with SHA256
+`40eae683f18c2f98a91ca9374276f36b4766b068b5a187a7ec21609801cf059e`.
+All 14 independent GitHub Run IDs/config SHAs were checked; high-water Run is
+44888921798. Anchor variable was written and read back. Old runner remains offline.
+Preservation/snapshot/Run evidence is under
+`/opt/data/delivery-controller/backups/closeout-20261124/`; an independent bundle
+restore and state-to-SQLite comparison passed on the operator machine under
+`C:/Users/ZL/AppData/Local/Temp/opencode/cloudmeet-closeout/`.
+No production allocation or Actions dispatch was performed. Real hosted token
+execution and subsequent delivery remain unverified. Before the next dispatch,
+refresh the independent snapshot/Run high-water checks; this checkpoint must not
+be treated as permanently fresh recovery evidence. Keep rolling snapshots seven
+days, preserve original migration evidence, and do not add a scheduler implicitly.

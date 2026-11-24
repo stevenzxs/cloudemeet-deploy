@@ -55,6 +55,9 @@ jobs:
       scope: '["server"]'
       assignment: ${{ inputs.assignment || '' }}
   build:
+    permissions:
+      contents: read
+      actions: read
     needs: version
     env:
       VERSION: ${{ fromJSON(needs.version.outputs.assignment).versions.server_version }}
@@ -146,6 +149,9 @@ jobs:
           retention-days: 14
 
   package:
+    permissions:
+      contents: read
+      actions: read
     needs: [version, build]
     env:
       VERSION: ${{ fromJSON(needs.version.outputs.assignment).versions.server_version }}

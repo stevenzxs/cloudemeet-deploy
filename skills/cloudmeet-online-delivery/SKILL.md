@@ -13,7 +13,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 这是本次明确执行请求；先预检后在所请求范围连续执行，不重复确认固定选择、不要求长提示词或逐步确认。只说“预检/计划/打包”时严格止于该终点，不自动发布/部署。新凭据/材料缺失、目标歧义或超授权操作一次性报告具体阻塞；破坏性操作仍须范围明确的二次批准。
 
-现行知识库明确完整执行请求包含标准链内专用Runner/变量/正式台账首次初始化及独立恢复核验、已有批准签名材料的受控Secrets配置；不额外索取B1/B2/B3/B4/B5确认。基础设施不具备时先按标准整改，不因只是缺安装就重复问方案；实际缺账户权限、真实身份/材料或安全隔离能力才报告具体阻塞。此流程修复任务本身不等于已经发起新的完整交付任务。
+现行知识库的后续批准采用GitHub托管Runner与专用Git台账；完整执行请求包含标准链内变量配置、既有历史迁移及独立恢复核验、已有批准签名材料的受控Secrets配置；不额外索取B1/B2/B3/B4/B5确认。不恢复旧150 Runner或重建SQLite计数。实际缺账户权限、真实身份/材料或可信执行能力才报告具体阻塞。此流程修复任务本身不等于已经发起新的完整交付任务。
 
 | 用户仅提供 | 执行者负责，不再询问 |
 |---|---|
@@ -33,7 +33,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 ## 一套标准执行顺序
 
 1. **预检和固定身份**：查询现有GHCR镜像、Run、源码锁定SHA和配置main；明确本次是否要求完整新构建。检查Android两项Secrets、批准DER指纹；Windows不要求代码签名材料/SignTool或私有证书库检出，不安装签名根。检查两端公开HTTPS CA；只看Secrets名称，不读取值。缺材料列准确名称及安全提供位置。
-2. **版本基础设施**：专用150控制Runner、持久仓库外SQLite、`CLOUDMEET_VERSION_LEDGER`、独立备份恢复与最新计数证据一起核验。采用标准规范方案，标签不等于Runner隔离；实测账户支持的Runner组/工作流限制及可信执行边界，无法满足则阻断，不降低隔离。已授权基础设施实施时直接执行该标准方案；未授权写操作时一次报告具体边界。正式台账丢失不自动重建，恢复须核对独立Run/高水位证据；禁止把纯预检当正式占号或承诺r1。
+2. **版本基础设施**：核验受审main的GitHub托管分配器、`cloudmeet-revision-ledger`分支、`CLOUDMEET_LEDGER_ANCHOR`完整SHA、原namespace/policy/r1～r14及独立Run/高水位。原SQLite只读保留，不恢复旧Runner id21。分配器验证锚点后线性仅追加，普通快进push竞争并读回；产品job无额外写权限。最新独立快照须完成隔离恢复核验，滚动备份保留最近7天，不新增定时任务；迁移原始证据不按每日快照清理。客户端检查不等于服务端分支保护。失库/倒退/分叉不自动重建，预检不占号或承诺r1。
 3. **统一参数**：运行 `python3 -B build-tools/delivery-target.py --origin <origin>` 预览；IPv4直接复用MEDIA_HOST，域名用当前解析及独立核验的同机IPv4，经 `--verified-target-ipv4` 输入工具，歧义阻断。MEDIA_PORT来自受控target.env，不从网页端口猜。将工具输出的入口三项更新到唯一config/client.env，CLIENT_VERSION保持批准基线。包外实例配置通过 `--target-env <仓库外绝对路径>` 创建，不修改包内文件。修改/测试后提交推送并合入main，再固定最终完整SHA；只推任务分支不算完成。
 4. **联合构建/发布**：审阅当前 `build-joint.yml`、复用工作流的触发器/权限/Secrets/目标；显式 material_commit=本次最终配置SHA、118 architecture=amd64、在本次授权发布范围内 publish_images=true。不要用旧actions.py的手填--version示例调度新入口。新顶层Run在产品测试/构建前分配N，失败取消占号、同Run重跑复用、子流程继承；不另开客户端Run重复占号。不在150/目标机/Windows编译服务端，不自动离线回退。
 5. **跟踪与制品**：调度前落盘意图和任务ID，查询关联Run，记录head_sha/Run ID/attempt；HTTP204不等于成功。有限等待，网络超时先查状态，不重新dispatch。核验完成结论、实际矩阵、artifact来源/外层摘要、内层SHA256SUMS、七镜像固定digest和config身份。双客户端最终APK/MSI/PE版本、ABI、origin、CA必须通过；Android比对批准签名身份，Windows记录unsigned及未知发布者/SmartScreen风险，不写验签通过。其余门禁失败仍阻断。

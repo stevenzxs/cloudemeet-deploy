@@ -39,6 +39,8 @@ jobs:
       scope: ${{ inputs.targets }}
       assignment: ${{ inputs.assignment || '' }}
   package:
+    permissions:
+      contents: read
     needs: version
     env:
       ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}

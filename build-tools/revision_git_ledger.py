@@ -78,12 +78,25 @@ def read_history(root, tip, anchor, policy):
     commits = git(root, 'rev-list', '--reverse', f'{anchor}..{tip}').stdout.splitlines()
     previous = None
     parent = None
+    evidence = None
     for commit in [anchor, *commits]:
         if parent and git(root, 'show', '-s', '--format=%P', commit).stdout.strip() != parent:
             raise ValueError('Ledger history must be linear')
-        tree = git(root, 'ls-tree', commit).stdout.strip()
-        if not re.fullmatch(r'100644 blob [0-9a-f]{40}\tledger.json', tree):
-            raise ValueError('Ledger branch must contain only regular ledger.json')
+        tree = git(root, 'ls-tree', commit).stdout.strip().splitlines()
+        entries = {}
+        for line in tree:
+            match = re.fullmatch(r'100644 blob ([0-9a-f]{40})\t([^/]+)', line)
+            if not match:
+                raise ValueError('Ledger branch requires regular files only')
+            entries[match[2]] = match[1]
+        legacy = {'identity.json', 'allocations.jsonl', 'attempts.jsonl', 'MIGRATION.md'}
+        if set(entries) not in ({'ledger.json'}, {'ledger.json'} | legacy):
+            raise ValueError('Unexpected ledger branch files')
+        current_evidence = {k: v for k, v in entries.items() if k != 'ledger.json'}
+        if evidence is None:
+            evidence = current_evidence
+        elif current_evidence != evidence:
+            raise ValueError('Preserved migration evidence changed')
         state = validate_state(json.loads(git(root, 'show', f'{commit}:ledger.json').stdout), policy)
         if previous:
             for key in ['records', 'attempts']:
@@ -135,7 +148,11 @@ def allocate(remote, policy, request, *, anchor, attempt=1, create=True, retries
             git(root, 'commit', '-m', f"Record run {request['run_id']} attempt {attempt}")
             candidate = git(root, 'rev-parse', 'HEAD').stdout.strip()
             # Normal fast-forward push is the CAS: candidate has exactly fetched tip as parent.
-            result = git(root, 'push', 'origin', f'{candidate}:refs/heads/{BRANCH}', check=False)
+            try:
+                result = git(root, 'push', 'origin', f'{candidate}:refs/heads/{BRANCH}', check=False)
+            except subprocess.TimeoutExpired:
+                # A timeout may follow a successful remote commit. Reconcile by fetch.
+                result = subprocess.CompletedProcess(['git', 'push'], 1)
             if not result.returncode:
                 git(root, 'fetch', '--no-tags', 'origin', f'refs/heads/{BRANCH}')
                 current = git(root, 'rev-parse', 'FETCH_HEAD').stdout.strip()

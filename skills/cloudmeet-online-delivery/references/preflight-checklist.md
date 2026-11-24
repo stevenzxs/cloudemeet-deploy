@@ -5,7 +5,7 @@
 1. 核验知识库/配置库最新main、脏状态、加载SHA；有并发工作不覆盖。
 2. 固定origin和任务终点；完整值不再问。delivery-target.py只读派生；域名独立核验同机身份。
 3. 查Actions工作流/Run及GHCR镜像权限和身份，不把网络错误当无镜像。
-4. 专用版本Runner的隔离与可信执行、仓库变量、持久台账、历史高水位和独立备份恢复证据，缺任何项不先dispatch排队。
+4. GitHub托管分配器受审main、cloudmeet-revision-ledger分支及CLOUDMEET_LEDGER_ANCHOR、原namespace/policy/r1～r14、独立Run高水位与最近7天快照/隔离恢复证据；缺项不dispatch。不恢复旧150 Runner、不初始化替代SQLite；客户端校验不冒充服务端保护。
 5. Android Secrets名称：ANDROID_KEYSTORE_BASE64、ANDROID_KEYSTORE_PROPERTIES_BASE64，最终签名指纹按config/signing-policy.json，缺项拒绝，不用debug替代。Windows按2026-11-20批准取消代码签名：不要求PFX/SignTool/私有证书库检出，交付明确unsigned及未知发布者/SmartScreen风险，不写验签通过。两端HTTPS CA信任/入口/版本/ABI/摘要门禁保留。
 6. 严格SSH只读核对目标身份/OS/架构、容器/卷/数据/目录、端口/内存/磁盘。首装默认setup.py，既有安装不覆盖。
 7. 证书只查身份/期限/SAN/匹配/权限与恢复证据，不输出私钥/密码；保留CA，正确区分安装目标叶证书和CA轮换。
