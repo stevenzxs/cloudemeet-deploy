@@ -2,6 +2,12 @@ name: CloudMeet persistent revision allocation
 on:
   workflow_call:
     inputs:
+      expected_tls_mode:
+        type: string
+        required: true
+      expected_origin:
+        type: string
+        required: true
       material_commit:
         type: string
         required: true
@@ -28,6 +34,17 @@ jobs:
         with:
           ref: ${{ github.sha }}
           persist-credentials: false
+      - name: Verify approved TLS contract before any persistent allocation
+        env:
+          MATERIAL_SHA: ${{ inputs.material_commit }}
+          EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
+          EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
+        run: |
+          test "$MATERIAL_SHA" = "$GITHUB_SHA"
+          test "$MATERIAL_SHA" = "$(git rev-parse HEAD)"
+          sha256sum -c build-tools/inputs.sha256
+          python3 -B -m unittest discover -s build-tools/tests -p 'test_tls_contract.py'
+          python3 -B build-tools/tls_contract.py
       - name: Allocate or verify inherited parent record against persistent ledger
         id: record
         env:

@@ -2,6 +2,12 @@ name: Publish verified joint delivery
 on:
   workflow_call:
     inputs:
+      expected_tls_mode:
+        type: string
+        required: true
+      expected_origin:
+        type: string
+        required: true
       material_commit:
         type: string
         required: true
@@ -22,6 +28,8 @@ jobs:
       actions: read
       packages: write
     env:
+      EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
+      EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
       TARGET_ARCH: ${{ inputs.architecture }}
       ALLOCATION_JSON: ${{ inputs.assignment }}
       VERSION_RECORD: ${{ github.workspace }}/version-assignment.json

@@ -2,6 +2,15 @@ name: CloudMeet two-client packages
 on:
   workflow_dispatch:
     inputs:
+      expected_tls_mode:
+        description: Approved TLS mode assertion
+        type: choice
+        options: [private-ca, caddy-public-acme]
+        required: true
+      expected_origin:
+        description: Approved complete HTTPS origin
+        type: string
+        required: true
       material_commit:
         description: Reviewed full configuration commit SHA
         required: true
@@ -13,6 +22,12 @@ on:
         type: string
   workflow_call:
     inputs:
+      expected_tls_mode:
+        type: string
+        required: true
+      expected_origin:
+        type: string
+        required: true
       material_commit:
         type: string
         required: true
@@ -37,6 +52,8 @@ jobs:
     with:
       material_commit: ${{ inputs.material_commit }}
       scope: ${{ inputs.targets }}
+      expected_tls_mode: ${{ inputs.expected_tls_mode }}
+      expected_origin: ${{ inputs.expected_origin }}
       assignment: ${{ inputs.assignment || '' }}
   package:
     permissions:

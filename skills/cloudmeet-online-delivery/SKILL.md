@@ -8,6 +8,7 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 ## 双证书模式操作（2026-11-25）
 
 构建前取得证书模式选择，已有选择不重复询问，写入唯一config/client.env的TLS_MODE。
+2026-11-25批准门禁：调度build-joint（独立build-package/build-clients同理）必须传expected_tls_mode、expected_origin，值来自本次批准，不从仓库默认反推。固定配置不匹配时在占号前停止；不得为过门禁把批准值改为private-ca。发布后核对joint-evidence的approved_tls_contract、tls_mode与NOT_DEPLOYED；只有发布不改变线上证书，不宣称公网ACME已通过。现有实例跨TLS模式迁移没有受验apply工具，online_update会拒绝；不得重跑setup覆盖，另行设计审阅迁移并获目标操作授权。
 - private-ca：保留CLIENT_CA_FILE，复用稳定私有根签发的叶证书；setup旁置cert.tar.gz，升级传--ca。
 - caddy-public-acme：删除CLIENT_CA_FILE，HTTPS公网域名443；客户端使用系统公共CA，setup不旁置私有证书包，升级不传--ca。目标核对全部A/AAAA与身份、443直达、CA验证和出站DNS/HTTPS、时钟、系统根库；Caddy自动签发续期，仅TLS-ALPN-01，不静默回退。保持/data和/config持久卷及内部TLS。隔离环境不使用公共ACME。
 同批candidate和双客户端证据须绑定相同模式/origin/可空CA摘要；不同模式不作为普通升级，另行授权迁移。当前代码/辅助回归不是线上签发、续期或客户端验收证据。本次维护不触发新Run或现网换证。

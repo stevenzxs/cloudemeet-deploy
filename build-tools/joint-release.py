@@ -31,6 +31,8 @@ def verify_prepared_assets(root):
 
 
 def prepare():
+    from tls_contract import approved_contract, require_evidence
+    contract=approved_contract()
     assignment=json.loads(Path(os.environ['VERSION_RECORD']).read_text())
     from revision_versions import validate_record
     validate_record(assignment,json.loads(Path('config/version-policy.json').read_text()),
@@ -57,6 +59,7 @@ def prepare():
         origins.add(record['origin'])
         mode=record.get('tls_mode','private-ca');modes.add(mode)
         ca=(record.get('ca') or {}).get('sha256')
+        require_evidence(contract,record.get('tls_mode'),record['origin'],ca)
         if mode not in ('private-ca','caddy-public-acme'):raise ValueError('Invalid client TLS mode')
         if mode=='private-ca' and (not isinstance(ca,str) or len(ca)!=64):raise ValueError('Missing client CA identity')
         if mode=='caddy-public-acme' and ca is not None:raise ValueError('Public mode cannot carry private trust')
@@ -93,6 +96,7 @@ def prepare():
         raise ValueError('Server material identity mismatch')
     if candidate.get('client_origin')!=next(iter(origins)):
         raise ValueError('Server/client deployment origin differs')
+    require_evidence(contract,candidate.get('tls_mode'),candidate.get('client_origin'),candidate.get('client_ca_sha256'))
     if candidate.get('tls_mode','private-ca')!=next(iter(modes)):raise ValueError('Server/client TLS mode mismatch')
     if candidate.get('client_ca_sha256')!=next(iter(cas)):
         raise ValueError('Server/client public CA differs')
@@ -104,14 +108,20 @@ def prepare():
     # Public static bytes are covered by the already verified complete archive inventory.
     (destination/'joint-evidence.json').write_text(json.dumps({'status':'PREPARED_NOT_PUBLISHED',
         'configuration_commit':os.environ['GITHUB_SHA'],'run_id':run,'attempt':attempt,
-        'origin':origins.pop(),'version_assignment':assignment,'clients':evidence,
+        'origin':origins.pop(),'approved_tls_contract':contract,'deployment_status':'NOT_DEPLOYED',
+        'tls_mode':candidate['tls_mode'],'version_assignment':assignment,'clients':evidence,
         'server_material':candidate},indent=2)+'\n')
     (destination/'prepared-assets.json').write_text(json.dumps({p.name:digest(p) for p in destination.iterdir() if p.is_file()},indent=2)+'\n')
 
 
 def publish():
+    from tls_contract import approved_contract, require_evidence
+    contract=approved_contract()
     root=Path('release-assets');record=json.loads((root/'joint-evidence.json').read_text())
     verify_prepared_assets(root)
+    if record.get('approved_tls_contract')!=contract:raise ValueError('Publication approval changed')
+    candidate=record['server_material']
+    require_evidence(contract,candidate.get('tls_mode'),candidate.get('client_origin'),candidate.get('client_ca_sha256'))
     registry=json.loads(Path('publication/registry.json').read_text())
     if digest(Path('publication/registry.json'))!=Path('publication/registry.json.sha256').read_text().split()[0]:
         raise ValueError('Registry checksum mismatch')
@@ -133,11 +143,15 @@ def publish():
     # Create a draft first: failed uploads must not expose an apparently complete release.
     subprocess.run(['gh','release','create',tag,'--repo',os.environ['GITHUB_REPOSITORY'],
                     '--target',os.environ['GITHUB_SHA'],'--draft','--title',tag,
-                    '--notes','Seven-service registry + Electron unsigned / Android signed. Not deployed.'],check=True)
+                    '--notes',f"Seven services + H5 + Electron unsigned / Android signed. TLS mode: {contract['tls_mode']}. Origin: {contract['origin']}. NOT_DEPLOYED: publication does not change the live certificate; ACME issuance/renewal requires separate target acceptance."],check=True)
     subprocess.run(['gh','release','upload',tag,*[str(p) for p in sorted(root.iterdir())],
                     '--repo',os.environ['GITHUB_REPOSITORY']],check=True)
     subprocess.run(['gh','release','edit',tag,'--draft=false','--latest=false',
                     '--repo',os.environ['GITHUB_REPOSITORY']],check=True)
+    summary=f"TLS mode: {contract['tls_mode']}\nOrigin: {contract['origin']}\nNOT_DEPLOYED: live certificate unchanged; target ACME issuance/renewal not verified by publication.\n"
+    print(summary)
+    if os.environ.get('GITHUB_STEP_SUMMARY'):
+        with open(os.environ['GITHUB_STEP_SUMMARY'],'a',encoding='utf-8') as stream:stream.write(summary)
     import importlib.util
     spec=importlib.util.spec_from_file_location('delivery_route',Path(__file__).with_name('delivery-route.py'))
     route=importlib.util.module_from_spec(spec);spec.loader.exec_module(route)

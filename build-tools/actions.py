@@ -28,6 +28,8 @@ def main():
     sub=parser.add_subparsers(dest='command',required=True)
     dispatch=sub.add_parser('dispatch')
     dispatch.add_argument('--commit',required=True)
+    dispatch.add_argument('--expected-tls-mode',required=True,choices=['private-ca','caddy-public-acme'])
+    dispatch.add_argument('--expected-origin',required=True)
     dispatch.add_argument('--scope',choices=['server','joint'],default='server')
     dispatch.add_argument('--publish',action='store_true')
     status=sub.add_parser('status');status.add_argument('--run-id',type=int,required=True)
@@ -42,6 +44,7 @@ def main():
         ref=api(token,'/git/ref/heads/main')
         if ref['object']['sha']!=args.commit:raise ValueError('Reviewed main moved; dispatch refused')
         record={'repository':REPOSITORY,'configuration_commit':args.commit,'scope':args.scope,
+                'approved_tls_contract':{'tls_mode':args.expected_tls_mode,'origin':args.expected_origin},
                 'requested_at':datetime.datetime.now(datetime.timezone.utc).isoformat(),
                 'status':'DISPATCH_REQUEST_PENDING','architecture':'amd64','publish':args.publish}
         # Persist intent before request: ambiguous network failure must not auto-redispatch.
@@ -49,6 +52,7 @@ def main():
         workflow='build-joint.yml' if args.scope=='joint' else 'build-package.yml'
         response=api(token,'/actions/workflows/'+workflow+'/dispatches',{
             'ref':'main','inputs':{'material_commit':args.commit,
+                                 'expected_tls_mode':args.expected_tls_mode,'expected_origin':args.expected_origin,
                                 'architecture':'amd64','publish_images':args.publish}})
         record.update(status='DISPATCH_ACCEPTED_RUN_NOT_YET_IDENTIFIED',response=response)
     else:

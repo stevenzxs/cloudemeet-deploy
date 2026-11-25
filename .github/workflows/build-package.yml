@@ -3,6 +3,15 @@ name: CloudMeet compile and package
 on:
   workflow_dispatch:
     inputs:
+      expected_tls_mode:
+        description: Approved TLS mode assertion
+        type: choice
+        options: [private-ca, caddy-public-acme]
+        required: true
+      expected_origin:
+        description: Approved complete HTTPS origin
+        type: string
+        required: true
       material_commit:
         description: 'Reviewed deployment-material commit SHA (must equal workflow commit)'
         required: true
@@ -25,6 +34,12 @@ on:
         # Optional: only needed if the H5 source stops being publicly readable.
         required: false
     inputs:
+      expected_tls_mode:
+        type: string
+        required: true
+      expected_origin:
+        type: string
+        required: true
       material_commit:
         type: string
         required: true
@@ -54,6 +69,8 @@ jobs:
     with:
       material_commit: ${{ inputs.material_commit }}
       scope: '["server"]'
+      expected_tls_mode: ${{ inputs.expected_tls_mode }}
+      expected_origin: ${{ inputs.expected_origin }}
       assignment: ${{ inputs.assignment || '' }}
   build:
     permissions:

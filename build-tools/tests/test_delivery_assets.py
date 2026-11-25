@@ -39,6 +39,16 @@ def add_h5_fixture(root, manifest):
 
 
 class DeliveryAssetTests(unittest.TestCase):
+    def setUp(self):
+        self.approval={'tls_mode':'private-ca','origin':'https://cloudmeet.stevenzxs.cn'}
+        self.env=patch.dict(os.environ,EXPECTED_TLS_MODE=self.approval['tls_mode'],EXPECTED_ORIGIN=self.approval['origin'])
+        self.env.start();self.addCleanup(self.env.stop)
+
+    def approved_record(self,record):
+        record['approved_tls_contract']=self.approval
+        record['server_material'].update(tls_mode='private-ca',client_origin=self.approval['origin'])
+        return record
+
     def source(self,root):
         root.mkdir();(root/'provenance').mkdir()
         shutil.copyfile(TOOLS/'offline-runtime/install.py',root/'install.py')
@@ -110,6 +120,7 @@ class DeliveryAssetTests(unittest.TestCase):
                     checks={key:{'passed':True} for key in ('version','architecture','origin','ca','signature')}
                     if platform=='windows':checks.pop('signature');checks['signing']={'status':'unsigned','required':False}
                     evidence={'status':'packaged-delivered','version':'1.0.21+r15','versionAssignment':assignment,
+                               'tls_mode':'private-ca',
                               'ca':{'sha256':hashlib.sha256(ssl.PEM_cert_to_DER_cert((TOOLS.parent/'config/client-ca.crt').read_text())).hexdigest()},
                                'origin':'https://cloudmeet.stevenzxs.cn','artifacts':[{'file':file.name,'platform':platform,
                               'sha256':hashfile(file),'checks':checks}]}
@@ -144,6 +155,7 @@ class DeliveryAssetTests(unittest.TestCase):
                 record={'status':'PREPARED_NOT_PUBLISHED','configuration_commit':'a'*40,'version_assignment':{}}
                 registry=self.source(Path('source'))
                 record['server_material']=json.loads(Path('source/candidate.json').read_text())
+                self.approved_record(record)
                 (root/'joint-evidence.json').write_text(json.dumps(record))
                 (root/'prepared-assets.json').write_text(json.dumps({'joint-evidence.json':hashfile(root/'joint-evidence.json')}))
                 registry.update(version_assignment={})
@@ -166,6 +178,7 @@ class DeliveryAssetTests(unittest.TestCase):
                         'version_assignment':{},'origin':'https://example.com'}
                 registry=self.source(Path('source'))
                 record['server_material']=json.loads(Path('source/candidate.json').read_text())
+                self.approved_record(record)
                 registry.update(version_assignment={})
                 (root/'joint-evidence.json').write_text(json.dumps(record))
                 (root/'prepared-assets.json').write_text(json.dumps({'joint-evidence.json':hashfile(root/'joint-evidence.json')}))
@@ -188,6 +201,7 @@ class DeliveryAssetTests(unittest.TestCase):
                 candidate=json.loads(Path('source/candidate.json').read_text())
                 record={'status':'PREPARED_NOT_PUBLISHED','configuration_commit':'a'*40,
                         'version_assignment':{},'server_material':candidate,'origin':'https://example.com'}
+                self.approved_record(record)
                 (root/'joint-evidence.json').write_text(json.dumps(record))
                 (root/'prepared-assets.json').write_text(json.dumps({'joint-evidence.json':hashfile(root/'joint-evidence.json')}))
                 registry.update(version_assignment={})
