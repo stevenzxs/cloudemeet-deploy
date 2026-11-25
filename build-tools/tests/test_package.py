@@ -106,10 +106,19 @@ PUBLIC_ORIGIN=$PUBLIC_URL
 
     def test_sources_are_complete_and_immutable(self):
         sources = json.loads((ROOT / 'build-tools/sources.json').read_text(encoding='utf-8'))
-        self.assertEqual(set(sources['services']), {'gateway', 'app-web', 'api', 'web', 'prosody', 'jicofo', 'jvb'})
+        self.assertEqual(set(sources['services']), {'gateway', 'app-web', 'api', 'jitsi-mgr', 'web', 'prosody', 'jicofo', 'jvb'})
         for source in [*sources['services'].values(), sources['lifecycle']]:
             self.assertTrue(source['repository'].startswith('https://github.com/'))
             self.assertRegex(source['commit'], r'^[0-9a-f]{40}$')
+
+    def test_jitsi_mgr_source_pin_matches_reviewed_java_and_react_tree(self):
+        sources = json.loads((ROOT / 'build-tools/sources.json').read_text(encoding='utf-8'))
+        self.assertEqual(sources['services']['jitsi-mgr']['repository'],
+                         'https://github.com/stevenzxs/jitsi-mgr.git')
+        # This reviewed tree contains jitsi-mgr-app/pom.xml and
+        # jitsi-mgr-frontend/package-lock.json; the old Node-only tree does not.
+        self.assertEqual(sources['services']['jitsi-mgr']['commit'],
+                         '8198b057f45d49ffe4701ac10aa1caf55a77829c')
 
     def test_embedded_python_is_valid_and_checks_actual_image_archive(self):
         script = (ROOT / 'build-tools/package.sh').read_text(encoding='utf-8')

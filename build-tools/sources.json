@@ -3,7 +3,7 @@
     "web": {"repository": "https://github.com/stevenzxs/jitsi-meet.git", "commit": "f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259"},
     "app-web": {"repository": "https://github.com/stevenzxs/jitsi-meet-web.git", "commit": "784c1d004cfcea32f5316314f5979cb74aba88b0"},
     "api": {"repository": "https://github.com/stevenzxs/jitsi-meet-api.git", "commit": "632c247064b14fe5cd9b8806ed42cb8fb45adcba"},
-    "jitsi-mgr": {"repository": "https://github.com/stevenzxs/jitsi-mgr.git", "commit": "b3dafd0f7c102ec5ea9cb87856c8f3b1e5dc1a0d"},
+    "jitsi-mgr": {"repository": "https://github.com/stevenzxs/jitsi-mgr.git", "commit": "8198b057f45d49ffe4701ac10aa1caf55a77829c"},
     "gateway": {"repository": "https://github.com/stevenzxs/caddy.git", "commit": "0d98caea58f794f88e709b1bef2880996a471bca"},
     "prosody": {"repository": "https://github.com/stevenzxs/jitsi-meet-prosody.git", "commit": "278180e6a72b6c5c33093b842ec6dfb1a6849487"},
     "jicofo": {"repository": "https://github.com/stevenzxs/jicofo.git", "commit": "48874dc526573016ca6512ebbb697911802e4c53"},
