@@ -50,6 +50,9 @@ def main():
     parser.add_argument('--registry-sha256')
     args=parser.parse_args()
     if os.geteuid()!=0: raise ValueError('Run setup.py with sudo/root')
+    # Loading verified package modules must not add unlisted __pycache__ files.
+    # -B on deploy.py alone does not protect imports performed by this process.
+    sys.dont_write_bytecode=True
     os.umask(0o077)
     archive=args.server_package.resolve();cert=archive.parent/'cert.tar.gz'
     if not cert.is_file() or cert.is_symlink(): raise ValueError('Adjacent cert.tar.gz required')
