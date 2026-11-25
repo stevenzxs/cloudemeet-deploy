@@ -1,4 +1,6 @@
 ---
+
+<!-- 双证书模式：按AGENTS.md 2026-11-25批准契约；client.env TLS_MODE选择private-ca（保留CLIENT_CA_FILE及目标叶证书包）或caddy-public-acme（公网DNS HTTPS/443、系统公共信任、不传私有叶证书包/--ca）。公共模式需目标持续联网、443 TLS-ALPN-01、持久Caddy /data和/config；失败不回退，模式切换不是普通升级。 -->
 name: cloudmeet-deploy
 description: Use when deploying, updating, migrating, verifying or rolling back CloudMeet / Jitsi on a new or existing server, using domain or IP access, source builds or published Docker images, on x86_64 or ARM64；适用于云会议全栈/单服务部署、补丁检查、逐服务进度、部署验收及客户端打包交付，同时输出详细硬件资源与防火墙端口xlsx、部署架构图、功能清单及按工时计的软件和硬件报价估算。也用于仅编写这些部署交付文档；不适用于无关低代码服务。
 ---

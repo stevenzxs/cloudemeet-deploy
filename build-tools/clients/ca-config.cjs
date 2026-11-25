@@ -3,6 +3,10 @@ const path = require('node:path');
 const { X509Certificate, createHash } = require('node:crypto');
 
 function readCa(config, envFile) {
+  if (config.tlsMode === 'caddy-public-acme') {
+    if (config.values.CLIENT_CA_FILE) throw Error('Public TLS forbids private anchors');
+    return null;
+  }
   if (!config.values.CLIENT_CA_FILE) return null;
   if (!config.origin.startsWith('https:')) throw Error('CLIENT_CA_FILE requires HTTPS');
   const file = path.resolve(path.dirname(envFile), config.values.CLIENT_CA_FILE);
@@ -20,11 +24,13 @@ function matchesCa(data, ca) {
   catch { return false; }
 }
 
-function androidTrust(xml, host) {
+function androidTrust(xml, host, mode = 'private-ca') {
   if (!/^[a-zA-Z0-9.-]+$/.test(host)) throw Error('Invalid TLS host');
   const block = /<domain-config\b[^>]*>[\s\S]*?<\/domain-config>/g;
   const domain = `<domain includeSubdomains="false">${host}</domain>`;
-  const trust = `<domain-config cleartextTrafficPermitted="false">${domain}<trust-anchors><certificates src="@raw/cloudmeet_client_ca" /></trust-anchors></domain-config>`;
+  if (!['private-ca', 'caddy-public-acme'].includes(mode)) throw Error('Invalid TLS mode');
+  const anchor = mode === 'caddy-public-acme' ? 'system' : '@raw/cloudmeet_client_ca';
+  const trust = `<domain-config cleartextTrafficPermitted="false">${domain}<trust-anchors><certificates src="${anchor}" /></trust-anchors></domain-config>`;
   // Remove the configured host from an old domain group, keeping unrelated policies.
   let result = xml.replace(block, group => {
     const escaped = host.replace(/\./g, '\\.');

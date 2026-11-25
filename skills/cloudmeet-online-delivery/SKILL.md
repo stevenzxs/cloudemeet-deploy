@@ -5,6 +5,13 @@ description: Use when the user requests CloudMeet standard online delivery, Acti
 
 # CloudMeet 标准线上交付
 
+## 双证书模式操作（2026-11-25）
+
+构建前取得证书模式选择，已有选择不重复询问，写入唯一config/client.env的TLS_MODE。
+- private-ca：保留CLIENT_CA_FILE，复用稳定私有根签发的叶证书；setup旁置cert.tar.gz，升级传--ca。
+- caddy-public-acme：删除CLIENT_CA_FILE，HTTPS公网域名443；客户端使用系统公共CA，setup不旁置私有证书包，升级不传--ca。目标核对全部A/AAAA与身份、443直达、CA验证和出站DNS/HTTPS、时钟、系统根库；Caddy自动签发续期，仅TLS-ALPN-01，不静默回退。保持/data和/config持久卷及内部TLS。隔离环境不使用公共ACME。
+同批candidate和双客户端证据须绑定相同模式/origin/可空CA摘要；不同模式不作为普通升级，另行授权迁移。当前代码/辅助回归不是线上签发、续期或客户端验收证据。本次维护不触发新Run或现网换证。
+
 操作指南，不是第二份规范。先安全同步知识库与配置库最新已批准的 origin/main 至本地副本，再读取知识库 README、standards/project-delivery.md、audits/project-register.md 及配置库 AGENTS.md 和执行材料。同步前检查并按现有要求备份，只安全快进，不覆盖或丢弃本地工作；无法安全同步或读取时，报告具体阻塞并停止。
 
 ## 短提示词与固定选择

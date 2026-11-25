@@ -17,7 +17,8 @@ class CertificateTests(unittest.TestCase):
         import sys
         import tarfile
         files={
-            'certificate.py': b'def preflight(*args): pass\ndef unpack_certificate(*args): pass\n',
+            'certificate.py': b'def require_mode(*args): return "private-ca"\ndef preflight(*args): pass\ndef unpack_certificate(*args): pass\n',
+            'candidate.json': b'{}',
             'deploy.py': (b'from pathlib import Path\n'
                           b'r=Path(__file__).parent\n'
                           b'assert not list(r.rglob("*.pyc")), "Unlisted package files: bytecode"\n'),

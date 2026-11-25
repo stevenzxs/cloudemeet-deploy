@@ -20,7 +20,7 @@ function parseConfig(text, assignment = null) {
   for (const line of text.replace(/^\uFEFF/, '').split(/\r?\n/)) {
     if (!line.trim() || line.trim().startsWith('#')) continue;
     const match = line.match(/^\s*([A-Z_]+)\s*=\s*([^#]*?)\s*(?:#.*)?$/);
-    if (!match || ![...keys, 'CLIENT_CA_FILE'].includes(match[1]) || Object.hasOwn(values, match[1])) throw Error('Unknown or duplicate client configuration');
+    if (!match || ![...keys, 'CLIENT_CA_FILE', 'TLS_MODE'].includes(match[1]) || Object.hasOwn(values, match[1])) throw Error('Unknown or duplicate client configuration');
     values[match[1]] = match[2];
   }
   if (keys.some(key => !values[key])) throw Error('Missing client configuration');
@@ -37,7 +37,14 @@ function parseConfig(text, assignment = null) {
   const port = +values.SITE_PORT;
   const defaultPort = scheme === 'https' ? 443 : 80;
   const origin = `${scheme}://${host}${port === defaultPort ? '' : ':' + port}`;
-  const result = { values, origin, desktopUrl: `${origin}/cm/desktop`, version };
+  // Compatibility for historical diagnostic fixtures only; maintained input is explicit.
+  const tlsMode = values.TLS_MODE || 'private-ca';
+  if (!['private-ca', 'caddy-public-acme'].includes(tlsMode)) throw Error('Invalid TLS_MODE');
+  if (values.TLS_MODE === 'private-ca' && !values.CLIENT_CA_FILE) throw Error('Private TLS mode requires CLIENT_CA_FILE');
+  if (tlsMode === 'caddy-public-acme' && (!dns || scheme !== 'https' || port !== 443 || values.CLIENT_CA_FILE)) {
+    throw Error('Public ACME mode requires HTTPS DNS origin on port 443 and no CLIENT_CA_FILE');
+  }
+  const result = { values, origin, desktopUrl: `${origin}/cm/desktop`, version, tlsMode };
   if (assignment) {
     const v = assignment.versions;
     if (!v || v.client_version !== `${version}+r${v.revision}` || !Number.isSafeInteger(v.revision) || v.revision < 1

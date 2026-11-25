@@ -232,6 +232,11 @@ def main():
     if h5_module:
         release=h5_module.prepare_release(root/'h5-runtime',root/'h5/public',manifest['h5'],manifest['client_origin'])
         h5_module.activate(root/'h5-runtime',release)
+    if manifest.get('tls_mode')=='caddy-public-acme':
+        spec=importlib.util.spec_from_file_location('startup_certificate',root/'certificate.py')
+        cert=importlib.util.module_from_spec(spec);spec.loader.exec_module(cert)
+        config=root/'Caddyfile'
+        config.write_text(cert.public_caddy(config.read_text(),manifest['client_origin']))
     subprocess.run(command+['up','-d','--no-build','--pull','never'],check=True,env=runtime_env)
     subprocess.run(command+['ps'],check=True,env=runtime_env)
     print('Services started; TLS, signaling and media acceptance still required. Preserve target CA volumes.')

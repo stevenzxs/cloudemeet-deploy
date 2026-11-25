@@ -52,7 +52,7 @@ function auditGenerated(target, config, input) {
       throw Error('Generated Android managed origin mismatch');
     }
     if (input.trust && (!input.trust.includes(`<domain includeSubdomains="false">${config.values.SITE_DOMAIN}</domain>`)
-        || !input.trust.includes('@raw/cloudmeet_client_ca'))) throw Error('Generated Android trust scope mismatch');
+        || !input.trust.includes(config.tlsMode === 'caddy-public-acme' ? 'src="system"' : '@raw/cloudmeet_client_ca'))) throw Error('Generated Android trust scope mismatch');
   }
   return { phase: 'generated', status: 'pass', target, warnings, parameters: [
     ...Object.entries(config.values).filter(([k]) => ['SITE_DOMAIN', 'SITE_SCHEME', 'SITE_PORT'].includes(k))

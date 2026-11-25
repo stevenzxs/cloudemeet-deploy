@@ -67,17 +67,19 @@ function inspectAndroidResources(file, analyzer, aapt, config, requireCa, run = 
     if (!/^res\/[a-zA-Z0-9_./-]+$/.test(value) || value.split('/').includes('..')) throw Error('Unsafe Android resource member');
     return value;
   };
-  const trustMember = requireCa ? member('xml', 'network_security_config') : null;
+  const inspectTrust = requireCa || config.tlsMode === 'caddy-public-acme';
+  const trustMember = inspectTrust ? member('xml', 'network_security_config') : null;
   const xml = name => normalize(run(analyzer, ['resources', 'xml', '--file', member('xml', name), file]));
   validateAndroidResources(normalize(run(analyzer, ['manifest', 'print', file])),
-    xml('app_restrictions'), requireCa ? xml('network_security_config') : '', config, requireCa,
-    requireCa ? run(aapt, ['dump', 'xmltree', file, trustMember]) : null);
+    xml('app_restrictions'), inspectTrust ? xml('network_security_config') : '', config, inspectTrust,
+    inspectTrust ? run(aapt, ['dump', 'xmltree', file, trustMember]) : null);
   return requireCa ? member('raw', 'cloudmeet_client_ca') : null;
 }
 
 function validateAndroidResources(manifest, restrictions, trust, config, requireCa, trustTree = null) {
   const script = `import sys,json,re,xml.etree.ElementTree as E
 d=json.loads(sys.argv[1]); ns='{http://schemas.android.com/apk/res/android}'
+anchor='system' if d['publicTrust'] else '@raw/cloudmeet_client_ca'
 m=E.fromstring(d['manifest']); app=m if m.tag=='application' else m.find('application')
 assert app is not None
 assert any(x.get(ns+'name')=='android.content.APP_RESTRICTIONS' and x.get(ns+'resource')=='@xml/app_restrictions' for x in app.findall('meta-data'))
@@ -117,23 +119,24 @@ if d['requireCa']:
   if not rules: raise ValueError('Android CA scope: matched 0 rules for '+d['host'])
   for rule in rules:
    if any(v.get('includeSubdomains','false')!='false' for v in rule.findall('domain') if (v.text or '').strip()==d['host']): raise ValueError('Android CA scope includes subdomains')
-   if not any(x.get('src')=='@raw/cloudmeet_client_ca' for x in rule.findall('./trust-anchors/certificates')): raise ValueError('Android CA anchor missing')
+   if not any(x.get('src')==anchor for x in rule.findall('./trust-anchors/certificates')): raise ValueError('Android CA anchor missing')
+   if d['publicTrust'] and (rule not in list(t) or rule.get('cleartextTrafficPermitted')!='false' or len(rule.findall('domain'))!=1 or len(rule.findall('trust-anchors'))!=1 or len(rule.findall('./trust-anchors/certificates'))!=1 or rule.find('./trust-anchors/certificates').attrib!={'src':'system'} or any(c.tag not in ('domain','trust-anchors') for c in rule)): raise ValueError('Public TLS requires explicit host and system anchors only')
   if len(rules)>1:
    def canonical(node):
     return (node.tag,tuple(sorted(node.attrib.items())),(node.text or '').strip(),tuple(sorted(canonical(c) for c in node)))
    parents={c:p for p in t.iter() for c in p}
    for rule in rules:
-     if parents.get(rule) is not t or rule.get('cleartextTrafficPermitted') is None: raise ValueError('Duplicate Android rules require explicit non-inherited security settings')
-     if rule.get('cleartextTrafficPermitted')!='false': raise ValueError('Duplicate Android rules have conflicting cleartext settings')
-     if any((v.text or '').strip()!=d['host'] or v.get('includeSubdomains','false')!='false' for v in rule.findall('domain')): raise ValueError('Duplicate Android rules broaden host scope')
-     anchors=rule.findall('trust-anchors')
-     if len(anchors)!=1 or not list(anchors[0]) or any(c.tag!='certificates' or c.attrib!={'src':'@raw/cloudmeet_client_ca'} for c in anchors[0]): raise ValueError('Duplicate Android rules have conflicting trust anchors')
-     if any(c.tag not in ('domain','trust-anchors') for c in rule): raise ValueError('Duplicate Android rules contain unsupported inherited or security settings')
+    if parents.get(rule) is not t or rule.get('cleartextTrafficPermitted') is None: raise ValueError('Duplicate Android rules require explicit non-inherited security settings')
+    if rule.get('cleartextTrafficPermitted')!='false': raise ValueError('Duplicate Android rules have conflicting cleartext settings')
+    if any((v.text or '').strip()!=d['host'] or v.get('includeSubdomains','false')!='false' for v in rule.findall('domain')): raise ValueError('Duplicate Android rules broaden host scope')
+    anchors=rule.findall('trust-anchors')
+    if len(anchors)!=1 or not list(anchors[0]) or any(c.tag!='certificates' or c.attrib!={'src':anchor} for c in anchors[0]): raise ValueError('Duplicate Android rules have conflicting trust anchors')
+    if any(c.tag not in ('domain','trust-anchors') for c in rule): raise ValueError('Duplicate Android rules contain unsupported inherited or security settings')
    if any(canonical(rule)!=canonical(rules[0]) for rule in rules[1:]): raise ValueError('Duplicate Android CA rules have conflicting settings')
    print('Equivalent duplicate Android CA rules: '+str(len(rules)))
 print('verified')`;
   const result = command(PY, ['-B', '-c', script, JSON.stringify({ manifest, restrictions, trust,
-    origin: config.origin, host: config.values.SITE_DOMAIN, requireCa, trustTree })]);
+    origin: config.origin, host: config.values.SITE_DOMAIN, requireCa, trustTree, publicTrust: config.tlsMode === 'caddy-public-acme' })]);
   const lines = result.trim().split(/\r?\n/);
   if (lines.pop() !== 'verified') throw Error('Android resource reference validation failed');
   for (const warning of lines) console.warn(warning);

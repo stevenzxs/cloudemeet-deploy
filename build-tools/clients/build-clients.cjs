@@ -224,7 +224,7 @@ async function build(options, config, report) {
     const candidate = createCandidate();
     require('./network-audit.cjs').stageReports(options.auditDir, candidate);
     if (!config.assignment) throw Error('Allocated version required; legacy versions are diagnostic-only');
-    const manifest = { ...report, versionAssignment: config.assignment, status: 'building', candidate, started: new Date().toISOString(), artifacts: [] };
+    const manifest = { ...report, tls_mode: config.tlsMode, versionAssignment: config.assignment, status: 'building', candidate, started: new Date().toISOString(), artifacts: [] };
     const save = () => fs.writeFileSync(path.join(candidate, 'build.json'), JSON.stringify(manifest, null, 2) + '\n');
     const recordNetwork = (name, data) => {
       writeAudit(candidate, name, data, root);
@@ -256,7 +256,7 @@ async function build(options, config, report) {
           [path.join(project, 'cloudmeet-version.json'), JSON.stringify(config.assignment, null, 2) + '\n'],
           [path.join(project, 'forge.config.cloudmeet-base.cjs'), fs.readFileSync(nativeForge, 'utf8')],
           [nativeForge, require('./revision-config.cjs').forgeWrapper(project, config.assignment)],
-          [path.join(project, 'deployment.env'), Object.entries(config.values).filter(([key]) => !['CLIENT_VERSION', 'CLIENT_CA_FILE'].includes(key)).map(([key, value]) => `${key}=${value}`).join('\n') + '\n'],
+           [path.join(project, 'deployment.env'), Object.entries(config.values).filter(([key]) => !['CLIENT_VERSION', 'CLIENT_CA_FILE', 'TLS_MODE'].includes(key)).map(([key, value]) => `${key}=${value}`).join('\n') + '\n'],
           [path.join(project, 'client-trust.json'), JSON.stringify({ origin: config.origin, caFile: ca ? 'client-ca.crt' : null }) + '\n']];
         if (ca) changes.push([path.join(project, 'client-ca.crt'), ca.pem]);
         await withFiles(changes, async () => {
@@ -291,16 +291,16 @@ async function build(options, config, report) {
         const filters = "abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'";
         if (!gradleText.includes(filters)) throw Error('Unexpected Android ABI filters; refusing implicit architecture change');
         changes.push([gradle, gradleText.replace(filters, "abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'")]);
-        if (ca) {
+        if (ca || config.tlsMode === 'caddy-public-acme') {
           const trust = path.join(project, 'android/app/src/main/res/xml/network_security_config.xml');
-          changes.push([trust, androidTrust(fs.readFileSync(trust, 'utf8'), config.values.SITE_DOMAIN)],
-            [path.join(project, 'android/app/src/main/res/raw/cloudmeet_client_ca.crt'), ca.pem]);
+          changes.push([trust, androidTrust(fs.readFileSync(trust, 'utf8'), config.values.SITE_DOMAIN, config.tlsMode)]);
+          if (ca) changes.push([path.join(project, 'android/app/src/main/res/raw/cloudmeet_client_ca.crt'), ca.pem]);
         }
         await withFiles(changes, async () => {
           recordNetwork('network-android-generated', auditGenerated('android', config, {
             deployment: JSON.parse(fs.readFileSync(path.join(project, 'react/features/cloudmeet/deployment.json'), 'utf8')),
             restrictions: fs.readFileSync(restrictions, 'utf8'),
-            trust: ca ? fs.readFileSync(path.join(project, 'android/app/src/main/res/xml/network_security_config.xml'), 'utf8') : null
+            trust: (ca || config.tlsMode === 'caddy-public-acme') ? fs.readFileSync(path.join(project, 'android/app/src/main/res/xml/network_security_config.xml'), 'utf8') : null
           }));
           const gradleArgs = [...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'];
           // Bound repository downloads so a degraded Maven egress fails fast

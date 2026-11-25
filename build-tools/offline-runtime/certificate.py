@@ -2,6 +2,8 @@
 import hashlib
 import ipaddress
 import os
+import re
+import json
 from pathlib import Path, PurePosixPath
 import ssl
 import subprocess
@@ -21,6 +23,34 @@ def origin_host(origin):
     if value.port is not None and not 1<=value.port<=65535:
         raise ValueError('Invalid origin port')
     return value.hostname
+
+
+def require_mode(manifest,origin):
+    host=origin_host(origin)
+    mode=manifest.get('tls_mode','private-ca')
+    if mode not in ('private-ca','caddy-public-acme'):raise ValueError('Invalid TLS mode')
+    if manifest.get('client_origin') and manifest['client_origin']!=origin:
+        raise ValueError('TLS origin differs from built clients')
+    if mode=='caddy-public-acme':
+        if (urllib.parse.urlsplit(origin).port not in (None,443)
+                or not re.fullmatch(r'(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}',host,re.I)
+                or manifest.get('client_ca_sha256')):
+            raise ValueError('Public ACME requires DNS HTTPS/443 and system trust only')
+    return mode
+
+
+def public_caddy(text,origin):
+    host=origin_host(origin)
+    require_mode({'tls_mode':'caddy-public-acme'},origin)
+    if text.count('tls internal')!=2 or text.count('https://cloudmeet.internal {')!=1 or text.count('https://:443 {')!=1:
+        raise ValueError('Unsupported initial Caddyfile TLS layout')
+    text=text.replace('    default_sni cloudmeet.internal\n','').replace('    fallback_sni cloudmeet.internal\n','')
+    text=re.sub(r'https://cloudmeet\.internal \{\s*tls internal\s*import meeting_routes\s*\}',
+                '',text,count=1)
+    text=text.replace('https://:443 {',f'https://{host} {{').replace('tls internal',
+        'tls {\n        issuer acme {\n            disable_http_challenge\n        }\n    }')
+    if 'tls internal' in text or 'https://:443' in text:raise ValueError('Private fallback not removed')
+    return text
 
 
 def unpack_certificate(archive,destination):
@@ -72,7 +102,10 @@ def validate(directory,origin):
 
 
 def preflight(root,origin):
-    origin_host(origin)
+    manifest=json.loads((root/'candidate.json').read_text()) if (root/'candidate.json').exists() else {}
+    if require_mode(manifest,origin)=='caddy-public-acme':
+        public_caddy((root/'Caddyfile').read_text(),origin)
+        return
     with tempfile.TemporaryDirectory(prefix='cloudmeet-cert-') as tmp:
         out=Path(tmp)/'cert'
         unpack_certificate(root/'cert.tar.gz',out)
@@ -84,16 +117,21 @@ def activate(root,origin,command,env=None):
     # Do not execute target-supplied code: transformation is from maintained package.
     config=root/'Caddyfile';original=config.read_bytes()
     text=original.decode()
-    if text.count('tls internal')!=2:
+    manifest=json.loads((root/'candidate.json').read_text()) if (root/'candidate.json').exists() else {}
+    public=require_mode(manifest,origin)=='caddy-public-acme'
+    if not public and text.count('tls internal')!=2:
         raise ValueError('Unsupported initial Caddyfile TLS layout')
     replacement='tls /config/cloudmeet-cert/first-install/server.crt /config/cloudmeet-cert/first-install/server.key'
-    candidate=text.replace('tls internal',replacement)
+    candidate=text if public else text.replace('tls internal',replacement)
+    if public and ('tls internal' in text or f'https://{origin_host(origin)} {{' not in text):
+        raise ValueError('Public ACME startup configuration missing')
     container=subprocess.check_output(command+['ps','-q','gateway'],universal_newlines=True,env=env).strip()
     if not container or '\n' in container: raise ValueError('Expected one gateway container')
-    subprocess.run(['docker','exec',container,'mkdir','-p','/config/cloudmeet-cert/first-install'],check=True)
-    for name in ('server.crt','server.key'):
-        subprocess.run(['docker','cp',str(root/'cert'/name),container+':/config/cloudmeet-cert/first-install/'+name],check=True)
-    subprocess.run(['docker','exec',container,'chmod','600','/config/cloudmeet-cert/first-install/server.key'],check=True)
+    if not public:
+        subprocess.run(['docker','exec',container,'mkdir','-p','/config/cloudmeet-cert/first-install'],check=True)
+        for name in ('server.crt','server.key'):
+            subprocess.run(['docker','cp',str(root/'cert'/name),container+':/config/cloudmeet-cert/first-install/'+name],check=True)
+        subprocess.run(['docker','exec',container,'chmod','600','/config/cloudmeet-cert/first-install/server.key'],check=True)
     with (root/'Caddyfile.before-external-cert').open('xb') as backup: backup.write(original)
     config.write_bytes(candidate.encode())
     try:
@@ -104,7 +142,7 @@ def activate(root,origin,command,env=None):
     subprocess.run(command+['restart','gateway'],check=True,timeout=90,env=env)
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs): return None
-    context=ssl.create_default_context(cafile=str(root/'cert/ca.crt'))
+    context=ssl.create_default_context(cafile=None if public else str(root/'cert/ca.crt'))
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),urllib.request.HTTPSHandler(context=context))
     error=None
     for attempt in range(12):
