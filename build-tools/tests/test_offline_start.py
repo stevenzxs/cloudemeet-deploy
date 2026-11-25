@@ -104,6 +104,36 @@ class StartTests(unittest.TestCase):
                 (root/'data/host-control/gateway.key').unlink()
                 with self.assertRaises(ValueError): self.module.require_instance(root)
 
+    def test_registry_start_uses_bound_manifest_identity(self):
+        import hashlib
+        import shutil
+        from unittest.mock import patch
+        config='sha256:'+'a'*64
+        raw=json.dumps({'schemaVersion':2,'config':{'digest':config}}).encode()
+        digest='sha256:'+hashlib.sha256(raw).hexdigest()
+        services=('gateway','app-web','api','web','prosody','jicofo','jvb')
+        manifest={'batch':'batch','deployment_commit':'commit','architecture':'amd64',
+                  'image_transport':'registry','images':{s:[s,config] for s in services}}
+        registry={'batch':'batch','configuration_commit':'commit','architecture':'amd64',
+                  'status':'PUBLISHED_NOT_DEPLOYED','images':{s:{'image_id':config,
+                  'reference':'ghcr.io/stevenzxs/cloudmeet-'+s+'@'+digest,'platform':'linux/amd64'} for s in services}}
+        with tempfile.TemporaryDirectory() as tmp:
+            root=Path(tmp)
+            for name in ('deploy.py','image_transport.py'):
+                shutil.copyfile(Path(__file__).parents[1]/'offline-runtime'/name,root/name)
+            def inspect(command):
+                service=command[-1]
+                return json.dumps([{'Id':digest,'Descriptor':{'digest':digest},
+                    'RepoDigests':[registry['images'][service]['reference']],
+                    'Os':'linux','Architecture':'amd64'}]).encode()
+            with patch.object(self.module.subprocess,'check_output',side_effect=inspect), patch('urllib.request.build_opener') as opener:
+                response=opener.return_value.open.return_value.__enter__.return_value
+                response.read.side_effect=[value for _ in services for value in (b'{"token":"fixture"}',raw)]
+                self.module.validate_local_images(root,manifest,registry)
+            bad=dict(registry,configuration_commit='wrong')
+            with self.assertRaises(ValueError):self.module.validate_local_images(root,manifest,bad)
+            with self.assertRaises(ValueError):self.module.validate_local_images(root,manifest)
+
     def test_start_uses_shared_archive_bound_identity_check(self):
         from unittest.mock import patch
         with tempfile.TemporaryDirectory() as tmp:

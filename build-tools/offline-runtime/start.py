@@ -110,15 +110,21 @@ def safe_directory(root,relative):
     return current
 
 
-def validate_local_images(root,manifest):
+def validate_local_images(root,manifest,registry=None):
     """Share config/manifest identity semantics with the import entry."""
     spec=importlib.util.spec_from_file_location('image_identity',root/'deploy.py')
     identity_check=importlib.util.module_from_spec(spec); spec.loader.exec_module(identity_check)
+    transport=None
+    if manifest.get('image_transport')=='registry':
+        if registry is None:raise ValueError('Verified registry record required for online startup')
+        spec=importlib.util.spec_from_file_location('startup_transport',root/'image_transport.py')
+        transport=importlib.util.module_from_spec(spec);spec.loader.exec_module(transport)
+        transport.require_material(registry,manifest)
     for service,(tag,identity) in manifest['images'].items():
         info=json.loads(subprocess.check_output(['docker','image','inspect',tag]))[0]
         record=manifest.get('image_archives',{}).get(service)
         if manifest.get('image_transport')=='registry':
-            identity_check.check_local_identity(info,identity,manifest.get('architecture','amd64'))
+            transport.require_local_image(registry['images'][service],info)
             continue
         if Path(record['file']).name!=record['file']:
             raise ValueError('Unsafe image archive path')
@@ -130,6 +136,7 @@ def main():
     parser=argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--start',action='store_true',required=True)
     parser.add_argument('--target-env',type=Path,help='Explicit public instance configuration outside package')
+    parser.add_argument('--registry-record',help='Public registry JSON already verified by the install entry')
     args=parser.parse_args()
     if args.target_env is not None:
         os.environ['CLOUDMEET_TARGET_ENV']=str(args.target_env.absolute())
@@ -148,7 +155,7 @@ def main():
         if (root/'h5-runtime').exists() or (root/'h5-runtime').is_symlink():
             raise ValueError('First-start refuses existing H5 runtime')
     # Validate exact locally imported identities before creating any data.
-    validate_local_images(root,manifest)
+    validate_local_images(root,manifest,json.loads(args.registry_record) if args.registry_record else None)
     command=compose_command(root)
     runtime_env=runtime_environment(root)
     rendered=json.loads(subprocess.check_output(command+['config','--format','json'],stderr=subprocess.PIPE,env=runtime_env))

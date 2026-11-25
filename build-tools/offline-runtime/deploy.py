@@ -132,7 +132,10 @@ def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=Non
     runner(verifier.compose_prefix(root,manifest)+['version'],check=True,timeout=20)
     acquire_images(root,manifest,verifier,runner,registry,transport)
     runner([sys.executable,'-B',str(root/'initialize.py')],check=True,timeout=30,env=child_env)
-    runner([sys.executable,'-B',str(root/'start.py'),'--start'],check=True,timeout=180,env=child_env)
+    start_command=[sys.executable,'-B',str(root/'start.py'),'--start']
+    if transport is not None:
+        start_command+=['--registry-record',json.dumps(registry)]
+    runner(start_command,check=True,timeout=180,env=child_env)
     if certificate is not None:
         spec=importlib.util.spec_from_file_location('instance_start',root/'start.py')
         start=importlib.util.module_from_spec(spec);spec.loader.exec_module(start)
