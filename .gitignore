@@ -1,6 +1,7 @@
 # Source-only repository: opt in maintained deployment material.
 /*
 !/.gitignore
+!/.githooks/
 !/AGENTS.md
 !/README.md
 !/client.env.example
