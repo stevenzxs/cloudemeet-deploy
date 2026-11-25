@@ -68,10 +68,19 @@ def assemble(source,destination):
             key,value=line.split('=',1);client[key.strip()]=value.strip()
     port=int(client['SITE_PORT'])
     manifest['client_origin']=client['SITE_SCHEME']+'://'+client['SITE_DOMAIN']+((':'+str(port)) if port!=443 else '')
-    ca=Path(__file__).resolve().parents[1]/'config'/client['CLIENT_CA_FILE']
-    pem=ca.read_text(encoding='ascii')
-    if 'PRIVATE KEY' in pem or pem.count('BEGIN CERTIFICATE')!=1:raise ValueError('One public client CA required')
-    manifest['client_ca_sha256']=hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
+    mode=client.get('TLS_MODE')
+    if mode not in ('private-ca','caddy-public-acme'):raise ValueError('Explicit TLS_MODE required')
+    manifest['tls_mode']=mode
+    manifest['client_ca_sha256']=None
+    if mode=='private-ca':
+        ca=Path(__file__).resolve().parents[1]/'config'/client['CLIENT_CA_FILE']
+        pem=ca.read_text(encoding='ascii')
+        if 'PRIVATE KEY' in pem or pem.count('BEGIN CERTIFICATE')!=1:raise ValueError('One public client CA required')
+        manifest['client_ca_sha256']=hashlib.sha256(ssl.PEM_cert_to_DER_cert(pem)).hexdigest()
+    elif client.get('CLIENT_CA_FILE'):raise ValueError('Public ACME forbids private client CA')
+    spec=importlib.util.spec_from_file_location('tls_policy',Path(__file__).parent/'offline-runtime/certificate.py')
+    policy=importlib.util.module_from_spec(spec);spec.loader.exec_module(policy)
+    policy.require_mode(manifest,manifest['client_origin'])
     manifest['publication']='REQUIRES_MATCHING_PUBLISHED_REGISTRY_RECORD'
     manifest['image_archives']={}
     (destination/'candidate.json').write_text(json.dumps(manifest,indent=2)+'\n')
@@ -79,14 +88,18 @@ def assemble(source,destination):
 
 Requires existing matching Linux Docker Engine and supplied native Compose.
 Verify the Release asset SHA256SUMS against trusted release evidence before execution.
-Online first installation: use setup.py with this archive, adjacent private cert.tar.gz,
+TLS mode is fixed by candidate.json: private-ca requires adjacent private cert.tar.gz;
+caddy-public-acme requires public DNS HTTPS/443, inbound TLS-ALPN-01/443 and outbound
+DNS/HTTPS for issuance and renewal. No private fallback or isolated/offline ACME.
+Preserve gateway /data and /config volumes (ACME account/cert state); never publish secrets.
+Online first installation: use setup.py with this archive,
 --verify-origin, --target-env (absolute, outside package), --registry registry.json and
 --registry-sha256 <trusted hash>. Images are pulled by digest, never loaded or built.
 First installation refuses existing extraction directory, secrets or data.
 Do not use first installation to overwrite an existing instance.
 
 Upgrade: use reviewed online_update.py with explicit --root, --project, --target-env,
---verify-origin, --ca, --candidate <new candidate.json>, --registry and trusted
+--verify-origin, --ca (private-ca only; omit for public), --candidate <new candidate.json>, --registry and trusted
 --registry-sha256. Default is read-only; --apply is separately authorized execution.
 The image-only updater refuses changed external patches; configuration migration is
 not implemented by pretending that image-only compatibility is sufficient.

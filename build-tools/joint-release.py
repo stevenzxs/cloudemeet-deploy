@@ -37,7 +37,7 @@ def prepare():
                     os.environ['GITHUB_SHA'],os.environ['GITHUB_RUN_ID'])
     run=os.environ['GITHUB_RUN_ID'];attempt=os.environ['GITHUB_RUN_ATTEMPT']
     destination=Path('release-assets');destination.mkdir()
-    evidence=[];origins=set();cas=set()
+    evidence=[];origins=set();cas=set();modes=set()
     for target,platform,suffix in [('electron','windows','.msi'),('android','android','.apk')]:
         root=Path('client-downloads')/('client-'+target+'-'+run+'-'+attempt)
         records=list(root.rglob('build-evidence.json'))
@@ -55,8 +55,11 @@ def prepare():
                 checks.get('signing',{}).get('status')!='unsigned' or checks['signing'].get('required') is not False):
             raise ValueError('Explicit unsigned Windows evidence required')
         origins.add(record['origin'])
-        ca=record.get('ca',{}).get('sha256','')
-        if len(ca)!=64:raise ValueError('Missing client CA identity')
+        mode=record.get('tls_mode','private-ca');modes.add(mode)
+        ca=(record.get('ca') or {}).get('sha256')
+        if mode not in ('private-ca','caddy-public-acme'):raise ValueError('Invalid client TLS mode')
+        if mode=='private-ca' and (not isinstance(ca,str) or len(ca)!=64):raise ValueError('Missing client CA identity')
+        if mode=='caddy-public-acme' and ca is not None:raise ValueError('Public mode cannot carry private trust')
         cas.add(ca)
         file=path.parent/artifact['file']
         if file.name!=artifact['file'] or file.suffix!=suffix or digest(file)!=artifact['sha256']:
@@ -66,6 +69,7 @@ def prepare():
         evidence.append({'target':target,'sha256':artifact['sha256'],'file':file.name})
     if len(origins)!=1:raise ValueError('Client origins differ')
     if len(cas)!=1:raise ValueError('Client CA identities differ')
+    if len(modes)!=1:raise ValueError('Client TLS modes differ')
     archives=list(Path('server-downloads').glob('*-online.tar.gz'))
     if len(archives)!=1:raise ValueError('Exactly one online material archive required')
     for file in [archives[0],Path(str(archives[0])+'.sha256'),Path('server-downloads/setup.py'),Path('server-downloads/setup.py.sha256')]:
@@ -89,6 +93,7 @@ def prepare():
         raise ValueError('Server material identity mismatch')
     if candidate.get('client_origin')!=next(iter(origins)):
         raise ValueError('Server/client deployment origin differs')
+    if candidate.get('tls_mode','private-ca')!=next(iter(modes)):raise ValueError('Server/client TLS mode mismatch')
     if candidate.get('client_ca_sha256')!=next(iter(cas)):
         raise ValueError('Server/client public CA differs')
     h5=candidate.get('h5',{})

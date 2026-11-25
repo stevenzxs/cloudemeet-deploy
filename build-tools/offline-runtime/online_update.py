@@ -34,6 +34,8 @@ def image_override(record):
 
 
 def require_compatible_material(old,new):
+    if old.get('tls_mode','private-ca')!=new.get('tls_mode','private-ca'):
+        raise ValueError('TLS mode migration requires separate approval and tooling')
     if not old.get('patches') or old.get('patches')!=new.get('patches'):
         raise ValueError('Image-only update requires identical reviewed external patches')
 
@@ -108,7 +110,7 @@ def idle(project):
 
 
 def health(origin,ca):
-    context=ssl.create_default_context(cafile=str(ca))
+    context=ssl.create_default_context(cafile=str(ca) if ca is not None else None)
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs):return None
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),
@@ -121,7 +123,7 @@ def health(origin,ca):
 
 
 def h5_health(origin, ca, record):
-    context=ssl.create_default_context(cafile=str(ca))
+    context=ssl.create_default_context(cafile=str(ca) if ca is not None else None)
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self,*args,**kwargs):return None
     opener=urllib.request.build_opener(urllib.request.ProxyHandler({}),NoRedirect(),
@@ -147,7 +149,7 @@ def main():
     parser.add_argument('--target-env',type=Path,required=True)
     parser.add_argument('--offline-package',type=Path,help='Explicit offline upgrade; never pulls')
     parser.add_argument('--candidate',type=Path,required=True)
-    parser.add_argument('--ca',type=Path,required=True)
+    parser.add_argument('--ca',type=Path,help='Required for private-ca; forbidden for public ACME')
     parser.add_argument('--apply',action='store_true')
     args=parser.parse_args()
     import fcntl
@@ -162,6 +164,9 @@ def main():
     cert.origin_host(origin)
     command,environment=instance_context(root,project,args.target_env.absolute())
     candidate_material=json.loads(args.candidate.read_text())
+    mode=cert.require_mode(candidate_material,origin)
+    if mode=='private-ca' and args.ca is None:raise ValueError('Private mode requires --ca')
+    if mode=='caddy-public-acme' and args.offline_package:raise ValueError('Public ACME needs online renewal connectivity')
     require_compatible_material(json.loads((root/'candidate.json').read_text()),candidate_material)
     require_configuration_compatible(root,args.candidate.resolve().parent)
     if candidate_material['batch']!=record['batch'] or candidate_material['deployment_commit']!=record['configuration_commit']:

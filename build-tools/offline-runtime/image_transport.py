@@ -17,6 +17,10 @@ def require_origin(manifest,origin):
 
 
 def require_ca(manifest,path):
+    if manifest.get('tls_mode')=='caddy-public-acme':
+        if path is not None or manifest.get('client_ca_sha256'):
+            raise ValueError('Public TLS requires default system trust, not --ca')
+        return
     expected=manifest.get('client_ca_sha256')
     if expected:
         try:actual=hashlib.sha256(ssl.PEM_cert_to_DER_cert(Path(path).read_text(encoding='ascii'))).hexdigest()

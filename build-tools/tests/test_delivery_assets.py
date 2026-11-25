@@ -111,7 +111,7 @@ class DeliveryAssetTests(unittest.TestCase):
                     if platform=='windows':checks.pop('signature');checks['signing']={'status':'unsigned','required':False}
                     evidence={'status':'packaged-delivered','version':'1.0.21+r15','versionAssignment':assignment,
                               'ca':{'sha256':hashlib.sha256(ssl.PEM_cert_to_DER_cert((TOOLS.parent/'config/client-ca.crt').read_text())).hexdigest()},
-                              'origin':'https://118.193.36.35:8443','artifacts':[{'file':file.name,'platform':platform,
+                               'origin':'https://cloudmeet.stevenzxs.cn','artifacts':[{'file':file.name,'platform':platform,
                               'sha256':hashfile(file),'checks':checks}]}
                     (root/'build-evidence.json').write_text(json.dumps(evidence))
                 source=Path('source');self.source(source)

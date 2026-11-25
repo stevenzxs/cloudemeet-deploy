@@ -1,4 +1,6 @@
 ---
+
+<!-- 双证书模式：完全隔离首装/升级继续使用private-ca及稳定根签发的目标叶证书；当前公共caddy-public-acme安装核心拒绝离线目标，不得把离线镜像材料等同于无需联网的ACME签发/续期。保留显式附加节点、固定digest和原公共核心，模式迁移另行授权。 -->
 name: cloudmeet-deploy-offline
 description: Use when producing CloudMeet / Jitsi offline deployment bundles for isolated intranets (政务/信创/网闸摆渡环境) that cannot docker pull — packaging Docker images via save/load, offline installer scripts, checksums, SBOM, multi-arch (amd64/arm64) bundles and incremental update packages；适用于离线部署包制作、内网隔离交付、镜像离线打包导入、安装器生成、分卷摆渡、包完整性校验；不适用于目标机实际安装与会议验收执行。
 ---

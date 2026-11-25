@@ -2,6 +2,7 @@
 """Combine a public server archive and private adjacent cert.tar.gz on target only."""
 import argparse
 import hashlib
+import json
 import importlib.util
 import os
 from pathlib import Path, PurePosixPath
@@ -55,7 +56,6 @@ def main():
     sys.dont_write_bytecode=True
     os.umask(0o077)
     archive=args.server_package.resolve();cert=archive.parent/'cert.tar.gz'
-    if not cert.is_file() or cert.is_symlink(): raise ValueError('Adjacent cert.tar.gz required')
     root=extract_server(archive)
     # Validate every public package file before importing any extracted Python.
     listed=set()
@@ -73,9 +73,12 @@ def main():
         raise ValueError('Unlisted public package files')
     spec=importlib.util.spec_from_file_location('certificate',root/'certificate.py')
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
-    shutil.copyfile(cert,root/'cert.tar.gz');(root/'cert.tar.gz').chmod(0o600)
+    mode=module.require_mode(json.loads((root/'candidate.json').read_text()),args.verify_origin)
+    if mode=='private-ca':
+        if not cert.is_file() or cert.is_symlink(): raise ValueError('Adjacent cert.tar.gz required')
+        shutil.copyfile(cert,root/'cert.tar.gz');(root/'cert.tar.gz').chmod(0o600)
     module.preflight(root,args.verify_origin)
-    module.unpack_certificate(root/'cert.tar.gz',root/'cert')
+    if mode=='private-ca':module.unpack_certificate(root/'cert.tar.gz',root/'cert')
     command=[sys.executable,'-B',str(root/'deploy.py'),'--first-install',
              '--verify-origin',args.verify_origin,'--target-env',str(args.target_env.absolute())]
     if args.registry:
