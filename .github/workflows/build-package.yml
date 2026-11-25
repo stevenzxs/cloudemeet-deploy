@@ -86,7 +86,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        service: [gateway, app-web, api, web, prosody, jicofo, jvb]
+        service: [gateway, app-web, api, jitsi-mgr, web, prosody, jicofo, jvb]
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -197,7 +197,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mkdir incoming
-          for service in gateway app-web api web prosody jicofo jvb; do
+          for service in gateway app-web api jitsi-mgr web prosody jicofo jvb; do
             mv "downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" "incoming/$service"
           done
           python3 -B - <<'PY'
@@ -207,7 +207,7 @@ jobs:
           with urllib.request.urlopen(request, timeout=60) as response:
               artifacts = json.load(response)['artifacts']
           records = []
-          for service in ('gateway','app-web','api','web','prosody','jicofo','jvb'):
+          for service in ('gateway','app-web','api','jitsi-mgr','web','prosody','jicofo','jvb'):
               name = 'image-' + service + '-' + os.environ['GITHUB_RUN_ID'] + '-' + os.environ['GITHUB_RUN_ATTEMPT']
               matches = [a for a in artifacts if a['name'] == name and not a['expired']]
               if len(matches) != 1: raise ValueError('Missing or duplicate artifact: ' + name)

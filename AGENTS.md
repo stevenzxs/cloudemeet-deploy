@@ -10,6 +10,16 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ## 2. 批次范围与授权
 
+### 2026-11-25 用户确认：增加 jitsi-mgr 用户管理服务
+
+- 用户在明确提醒"这将修改正常标准流程"后确认增加第八个服务 jitsi-mgr（用户管理系统）。完整服务列表从七服务（gateway、app-web、api、web、prosody、jicofo、jvb）扩展为八服务（gateway、app-web、api、jitsi-mgr、web、prosody、jicofo、jvb）。
+- jitsi-mgr 为 Spring Boot 后端（Java 17 + H2/PostgreSQL），提供用户注册、管理员审核、登录认证、JWT 签名及 JWKS 端点。前端为 React SPA，由 gateway 在 `/api/mgr/ui/` 托管；后端 API 在 `/api/mgr/v1/*`，由 Caddy 反向代理到 jitsi-mgr:8080。
+- Prosody 配置 jitsi-mgr 的 JWKS 端点（`/api/mgr/v1/auth/jwks`）进行 JWT 验证，取代或补充现有 JWT 配置。jitsi-mgr 使用 RS256 签名，私钥保存在 `deploy/data/jitsi-mgr/keys/`，不进入镜像。
+- 新批次从 r15 开始必须完整构建八服务 + H5 + 双客户端才算完整联合批次；历史批次（r1-r14）不追溯添加 jitsi-mgr。构建包含后端 JAR（`artifacts/jitsi-mgr.jar`）和前端静态文件（`artifacts/jitsi-mgr-ui/`）。
+- 初始化包含数据目录创建、JWT 密钥对生成（`init-jitsi-mgr.py`）和数据库密码设置（写入 `.env`）。首次启动自动创建初始管理员用户（username: admin, password: Admin123!）。
+- jitsi-mgr 数据库默认使用 H2 file（`/app/data/jitsi-mgr`），生产可切换 PostgreSQL；数据、密钥和日志持久化到 `deploy/data/jitsi-mgr/`。配置在 `config/jitsi-mgr.env`，敏感值（密码）在 `.env`。
+- 本次确认包括配置文件、构建脚本、Caddy 路由、Compose 服务定义和初始化工具的创建；不授权正式占号、Actions 构建、发布、SSH 或部署。实际构建、集成测试和生产验收须分别记录证据。
+
 ### 2026-11-25 用户二次确认：批准TLS契约门禁
 
 - 用户确认补齐模式落实、发布核验与未部署标识。所有手动构建入口必须显式传expected_tls_mode与expected_origin，作为本次批准断言而非第二配置源；config/client.env仍唯一配置来源，不一致须在持久占号前失败，禁止按仓库默认值代填用户选择。
@@ -39,19 +49,19 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 
 ### 2026-11-23 用户二次确认：仅增量加入H5
 
-- 用户在明确提醒修改正常流程后确认“正解正确，落地执行”：原线上标准流程及显式离线附加流程保留，仅增量加入H5；两者继续支持首次部署与升级部署，不将本次118升级变成唯一部署方式，不要求双客户端额外装入离线服务器包。
-- 完整联合批次为七服务＋H5＋双客户端，H5由现有gateway托管`/cm/h5/`，无第八个服务。H5源码固定SHA纳入同一持久版本分配请求，首次基线0.1.0，继承原namespace及父Run的rN，不重置历史计数。
-- 原全部成功后联合发布门禁增补H5静态白名单、来源/配置SHA、同批分配记录及摘要；静态内容随原持久公开材料发布。缺H5不称完整新批次。原签名、端点/CA、镜像digest、Secrets及审批要求不变。
-- 首装及升级公共核心增补H5完整版本目录、公开runtime-config、只读父挂载、精确gateway优先路由、相对current原子切换，失败保留现场不执行回滚。仅允许验证过的H5差异；其他配置/schema变化仍拒绝自动迁移。保留实例显式TLS、数据、秘密和CA，旧invite行为不借此改动。
+- 用户在明确提醒修改正常流程后确认"正解正确，落地执行"：原线上标准流程及显式离线附加流程保留，仅增量加入H5；两者继续支持首次部署与升级部署，不将本次118升级变成唯一部署方式，不要求双客户端额外装入离线服务器包。
+- 完整联合批次为八服务＋H5＋双客户端，H5由现有gateway托管`/cm/h5/`，jitsi-mgr前端由gateway托管`/api/mgr/ui/`。H5源码固定SHA纳入同一持久版本分配请求，首次基线0.1.0，继承原namespace及父Run的rN，不重置历史计数。jitsi-mgr 从 r15 起加入，不追溯历史批次。
+- 原全部成功后联合发布门禁增补H5静态白名单、来源/配置SHA、同批分配记录及摘要；静态内容随原持久公开材料发布。缺H5或jitsi-mgr不称完整新批次。原签名、端点/CA、镜像digest、Secrets及审批要求不变。
+- 首装及升级公共核心增补H5完整版本目录、公开runtime-config、只读父挂载、精确gateway优先路由、相对current原子切换，失败保留现场不执行回滚。仅允许验证过的H5差异；其他配置/schema变化仍拒绝自动迁移。保留实例显式TLS、数据、秘密和CA，旧invite行为不借此改动。jitsi-mgr 初始化包含数据目录、JWT密钥生成和初始管理员创建。
 - 离线仍显式批准后从原发布固定digest和同版H5材料导出，不新编译/占号、不联网补缺；线上pull失败不自动启用。本次授权线上118升级，不默认制作离线包。工具/定向测试到位不等于真实云端、安装/恢复或手机媒体验收通过。
 
 ### 2026-11-23 用户二次确认：线上联合发布与离线附加交付
 
 - 本节是已单独提醒并确认的正常流程变更，覆盖下文旧的发布顺序、默认no-pull及首装/升级选择口径；历史批次、字节、Run与证据不追改。用户要求先修改验证配置库脚本并完成main闭环，再同步知识库。本次维护不授权正式占号、Actions、产品构建、发布、SSH、150同步或118/r14升级。
-- 正常新联合交付：构建前固定双客户端完整origin和公开CA、批准源码与配置SHA；Actions同一顶层Run共享rN完整构建七服务及Electron/Android，全部成功且材料检查通过后才联合发布。七镜像发布GHCR并核验固定digest/config身份；客户端及同版本公开配置、补丁、公共安装工具、来源与摘要持久发布GitHub Release，不以14天Actions artifact代替持久交付。先建draft，全部资产上传成功后公开；部分镜像或资产失败不得宣称联合发布完成，不覆盖已有批次。
+- 正常新联合交付：构建前固定双客户端完整origin和公开CA、批准源码与配置SHA；Actions同一顶层Run共享rN完整构建八服务及Electron/Android，全部成功且材料检查通过后才联合发布。八服务中七个镜像（gateway、app-web、api、web、prosody、jicofo、jvb）发布GHCR并核验固定digest/config身份；jitsi-mgr 后端 JAR 和前端静态文件、H5、客户端及同版本公开配置、补丁、公共安装工具、来源与摘要持久发布GitHub Release，不以14天Actions artifact代替持久交付。先建draft，全部资产上传成功后公开；部分镜像或资产失败不得宣称联合发布完成，不覆盖已有批次。
 - 发布后只补问缺失的首次部署/升级、部署服务器地址、入口地址；已有值复用。部署方式以用户请求为准：请求首次部署而目标已有实例，或请求升级而目标无既有实例时，直接报错停止，不自动切换部署方式。入口必须与已构建客户端origin/CA一致，不能发布后改入口冒充客户端已适配。升级另核实实际实例目录、Compose project和包外target.env；历史实例路径不作为默认值。未取得必要选择/授权不自动SSH或apply。
-- 线上首次部署使用setup.py、无镜像的公开材料包、独立可信registry摘要、目标专属证书包和包外target.env，目标按七个固定digest拉取，不在目标编译。升级复用公共online_update.py，默认只读，显式apply后pull；当前仅image-only，外置补丁或受保护配置变化拒绝自动迁移。核验七容器归属、运行状态、严格TLS/API及所选project会议空闲，备份数据后更新，不归档镜像；失败保留现场并报告具体失败动作、错误和停止位置，不执行回滚，不覆盖更新后数据库。
-- 离线包是显式批准的附加节点：从已发布固定digest拉取并核验后save/load，不重新编译、不新分配rN，不因目标pull失败自动回退。包包含七镜像归档、同版本配置/补丁/公共首装与升级工具、来源清单、INSTALL及内外摘要，记录原发布digest、image ID、源码/镜像构建配置SHA和离线导出配置SHA。首装及升级复用同一公共安装核心，目标不联网补包；当前要求已有匹配Linux Docker Engine，含原生Compose，不冒称无Docker首装闭包或全平台已实装。
+- 线上首次部署使用setup.py、无镜像的公开材料包、独立可信registry摘要、目标专属证书包和包外target.env，目标按七个固定digest拉取核心镜像，jitsi-mgr JAR 和前端文件复制到 artifacts/。首次部署运行 init-jitsi-mgr.py 初始化数据目录和 JWT 密钥。升级复用公共online_update.py，默认只读，显式apply后pull；当前仅image-only，外置补丁或受保护配置变化拒绝自动迁移。核验八个容器/进程归属、运行状态、严格TLS/API及所选project会议空闲，备份数据后更新，不归档镜像；失败保留现场并报告具体失败动作、错误和停止位置，不执行回滚，不覆盖更新后数据库。
+- 离线包是显式批准的附加节点：从已发布固定digest拉取并核验后save/load，不重新编译、不新分配rN，不因目标pull失败自动回退。包包含七镜像归档、jitsi-mgr JAR/前端、H5、同版本配置/补丁/公共首装与升级工具、来源清单、INSTALL及内外摘要，记录原发布digest、image ID、源码/镜像构建配置SHA和离线导出配置SHA。首装及升级复用同一公共安装核心，目标不联网补包；当前要求已有匹配Linux Docker Engine，含原生Compose，不冒称无Docker首装闭包或全平台已实装。
 - 线上/离线均保留数据、秘密、CA/证书和无关服务，CA私钥不入包；Android原身份签名、Windows unsigned及端点限定HTTPS信任不变。配置/schema迁移、清理重装、CA轮换与新危险操作另行审批。构建、联合发布、材料交付、安装/升级及非P2P JVB媒体验收分别记录；客户端安装验收不属于标准链验收项；辅助回归不替代Actions或目标验收。
 
 ### 2026-11-20 用户二次确认：Windows未签名，Android保持签名
@@ -75,8 +85,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 - 用户批准目标侧证书组合方案：Actions不接收或分发cert/cert.tar.gz及私钥；同目录交付通用server归档/摘要、setup.py/摘要，管理员另行安全拷贝固定cert.tar.gz。setup显式--server-package和必填--verify-origin，安全解压到全新目录，暂存证书后调用deploy.py --first-install --verify-origin。宿主变更前验证证书摘要、链/期限/主机及密钥匹配；启动后仅替换对外证书、保留内部TLS、仅重启gateway，以给定CA严格验证入口/cm/desktop/的2xx且不跟随重定向。失败保留秘密和数据，不自动清理重装；新安装能力不追改历史包。
 
 - 开始一次批次时记录目标 OS、架构、完整 origin（协议/主机/端口）、媒体地址与端口、安装路径、源码或镜像来源、服务/补丁/客户端范围及终点。复用已确认选择，不反复询问。
-- 七服务（gateway、app-web、api、web、prosody、jicofo、jvb）的**源码底版**统一为 jitsi/jitsi-meet `stable/jitsi-meet_11248`（fork `release-11248` 分支，与标签一致）；**运行镜像** `JITSI_IMAGE_VERSION=stable-11146-2`（config/jitsi.env）是官方编译产物，二者不得混用口径——业务定制一律以补丁/插件/配置挂载叠加，不用镜像版本号指称源码底版。
-- 七服务为 gateway、app-web、api、web（Jitsi）、prosody、jicofo、jvb。不得用“七镜像构建成功”代替完整产品配置。
+- 八服务（gateway、app-web、api、jitsi-mgr、web、prosody、jicofo、jvb）的核心会议服务**源码底版**统一为 jitsi/jitsi-meet `stable/jitsi-meet_11248`（fork `release-11248` 分支，与标签一致）；**运行镜像** `JITSI_IMAGE_VERSION=stable-11146-2`（config/jitsi.env）是官方编译产物，二者不得混用口径——业务定制一律以补丁/插件/配置挂载叠加，不用镜像版本号指称源码底版。jitsi-mgr 为独立原创服务，源码在 `D:/code/jitsi/jitsi-mgr/`，不依赖 Jitsi 上游。
+- 八服务为 gateway、app-web、api、jitsi-mgr、web（Jitsi）、prosody、jicofo、jvb。不得用"八镜像构建成功"代替完整产品配置（jitsi-mgr 后端为 JAR，前端为静态文件，均非 Docker 镜像）。
 - amd64、arm64 共用产品要求；架构差异限镜像、工具、依赖及经验证的平台参数。不能默默关闭鉴权、丢弃品牌或角色能力。缩减功能的测试包必须获得明确范围授权，不得当作正常产品交付。
 - 仅执行用户要求的里程碑，整批验证，不每小步停下。不得顺带整改广泛 CVE、升级依赖/锁文件、清理缓存或执行无关服务器操作；风险单列，遇具体阻塞或新授权边界才询问。
 
@@ -114,10 +124,11 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `README.md` | 材料入口、批次路径及实际状态导航，不另立规则 |
 | `.gitignore` | 维护仓库跟踪白名单，排除产物、实例秘密和数据；不得强制添加绕过边界 |
 | `SHA256SUMS` | 已有根级材料的校验清单，不代表所有未来包的完整性或产品资格 |
-| `config/Caddyfile` | 无固定入口IP的HTTPS网关：本地私有CA兜底证书、通配路由、内部接口隔离；HTTP返回426，不猜测外层端口 |
-| `config/docker-compose.yml` | 网关、业务Web/API与Jitsi配置覆盖；由config/start.sh在config/jitsi-base.yaml之后合并，显式project-directory为deploy根，不能单独当完整配置 |
+| `config/Caddyfile` | HTTPS网关路由配置：本地私有CA兜底证书、通配路由、内部接口隔离、jitsi-mgr前端静态文件服务(/api/mgr/ui/)和后端反向代理(/api/mgr/*)；HTTP返回426，不猜测外层端口 |
+| `config/docker-compose.yml` | 八服务编排配置覆盖：网关、业务Web/API、jitsi-mgr与Jitsi；由config/start.sh在config/jitsi-base.yaml之后合并，显式project-directory为deploy根，不能单独当完整配置 |
 | `config/jitsi-base.yaml` | 过渡模板 Jitsi web、Prosody、Jicofo、JVB 服务定义 |
 | `config/jitsi.env` | 过渡模板非秘密 Jitsi 参数、资源与内部管理配置 |
+| `config/jitsi-mgr.env` | jitsi-mgr 用户管理服务配置：数据库URL、Spring Profile、JWT配置、CORS；仅公开参数，密码在.env |
 | `config/client.env` | Electron MSI与Android APK唯一人工维护入口及发布版本配置：SITE_DOMAIN、SITE_SCHEME、SITE_PORT、CLIENT_VERSION；仅公开参数，不放服务端秘密 |
 | `config/client-ca.crt`、`config/client-ca.json` | 证书库固定提交的公开根分发副本与来源/DER指纹；权威仍为cloudmeet-certificates，不含私钥，不维护签发工具 |
 | `config/init.py` | 校验target.env后仅生成deploy根的三项随机秘密及数据目录，拒绝覆盖既有.env，不再接收IP参数 |
@@ -189,7 +200,10 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `docs/plans/2026-11-24-delivery-reliability-progress.md` | 已批准稳定性与编号/状态/耗时实施及检查点记录，不是新规范源 |
 | `build-tools/online-material.py` | 同批完整材料派生无镜像线上包，绑定客户端origin/公开CA，最终归档复读校验 |
 | `build-tools/offline-export.py` | 显式附加节点，固定digest拉取后导出离线首装/升级包及setup摘要，不编译/占号 |
-| `build-tools/joint-release.py`、`.github/workflows/publish-release.yml` | 七服务和双客户端完成后核对身份、准备资产、发布GHCR及draft→公开Release，失败不报联合完成 |
+| `build-tools/joint-release.py`、`.github/workflows/publish-release.yml` | 八服务和双客户端完成后核对身份、准备资产、发布GHCR及draft→公开Release，失败不报联合完成 |
+| `build-tools/build-jitsi-mgr-backend.py` | jitsi-mgr 后端构建脚本：Maven编译Spring Boot JAR，输出到artifacts/jitsi-mgr.jar并生成SHA256 |
+| `build-tools/build-jitsi-mgr-frontend.py` | jitsi-mgr 前端构建脚本：npm编译React SPA，输出到artifacts/jitsi-mgr-ui/并生成SHA256清单 |
+| `build-tools/init-jitsi-mgr.py` | jitsi-mgr 初始化脚本：创建data/jitsi-mgr目录、生成JWT RSA密钥对、生成数据库密码写入.env |
 | `build-tools/offline-runtime/image_transport.py` | 公共registry身份/平台、客户端origin/CA、pull及本地tag冲突拒绝，不编译 |
 | `build-tools/tests/test_delivery_contract.py`、`build-tools/tests/test_delivery_assets.py` | 选择/归档/发布与离线导出回归；Docker、GitHub及目标变更均mock，不代表实机验收 |
 | `build-tools/WINDOWS-UNSIGNED-PLAN.md` | 用户批准Windows取消代码签名、Android保持签名的实施/验证计划，非规范源 |
@@ -205,7 +219,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | `build-tools/revision_git_ledger.py`、`build-tools/tests/test_revision_git_ledger.py` | 专用分支仅追加Git CAS、锚定历史校验、SQLite只读导出及本地bare remote并发/重试/损坏拒绝回归，不访问正式台账 |
 | `build-tools/controller/README.md`、`build-tools/controller/cloudmeet-version-runner.service` | 当前受控迁移/7天备份计划与历史自托管单元（禁止新安装/恢复），未宣称云端启用 |
 | `build-tools/allocate-workflow.py`、`.github/workflows/revision-allocation.yml` | GitHub-hosted专用分支分配/父批次核验，无产品构建或签名Secrets；迁移未发布时拒绝启用 |
-| `.github/workflows/build-joint.yml`、`build-tools/tests/test_revision_workflows.py` | 七服务和双客户端共享一次顶层Run分配的编排及静态回归，不代表云端验收 |
+| `.github/workflows/build-joint.yml`、`build-tools/tests/test_revision_workflows.py` | 八服务和双客户端共享一次顶层Run分配的编排及静态回归，不代表云端验收 |
 | `build-tools/clients/revision-config.cjs`、`build-tools/clients/tests/revision.test.cjs` | 消费统一版本记录、Forge映射适配及显示/平台字段测试，不新增产品编译实现 |
 | `build-tools/clients/network-audit.cjs`、`build-tools/clients/tests/network-audit.test.cjs` | 双客户端源码端点清单、生成参数及最终包审计报告与拒绝路径测试 |
 
@@ -293,6 +307,8 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 #### 镜像候选登记与技能维护材料
 
 H5新增维护清单：`config/h5-source.json`固定原创源码/首次基线；`build-tools/stage-h5.py`验证固定检出、原生测试并收集公开白名单；`build-tools/offline-runtime/h5.py`为线上/离线首装升级共用摘要、路由、受限迁移、版本目录及原子指针核心；`build-tools/tests/test_h5.py`为辅助回归；`docs/plans/2026-11-23-h5-joint-delivery.md`跟踪实现和缺项，不是交付完成证据。
+
+jitsi-mgr新增维护清单：`config/jitsi-mgr.env`非敏感配置；`build-tools/build-jitsi-mgr-backend.py`后端构建；`build-tools/build-jitsi-mgr-frontend.py`前端构建；`build-tools/init-jitsi-mgr.py`初始化工具；`docs/plans/jitsi-mgr-integration.md`集成实施计划，跟踪构建脚本、部署集成和验收缺项，不是交付完成证据。
 
 | 路径 | 作用 |
 |---|---|

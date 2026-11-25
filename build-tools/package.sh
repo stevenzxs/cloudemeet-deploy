@@ -64,7 +64,7 @@ checkout_source() {
 
 build_service() (
     service=${1:?Missing service}
-    case "$service" in gateway|app-web|api|web|prosody|jicofo|jvb) ;; *) die 'Unknown service';; esac
+    case "$service" in gateway|app-web|api|jitsi-mgr|web|prosody|jicofo|jvb) ;; *) die 'Unknown service';; esac
     work=$(mktemp -d)
     trap 'rm -rf -- "$work"' EXIT
     mkdir -p "$work/context" "$repo/output"
@@ -139,6 +139,52 @@ print(i["RepoDigests"][0])' "$ref"
             jars=("$source/target/"*.jar)
             [[ ${#jars[@]} == 1 && -s ${jars[0]} ]] || die 'Expected one API jar'
             cp "${jars[0]}" "$context/app.jar"
+            ;;
+        jitsi-mgr)
+            # jitsi-mgr is not a Docker image service - it outputs JAR and frontend static files
+            # Backend: Spring Boot JAR
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; python3 -B "$tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            backend_jars=("$source/jitsi-mgr-app/target/"jitsi-mgr-*.jar)
+            # Exclude -sources.jar and -javadoc.jar
+            filtered_jars=()
+            for jar in "${backend_jars[@]}"; do
+                [[ $jar == *-sources.jar || $jar == *-javadoc.jar ]] || filtered_jars+=("$jar")
+            done
+            [[ ${#filtered_jars[@]} == 1 && -s ${filtered_jars[0]} ]] || die 'Expected one jitsi-mgr backend jar'
+            mkdir -p "$context/backend"
+            cp "${filtered_jars[0]}" "$context/backend/jitsi-mgr.jar"
+            sha256sum "$context/backend/jitsi-mgr.jar" | tee "$context/backend/jitsi-mgr.jar.sha256"
+            # Frontend: React SPA
+            builder=$(resolve_base node:24-trixie)
+            # Create production env pointing to relative API path
+            printf 'REACT_APP_API_BASE_URL=/api/mgr/v1\n' > "$source/jitsi-mgr-frontend/.env.production"
+            docker run --rm --platform "linux/$TARGET_ARCH" --user "$(id -u):$(id -g)" \
+                -e HOME=/tmp -v "$source/jitsi-mgr-frontend:/src" -w /src "$builder" bash -euc 'npm ci; npm run build'
+            mkdir -p "$context/frontend"
+            cp -a "$source/jitsi-mgr-frontend/build/." "$context/frontend/"
+            # Generate frontend SHA256 manifest
+            (cd "$context/frontend" && find . -type f -exec sha256sum {} \;) | sort > "$context/frontend.sha256"
+            # jitsi-mgr outputs artifacts directly, no Docker image
+            mkdir -p "$repo/output/$service/artifacts"
+            cp "$context/backend/jitsi-mgr.jar" "$repo/output/$service/artifacts/"
+            cp "$context/backend/jitsi-mgr.jar.sha256" "$repo/output/$service/artifacts/"
+            cp -a "$context/frontend" "$repo/output/$service/artifacts/jitsi-mgr-ui"
+            cp "$context/frontend.sha256" "$repo/output/$service/artifacts/jitsi-mgr-ui.sha256"
+            # Record build evidence
+            cat > "$repo/output/$service/build-evidence.json" <<BUILD_EOF
+{
+  "service": "jitsi-mgr",
+  "version": "$VERSION",
+  "batch": "$BATCH",
+  "source_commit": "$SOURCE_COMMIT",
+  "deployment_commit": "$deployment_commit",
+  "backend_jar": "jitsi-mgr.jar",
+  "frontend_dir": "jitsi-mgr-ui",
+  "architecture": "$TARGET_ARCH"
+}
+BUILD_EOF
+            # Skip Docker image creation for jitsi-mgr
+            return 0
             ;;
         gateway)
             runtime=$(resolve_base "$debian_base")
