@@ -118,7 +118,7 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         # This reviewed tree contains jitsi-mgr-app/pom.xml and
         # jitsi-mgr-frontend/package-lock.json; the old Node-only tree does not.
         self.assertEqual(sources['services']['jitsi-mgr']['commit'],
-                         '8198b057f45d49ffe4701ac10aa1caf55a77829c')
+                         '5a98bcac9c31a019fa8be649fba97d4c75249356')
 
     def test_embedded_python_is_valid_and_checks_actual_image_archive(self):
         script = (ROOT / 'build-tools/package.sh').read_text(encoding='utf-8')
