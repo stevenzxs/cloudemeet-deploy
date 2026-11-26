@@ -7,8 +7,9 @@ WORKFLOWS = REPO / ".github" / "workflows"
 
 
 class WorkflowContractTests(unittest.TestCase):
-    def test_revision_gate_uses_skill_tools_and_precedes_allocation(self):
+    def test_revision_gate_uses_material_commit_and_precedes_allocation(self):
         workflow = (WORKFLOWS / "revision-allocation.yml").read_text(encoding="utf-8")
+        self.assertIn("ref: ${{ inputs.material_commit }}", workflow)
         self.assertIn("skills/full-build-deploy/tools/tls_contract.py", workflow)
         self.assertIn("skills/full-build-deploy/tools/allocate-workflow.py", workflow)
         self.assertIn("steps.origin.outputs.contract", workflow)
@@ -16,6 +17,7 @@ class WorkflowContractTests(unittest.TestCase):
         allocator = (ROOT / "tools/allocate-workflow.py").read_text(encoding="utf-8")
         self.assertIn("origin_contract=", allocator)
         self.assertLess(workflow.index("Normalize user origin"), workflow.index("Allocate revision in version policy on main"))
+        self.assertNotIn('test "$MATERIAL_SHA" = "$GITHUB_SHA"', workflow)
         self.assertNotIn("build-tools/", workflow[:workflow.index("Verify revision contract after persistent allocation")])
 
     def test_package_script_verifies_repository_manifest_from_repository_root(self):

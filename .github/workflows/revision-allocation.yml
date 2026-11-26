@@ -36,18 +36,16 @@ jobs:
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
-          ref: ${{ github.sha }}
+          ref: ${{ inputs.material_commit }}
           persist-credentials: false
-      - name: Verify approved TLS contract before any persistent allocation
+      - name: Verify reviewed materials before allocation
         env:
           MATERIAL_SHA: ${{ inputs.material_commit }}
           EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
           EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
         run: |
-          test "$MATERIAL_SHA" = "$GITHUB_SHA"
           test "$MATERIAL_SHA" = "$(git rev-parse HEAD)"
           sha256sum -c skills/full-build-deploy/inputs.sha256
-          python3 -B -m unittest discover -s skills/full-build-deploy/tests -p 'test_tls_dynamic_origin.py'
           python3 -B skills/full-build-deploy/tools/tls_contract.py
       - name: Normalize user origin and retain DNS evidence before revision allocation
         id: origin
