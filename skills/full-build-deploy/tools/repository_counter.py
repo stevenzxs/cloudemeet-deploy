@@ -21,19 +21,6 @@ def _git(root, *args, check=True):
                           check=check, timeout=60, env=env)
 
 
-def _manifest_update(root, policy_rel, policy_file):
-    import hashlib
-    manifest = root / 'skills/full-build-deploy/inputs.sha256'
-    lines = manifest.read_text(encoding='utf-8').splitlines()
-    digest_value = hashlib.sha256(policy_file.read_bytes()).hexdigest()
-    target = '  ' + policy_rel.as_posix()
-    for index, line in enumerate(lines):
-        if line.endswith(target):
-            lines[index] = f'{digest_value}{target}'
-            break
-    else:
-        raise ValueError('Policy file missing from inputs manifest')
-    manifest.write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 
 def _find_existing(root, policy_rel, run_id, attempt):
@@ -84,8 +71,7 @@ def allocate(policy_path, request, *, attempt=1, remote=None, retries=8):
                 'record': record,
             }
             checked.write_text(json.dumps(policy, indent=2) + '\n', encoding='utf-8')
-            _manifest_update(root, policy_rel, checked)
-            _git(root, 'add', str(policy_rel), 'skills/full-build-deploy/inputs.sha256')
+            _git(root, 'add', str(policy_rel))
             _git(root, 'commit', '-m', f"Allocate revision {policy['current_revision']} for run {request['run_id']} attempt {attempt}")
             candidate = _git(root, 'rev-parse', 'HEAD').stdout.strip()
             result = _git(root, 'push', 'origin', f'{candidate}:refs/heads/main', check=False)

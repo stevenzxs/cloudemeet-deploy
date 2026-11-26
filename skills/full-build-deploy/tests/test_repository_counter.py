@@ -27,8 +27,6 @@ class RepositoryCounterTests(unittest.TestCase):
             'approved': True,
             'current_revision': 33,
         }))
-        manifest = root / 'skills/full-build-deploy/inputs.sha256'
-        manifest.write_text('0' * 64 + '  skills/full-build-deploy/config/version-policy.json\n')
         self.remote = Path(self.tmp.name) / 'remote.git'
         subprocess.run(['git', 'init', '--bare', str(self.remote)], check=True, capture_output=True)
         subprocess.run(['git', '-C', str(root), 'init', '-b', 'main'], check=True, capture_output=True)

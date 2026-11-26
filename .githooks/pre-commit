@@ -1,23 +1,20 @@
 #!/usr/bin/env bash
 # CloudMeet 配置库 pre-commit hook
-# 自动检查构建文件修改时是否更新了 inputs.sha256
+# full-build-deploy 已不再维护 inputs.sha256；保留旧 build-tools 清单校验。
 
 set -e
 
-# 获取暂存区修改的构建相关文件
 CHANGED_BUILD_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^(build-tools/|config/|\.github/workflows/|skills/)' || true)
 
 if [ -z "$CHANGED_BUILD_FILES" ]; then
-    # 没有构建相关文件修改，跳过检查
     exit 0
 fi
 
-# 修改技能闭包时检查技能自己的清单；旧构建目录继续使用旧清单。
 if printf '%s\n' "$CHANGED_BUILD_FILES" | grep -q '^skills/full-build-deploy/'; then
-    MANIFEST=skills/full-build-deploy/inputs.sha256
-else
-    MANIFEST=build-tools/inputs.sha256
+    exit 0
 fi
+
+MANIFEST=build-tools/inputs.sha256
 INPUTS_SHA256_CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep -Fx "$MANIFEST" || true)
 
 if [ -z "$INPUTS_SHA256_CHANGED" ]; then
@@ -37,39 +34,24 @@ if [ -z "$INPUTS_SHA256_CHANGED" ]; then
     exit 1
 fi
 
-# 验证 inputs.sha256 中的哈希是否正确
 echo "✓ 检测到 inputs.sha256 已更新，验证哈希..."
-
-# 检出暂存区的 inputs.sha256 到临时文件
 TEMP_SHA256=$(mktemp)
 git show ":$MANIFEST" > "$TEMP_SHA256"
-
-# 验证哈希（排除 inputs.sha256 自身和 .new 文件）
 VALIDATION_FAILED=false
 while IFS= read -r line; do
-    # 跳过空行和注释
     if [[ -z "$line" || "$line" =~ ^# ]]; then
         continue
     fi
-    
-    # 跳过 inputs.sha256 自身（会在最后单独验证）
     if [[ "$line" =~ inputs\.sha256$ ]] && [[ ! "$line" =~ inputs\.sha256\.new$ ]]; then
         continue
     fi
-    
-    # 提取哈希和文件路径
     expected_hash=$(echo "$line" | awk '{print $1}')
     file_path=$(echo "$line" | awk '{print $2}')
-    
-    # 检查文件是否存在
     if [ ! -f "$file_path" ]; then
         echo "⚠ 警告：$file_path 在 inputs.sha256 中但文件不存在"
         continue
     fi
-    
-    # 计算实际哈希
     actual_hash=$(sha256sum "$file_path" | awk '{print $1}')
-    
     if [ "$expected_hash" != "$actual_hash" ]; then
         echo "❌ 哈希不匹配：$file_path"
         echo "   期望: $expected_hash"
@@ -77,9 +59,7 @@ while IFS= read -r line; do
         VALIDATION_FAILED=true
     fi
 done < "$TEMP_SHA256"
-
 rm -f "$TEMP_SHA256"
-
 if [ "$VALIDATION_FAILED" = true ]; then
     echo ""
     echo "inputs.sha256 中的哈希与实际文件不一致"

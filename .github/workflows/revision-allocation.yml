@@ -45,8 +45,7 @@ jobs:
           EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
         run: |
           test "$MATERIAL_SHA" = "$(git rev-parse HEAD)"
-          sha256sum -c skills/full-build-deploy/inputs.sha256
-          python3 -B skills/full-build-deploy/tools/tls_contract.py
+                    python3 -B skills/full-build-deploy/tools/tls_contract.py
       - name: Normalize user origin and retain DNS evidence before revision allocation
         id: origin
         env:

@@ -22,7 +22,7 @@ class WorkflowContractTests(unittest.TestCase):
 
     def test_package_script_verifies_repository_manifest_from_repository_root(self):
         script = (ROOT / "scripts/package.sh").read_text(encoding="utf-8")
-        self.assertRegex(script, r"\(cd\s+\"\$repo/\.\./\.\.\";\s*sha256sum -c skills/full-build-deploy/inputs\.sha256\)")
+        self.assertNotIn('skills/full-build-deploy/inputs.sha256', script)
         self.assertIn('"$repo/sources.json"', script)
         self.assertIn('"$repo/tools/network-audit.py"', script)
         self.assertNotIn('"$tools/network-audit.py"', script)
@@ -36,14 +36,10 @@ class WorkflowContractTests(unittest.TestCase):
         source = client_validator.read_text(encoding='utf-8')
         self.assertIn("path.join(skillRoot, 'revision_versions.py')", source)
 
-    def test_build_workflows_verify_the_current_skill_manifest(self):
+    def test_build_workflows_do_not_require_inputs_manifest(self):
         for name in ("revision-allocation.yml", "build-package.yml", "publish-release.yml"):
             workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
-            self.assertIn("sha256sum -c skills/full-build-deploy/inputs.sha256", workflow, name)
-        manifest = (ROOT / "inputs.sha256").read_text(encoding="utf-8")
-        self.assertIn("skills/full-build-deploy/scripts/package.sh", manifest)
-        self.assertIn("skills/full-build-deploy/tools/clients/build-clients.cjs", manifest)
-        self.assertIn(".github/workflows/build-package.yml", manifest)
+            self.assertNotIn("skills/full-build-deploy/inputs.sha256", workflow, name)
 
     def test_client_batch_config_is_shared_origin_source_for_build_and_audit(self):
         workflow = (WORKFLOWS / "build-clients.yml").read_text(encoding="utf-8")

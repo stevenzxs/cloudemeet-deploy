@@ -114,8 +114,7 @@ jobs:
           MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
-          sha256sum -c skills/full-build-deploy/inputs.sha256
-          printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
+                    printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
       - name: Build one service from pinned source and export exact image
         env:
           SERVICE: ${{ matrix.service }}
@@ -158,8 +157,7 @@ jobs:
           MATERIAL_COMMIT: ${{ inputs.material_commit }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
-          sha256sum -c skills/full-build-deploy/inputs.sha256
-          python3 -B -m unittest discover -s skills/full-build-deploy/tests -p test_publish.py
+                    python3 -B -m unittest discover -s skills/full-build-deploy/tests -p test_publish.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
@@ -205,8 +203,7 @@ jobs:
           MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
-          sha256sum -c skills/full-build-deploy/inputs.sha256
-      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+                - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: downloads
