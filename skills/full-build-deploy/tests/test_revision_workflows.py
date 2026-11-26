@@ -1,15 +1,8 @@
 from pathlib import Path
-import importlib.util
-import json
-import os
-import sys
-import tempfile
 import unittest
-from unittest.mock import patch
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
 ROOT = SKILL_ROOT.parents[1]
-sys.path.insert(0, str(SKILL_ROOT / 'tools'))
 
 
 class RevisionWorkflowTests(unittest.TestCase):
@@ -21,27 +14,21 @@ class RevisionWorkflowTests(unittest.TestCase):
         self.assertIn('revision-allocation.yml', text)
         self.assertIn('VERSION_RECORD', text)
 
-    def test_joint_has_single_parent_assignment(self):
-        text = (ROOT / '.github/workflows/build-joint.yml').read_text(encoding='utf-8')
-        self.assertEqual(text.count('revision-allocation.yml'), 1)
-        self.assertEqual(text.count('assignment: ${{ needs.version.outputs.assignment }}'), 3)
-        self.assertIn('needs: [version, server, clients]', text)
+    def test_parent_workflow_allocates_once_and_children_inherit_assignment(self):
+        joint = (ROOT / '.github/workflows/build-joint.yml').read_text(encoding='utf-8')
+        self.assertEqual(joint.count('revision-allocation.yml'), 1)
+        self.assertEqual(joint.count('assignment: ${{ needs.version.outputs.assignment }}'), 3)
+        self.assertIn('needs: [version, server, clients]', joint)
 
-    def test_allocator_is_persistent_and_not_an_artifact_counter(self):
+    def test_allocator_uses_repository_policy_counter(self):
         text = (ROOT / '.github/workflows/revision-allocation.yml').read_text(encoding='utf-8')
         self.assertIn('runs-on: ubuntu-24.04', text)
-        self.assertIn('CLOUDMEET_LEDGER_ANCHOR', text)
         self.assertIn('contents: write', text)
+        self.assertIn('Allocate revision in version policy on main', text)
+        self.assertIn('GH_TOKEN', text)
+        self.assertNotIn('CLOUDMEET_LEDGER_ANCHOR', text)
+        self.assertNotIn('cloudmeet-revision-ledger', text)
         self.assertNotIn('self-hosted', text)
-        self.assertNotIn('initialize', text)
-
-    def test_auth_header_shell_produces_basic_credentials(self):
-        text = (ROOT / '.github/workflows/revision-allocation.yml').read_text(encoding='utf-8')
-        allocate_step = text.split('      - name: Allocate or verify inherited parent record against persistent ledger\n', 1)[1]
-        script = allocate_step.split('        run: |\n', 1)[1]
-        self.assertIn("export LEDGER_AUTH_HEADER=\"AUTHORIZATION: basic $(printf 'x-access-token:%s' \"$GH_TOKEN\" | base64 -w0)\"", script)
-        self.assertLess(script.index('echo "::add-mask::${LEDGER_AUTH_HEADER}"'), script.index('unset GH_TOKEN'))
-        self.assertLess(script.index('unset GH_TOKEN'), script.index('python3 -B skills/full-build-deploy/tools/allocate-workflow.py'))
 
     def test_product_jobs_explicitly_keep_read_permissions(self):
         import re
@@ -50,72 +37,6 @@ class RevisionWorkflowTests(unittest.TestCase):
             for name in jobs:
                 body = re.split(r'\n  [a-z][a-z_-]*:\n', text.split('\n  ' + name + ':\n', 1)[1], maxsplit=1)[0]
                 self.assertIn('    permissions:\n      contents: read', body)
-
-    def test_controller_joint_inheritance_retry_and_scope_binding(self):
-        import revision_git_ledger
-        import subprocess as sp
-        spec = importlib.util.spec_from_file_location('controller', SKILL_ROOT / 'tools/allocate-workflow.py')
-        controller = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(controller)
-        policy = dict(schema=1, namespace='cloudmeet-joint-v1', server_baseline='11248.0.1',
-                      client_baseline='1.0.21', android_base_code=1021, previous_android_code=1021,
-                      previous_msi_version='1.0.21', approved=True)
-        with tempfile.TemporaryDirectory() as tmp:
-            root = Path(tmp) / 'repo'
-            (root / 'skills/full-build-deploy/config').mkdir(parents=True)
-            (root / 'skills/full-build-deploy/tools').mkdir(parents=True)
-            (root / 'skills/full-build-deploy/config/version-policy.json').write_text(json.dumps(policy))
-            (root / 'skills/full-build-deploy/config/h5-source.json').write_text(json.dumps({'commit':'f'*40}))
-            (root / 'skills/full-build-deploy/sources.json').write_bytes((SKILL_ROOT / 'sources.json').read_bytes())
-            (root / 'skills/full-build-deploy/tools/revision_versions.py').write_bytes((SKILL_ROOT / 'tools/revision_versions.py').read_bytes())
-            (root / 'skills/full-build-deploy/tools/revision_git_ledger.py').write_bytes((SKILL_ROOT / 'tools/revision_git_ledger.py').read_bytes())
-            # Bootstrap a synthetic migrated fixture on a local bare remote, never live state.
-            import revision_ledger
-            ledger = Path(tmp) / 'fixture.sqlite'
-            revision_ledger.initialize(ledger, policy)
-            initial_request = dict(repository='stevenzxs/cloudemeet-deploy', workflow='fixture', run_id='99',
-                                   configuration_sha='b'*40, task='fixture', scope=['server'], sources={'web':'c'*40})
-            revision_ledger.allocate(ledger, policy, initial_request)
-            remote = Path(tmp) / 'remote.git'
-            seed = Path(tmp) / 'seed'
-            sp.run(['git', 'init', '--bare', str(remote)], check=True, capture_output=True)
-            sp.run(['git', 'init', str(seed)], check=True, capture_output=True)
-            def git(*args):
-                return sp.check_output(['git', '-C', str(seed), *args], text=True).strip()
-            git('config', 'user.name', 'Test')
-            git('config', 'user.email', 'test@example.invalid')
-            git('checkout', '--orphan', 'cloudmeet-revision-ledger')
-            (seed / 'ledger.json').write_text(json.dumps(revision_git_ledger.export_sqlite(ledger, policy)))
-            git('add', 'ledger.json')
-            git('commit', '-m', 'fixture')
-            git('push', str(remote), 'HEAD:refs/heads/cloudmeet-revision-ledger')
-            anchor = git('rev-parse', 'HEAD')
-            output = Path(tmp) / 'output'
-            env = dict(GITHUB_SHA='a' * 40, MATERIAL_SHA='a' * 40, GITHUB_RUN_ID='100',
-                       GITHUB_RUN_ATTEMPT='1', GITHUB_REPOSITORY='stevenzxs/cloudemeet-deploy',
-                       GITHUB_EVENT_NAME='workflow_dispatch', GITHUB_REF='refs/heads/main',
-                       GITHUB_WORKFLOW_REF='stevenzxs/cloudemeet-deploy/.github/workflows/build-joint.yml@refs/heads/main',
-                        LEDGER_REMOTE=str(remote), LEDGER_ANCHOR=anchor, GITHUB_OUTPUT=str(output),
-                        PATH=os.environ.get('PATH', ''), SYSTEMROOT=os.environ.get('SYSTEMROOT', ''),
-                       REQUEST_SCOPE='["server","electron","android"]', INHERITED_ASSIGNMENT='')
-            previous = Path.cwd()
-            try:
-                os.chdir(root)
-                with patch.dict(os.environ, env, clear=True), patch.object(controller, 'configuration_sha', return_value='a' * 40):
-                    controller.main()
-                    first = json.loads(output.read_text().split('assignment=', 1)[1])
-                    os.environ['GITHUB_RUN_ATTEMPT'] = '2'
-                    controller.main()
-                    os.environ['REQUEST_SCOPE'] = '["server"]'
-                    os.environ['INHERITED_ASSIGNMENT'] = json.dumps(first)
-                    controller.main()
-                    records = [json.loads(line.split('=', 1)[1]) for line in output.read_text().splitlines()]
-                    self.assertEqual(records, [first, first, first])
-                    os.environ['GITHUB_REF'] = 'refs/heads/unreviewed'
-                    with self.assertRaises(ValueError):
-                        controller.main()
-            finally:
-                os.chdir(previous)
 
 
 if __name__ == '__main__':

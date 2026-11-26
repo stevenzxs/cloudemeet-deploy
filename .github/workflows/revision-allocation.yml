@@ -23,10 +23,11 @@ on:
       origin_contract:
         value: ${{ jobs.allocate.outputs.origin_contract }}
 permissions:
-  contents: write
+  contents: read
 jobs:
   allocate:
-    # Ephemeral hosted runner; state lives only on the dedicated ledger branch.
+    permissions:
+      contents: write
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     outputs:
@@ -57,20 +58,17 @@ jobs:
           python3 -B skills/full-build-deploy/tools/origin_contract.py --output origin-contract.json
           contract=$(jq -c . origin-contract.json)
           echo "contract=$contract" >> "$GITHUB_OUTPUT"
-      - name: Allocate or verify inherited parent record against persistent ledger
+      - name: Allocate revision in version policy on main
         id: record
         env:
           MATERIAL_SHA: ${{ inputs.material_commit }}
           REQUEST_SCOPE: ${{ inputs.scope }}
           INHERITED_ASSIGNMENT: ${{ inputs.assignment }}
-          LEDGER_ANCHOR: ${{ vars.CLOUDMEET_LEDGER_ANCHOR }}
           GH_TOKEN: ${{ github.token }}
           EXPECTED_ORIGIN_CONTRACT: ${{ steps.origin.outputs.contract }}
         run: |
           test "$(python3 -c 'import json;print(json.load(open("origin-contract.json"))["origin"])')" = "$(python3 -c 'import json,os;print(json.loads(os.environ["EXPECTED_ORIGIN_CONTRACT"])["origin"])')"
-          export LEDGER_AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
-          echo "::add-mask::${LEDGER_AUTH_HEADER}"
-          unset GH_TOKEN
+          export GH_TOKEN
           python3 -B skills/full-build-deploy/tools/allocate-workflow.py
       - name: Verify revision contract after persistent allocation (failure still consumes revision)
         run: python3 -B -m unittest discover -s skills/full-build-deploy/tests -p 'test_revision*.py'

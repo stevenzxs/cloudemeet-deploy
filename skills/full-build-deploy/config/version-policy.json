@@ -6,5 +6,6 @@
   "android_base_code": 1021,
   "previous_android_code": 1021,
   "previous_msi_version": "1.0.21",
-  "approved": true
+  "approved": true,
+  "current_revision": 33
 }

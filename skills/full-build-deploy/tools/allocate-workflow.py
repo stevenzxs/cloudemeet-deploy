@@ -5,8 +5,8 @@ import os
 from pathlib import Path
 import subprocess
 
+from repository_counter import allocate
 from revision_versions import validate_record
-from revision_git_ledger import allocate
 
 
 def configuration_sha():
@@ -37,12 +37,10 @@ def main():
         record = validate_record(json.loads(inherited), policy, sha, env['GITHUB_RUN_ID'])
         if record['request']['sources'] != identities or not set(scope) <= set(record['request']['scope']):
             raise ValueError('Parent scope/source mismatch')
-        request = record['request']
-    remote = env.get('LEDGER_REMOTE', 'https://github.com/stevenzxs/cloudemeet-deploy.git')
-    record = allocate(remote, policy, request, anchor=env['LEDGER_ANCHOR'],
-                      attempt=int(env['GITHUB_RUN_ATTEMPT']), create=not bool(inherited))
-    if inherited and record != json.loads(inherited):
-        raise ValueError('Inherited record differs from persistent assignment')
+    else:
+        remote = env.get('LEDGER_REMOTE', 'https://github.com/stevenzxs/cloudemeet-deploy.git')
+        record = allocate(skill_root / 'config/version-policy.json', request,
+                          attempt=int(env['GITHUB_RUN_ATTEMPT']), remote=remote)
     with open(env['GITHUB_OUTPUT'], 'a', encoding='utf-8') as stream:
         stream.write('assignment=' + json.dumps(record, separators=(',', ':')) + '\n')
         if env.get('EXPECTED_ORIGIN_CONTRACT'):

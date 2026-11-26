@@ -15,7 +15,7 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn("EXPECTED_ORIGIN_CONTRACT", workflow)
         allocator = (ROOT / "tools/allocate-workflow.py").read_text(encoding="utf-8")
         self.assertIn("origin_contract=", allocator)
-        self.assertLess(workflow.index("Normalize user origin"), workflow.index("Allocate or verify inherited parent record"))
+        self.assertLess(workflow.index("Normalize user origin"), workflow.index("Allocate revision in version policy on main"))
         self.assertNotIn("build-tools/", workflow[:workflow.index("Verify revision contract after persistent allocation")])
 
     def test_package_script_verifies_repository_manifest_from_repository_root(self):
