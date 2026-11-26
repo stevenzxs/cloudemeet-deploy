@@ -8,7 +8,7 @@ on:
         options: [private-ca, caddy-public-acme]
         required: true
       expected_origin:
-        description: Approved complete HTTPS origin
+        description: User-supplied HTTP(S) origin for this batch (DNS name or IP)
         type: string
         required: true
       material_commit:
@@ -26,6 +26,9 @@ on:
         type: string
         required: true
       expected_origin:
+        type: string
+        required: true
+      origin_contract:
         type: string
         required: true
       material_commit:
@@ -61,6 +64,7 @@ jobs:
     needs: version
     env:
       ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
+      ORIGIN_CONTRACT_JSON: ${{ needs.version.outputs.origin_contract }}
     runs-on: ${{ matrix.target == 'android' && 'ubuntu-24.04' || 'windows-2022' }}
     timeout-minutes: 120
     strategy:
@@ -87,12 +91,28 @@ jobs:
         env:
           MATERIAL_SHA: ${{ inputs.material_commit }}
           CLIENT_TARGET: ${{ matrix.target }}
+          EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
+          EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
+          ORIGIN_CONTRACT_JSON: ${{ needs.version.outputs.origin_contract }}
+          ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
         run: |
           if ($env:MATERIAL_SHA -cnotmatch '^[0-9a-f]{40}$') { throw 'Full SHA required' }
           if ($env:CLIENT_TARGET -notin @('electron','android')) { throw 'Unexpected target' }
           if ((git -C deploy rev-parse HEAD) -ne $env:MATERIAL_SHA) { throw 'Material mismatch' }
           if ($env:MATERIAL_SHA -ne $env:GITHUB_SHA) { throw 'Workflow/material mismatch' }
           [IO.File]::WriteAllText((Join-Path $env:GITHUB_WORKSPACE 'version-assignment.json'), $env:ALLOCATION_JSON)
+          $contract = $env:ORIGIN_CONTRACT_JSON | ConvertFrom-Json
+          if (!$contract.origin -or !$contract.addresses) { throw 'Normalized origin/DNS evidence is required' }
+          if ($contract.origin -ne $env:EXPECTED_ORIGIN -or $contract.tls_mode -ne $env:EXPECTED_TLS_MODE) { throw 'Origin/TLS contract differs from dispatch inputs' }
+          $envFile = Join-Path $env:GITHUB_WORKSPACE 'batch-client.env'
+          $fixed = Get-Content deploy/skills/full-build-deploy/config/client.env | Where-Object { $_ -match '^\s*[A-Z_]+\s*=' -and $_ -notmatch '^\s*(SITE_DOMAIN|SITE_SCHEME|SITE_PORT|TLS_MODE|CLIENT_CA_FILE)\s*=' }
+          $origin = @("SITE_DOMAIN=$($contract.site_domain)", "SITE_SCHEME=$($contract.site_scheme)", "SITE_PORT=$($contract.site_port)")
+          $batch = @($origin + $fixed)
+          if ($contract.tls_mode -eq 'caddy-public-acme') { $batch += 'TLS_MODE=caddy-public-acme'; $batch = $batch | Where-Object { $_ -notmatch '^\s*CLIENT_CA_FILE\s*=' } }
+          else { $batch += 'TLS_MODE=private-ca'; $batch += "CLIENT_CA_FILE=$($contract.client_ca_file)" }
+          [IO.File]::WriteAllLines($envFile, $batch, [Text.UTF8Encoding]::new($false))
+          $originContractFile = Join-Path $env:GITHUB_WORKSPACE 'batch-origin.json'
+          [IO.File]::WriteAllText($originContractFile, ($contract | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: stevenzxs/jitsi-meet-electron
@@ -148,7 +168,7 @@ jobs:
       - name: Public CA prerequisite
         shell: pwsh
         run: |
-          $ca = 'deploy/config/client-ca.crt'
+          $ca = 'deploy/skills/full-build-deploy/config/client-ca.crt'
           if (!(Test-Path $ca)) { throw 'Public CA missing' }
           node -e "const fs=require('fs'),c=require('crypto'); const x=new c.X509Certificate(fs.readFileSync('$ca')); if(c.createHash('sha256').update(x.raw).digest('hex')!=='fab880721274fa86d6a23d8f00fb93be471af863bec0fced6b7e99780b5e6fde')throw Error('CA mismatch');"
           if ($LASTEXITCODE) { throw 'CA fingerprint mismatch' }
@@ -181,9 +201,9 @@ jobs:
         shell: pwsh
         run: |
           if ('${{ matrix.target }}' -eq 'android') {
-            python deploy/build-tools/maven-route.py --audit client-network-audit/maven-route.jsonl --gradle-command -- node deploy/build-tools/clients/build-clients.cjs --target android --version-record version-assignment.json
+            python deploy/skills/full-build-deploy/tools/maven-route.py --audit client-network-audit/maven-route.jsonl --gradle-command -- node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target android --env-file "$env:GITHUB_WORKSPACE/batch-client.env" --origin-contract "$env:GITHUB_WORKSPACE/batch-origin.json" --version-record version-assignment.json
           } else {
-            node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json
+            node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target ${{ matrix.target }} --env-file "$env:GITHUB_WORKSPACE/batch-client.env" --origin-contract "$env:GITHUB_WORKSPACE/batch-origin.json" --version-record version-assignment.json
           }
           if ($LASTEXITCODE) { throw 'Client build or package verification failed; inspect the preceding error' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

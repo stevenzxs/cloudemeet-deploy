@@ -3,12 +3,12 @@ on:
   workflow_dispatch:
     inputs:
       expected_tls_mode:
-        description: Approved TLS mode assertion (must match fixed config/client.env)
+        description: Approved TLS mode for this batch's user-supplied origin
         type: choice
         options: [private-ca, caddy-public-acme]
         required: true
       expected_origin:
-        description: Approved complete HTTPS origin (assertion only)
+        description: User-supplied HTTP(S) origin for this batch (DNS name or IP)
         type: string
         required: true
       material_commit:
@@ -75,5 +75,6 @@ jobs:
       material_commit: ${{ inputs.material_commit }}
       expected_tls_mode: ${{ inputs.expected_tls_mode }}
       expected_origin: ${{ inputs.expected_origin }}
+      origin_contract: ${{ needs.version.outputs.origin_contract }}
       targets: '["electron","android"]'
       assignment: ${{ needs.version.outputs.assignment }}

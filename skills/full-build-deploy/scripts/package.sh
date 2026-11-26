@@ -1,0 +1,627 @@
+#!/usr/bin/env bash
+# One build/assembly entry. Docker is used only on the native Actions runner.
+set -euo pipefail
+tools=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
+repo=$(cd "$tools/.." && pwd)
+die() { printf '%s\n' "$*" >&2; exit 1; }
+case "${1:-}" in
+    -h|--help) printf '%s\n' 'Usage: package.sh build SERVICE | assemble' 'Run from skills/full-build-deploy/ on a native Actions runner.'; exit 0 ;;
+    build|assemble) ;;
+    *) die 'Usage: package.sh build SERVICE | assemble' ;;
+esac
+: "${VERSION:?Set VERSION}"
+: "${BATCH:?Set BATCH to version/run/attempt identity}"
+[[ $VERSION =~ ^[0-9]+(\.[0-9]+){2,3}\+r[1-9][0-9]*$ ]] || die 'Allocated display version required'
+[[ $BATCH =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,110}$ ]] || die 'Invalid batch'
+TARGET_ARCH=${TARGET_ARCH:-arm64}
+case "$TARGET_ARCH" in
+    arm64) HOST_ARCH=aarch64; PACKAGE_ARCH=aarch64; COMPOSE_ARCH=aarch64 ;;
+    amd64) HOST_ARCH=x86_64; PACKAGE_ARCH=amd64; COMPOSE_ARCH=x86_64 ;;
+    *) die 'Unsupported target architecture' ;;
+esac
+[[ $(uname -m) == "$HOST_ARCH" ]] || die "Native $HOST_ARCH runner required"
+export TARGET_ARCH HOST_ARCH PACKAGE_ARCH COMPOSE_ARCH
+: "${GITHUB_RUN_ID:?Run through GitHub Actions}"
+: "${GITHUB_RUN_ATTEMPT:?Missing workflow attempt}"
+: "${GITHUB_SHA:?Missing workflow commit}"
+[[ $BATCH == "${VERSION/+/-}-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ]] || die 'Batch identity mismatch'
+deployment_commit=$(git -C "$repo" rev-parse HEAD)
+[[ $deployment_commit == "$GITHUB_SHA" ]] || die 'Workflow commit mismatch'
+(cd "$repo/.."; sha256sum -c inputs.sha256)
+export VERSION BATCH DEPLOYMENT_COMMIT="$deployment_commit"
+: "${VERSION_RECORD:?Bound version allocation record required}"
+python3 -B "$tools/revision_versions.py" --record "$VERSION_RECORD" --policy "$repo/config/version-policy.json" \
+    --sha "$deployment_commit" --run-id "$GITHUB_RUN_ID" --scope server --attempt "$GITHUB_RUN_ATTEMPT" >/dev/null
+python3 -B - "$VERSION_RECORD" "$tools/sources.json" <<'PY'
+import json,os,sys
+r=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2]))
+assert r['versions']['server_version']==os.environ['VERSION'], 'Version assignment mismatch'
+for name,item in s['services'].items():
+    assert r['request']['sources'].get(name)==item['commit'], 'Source allocation mismatch'
+PY
+python3 -B "$tools/network-audit.py" --root "$repo" --mode generic \
+    --output "$repo/output/network-audit-${1}-${2:-package}/preflight"
+
+source_field() {
+    python3 - "$tools/sources.json" "$1" "$2" <<'PY'
+import json, sys
+sources = json.load(open(sys.argv[1]))
+record = sources['lifecycle'] if sys.argv[2] == 'lifecycle' else sources['services'][sys.argv[2]]
+print(record[sys.argv[3]])
+PY
+}
+
+checkout_source() {
+    local service=$1 destination=$2 commit url
+    commit=$(source_field "$service" commit)
+    url=$(source_field "$service" repository)
+    [[ $commit =~ ^[0-9a-f]{40}$ && $url == https://github.com/* ]] || die 'Invalid source lock'
+    git init -q "$destination"
+    git -C "$destination" fetch --depth=1 "$url" "$commit"
+    git -C "$destination" checkout --detach FETCH_HEAD
+    [[ $(git -C "$destination" rev-parse HEAD) == "$commit" ]] || die 'Source identity mismatch'
+}
+
+build_service() (
+    service=${1:?Missing service}
+    case "$service" in gateway|app-web|api|jitsi-mgr|web|prosody|jicofo|jvb) ;; *) die 'Unknown service';; esac
+    work=$(mktemp -d)
+    trap 'rm -rf -- "$work"' EXIT
+    mkdir -p "$work/context" "$repo/output"
+    mkdir "$repo/output/$service"
+    checkout_source "$service" "$work/source"
+    python3 -B "$tools/network-audit.py" --root "$repo" --source "$work/source" --service "$service" \
+        --output "$repo/output/network-audit-build-$service/source"
+    cp "$repo/output/network-audit-build-$service/source/"network-audit.* "$repo/output/$service/"
+    SOURCE_COMMIT=$(source_field "$service" commit)
+    export SOURCE_COMMIT SERVICE="$service"
+    context=$work/context
+    source=$work/source
+    # Build inputs, source state and resolved bases are retained with the image.
+    git -C "$source" status --porcelain > "$work/source-before.txt"
+    bases=$work/bases.jsonl
+    export BASE_RECORDS="$bases"
+    resolve_base() {
+        local ref=$1 resolved
+        docker pull --platform "linux/$TARGET_ARCH" "$ref" >&2
+        docker image inspect "$ref" | python3 -c '
+import json, os, sys
+i=json.load(sys.stdin)[0]
+assert (i["Os"],i["Architecture"]) == ("linux",os.environ["TARGET_ARCH"]), "Wrong base platform"
+with open(os.environ["BASE_RECORDS"],"a") as f:
+    f.write(json.dumps({"requested":sys.argv[1],"id":i["Id"],"digests":i["RepoDigests"]})+"\n")
+print(i["RepoDigests"][0])' "$ref"
+    }
+    lifecycle_base=ghcr.io/jitsi/base@sha256:03a73ca2e924e5770b9a0aa3f120c0907eb120142a48ef7f37be9764c6f94575
+    debian_base=debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
+    labels=(--label "org.opencontainers.image.version=$VERSION"
+        --label "org.opencontainers.image.revision=$SOURCE_COMMIT"
+        --label "io.cloudmeet.batch=$BATCH" --label "io.cloudmeet.service=$service"
+        --label "io.cloudmeet.deployment=$deployment_commit")
+    if [[ $TARGET_ARCH == arm64 ]]; then
+        java17=${JAVA_HOME_17_ARM64:-/usr/lib/jvm/temurin-17-jdk-arm64}
+    else
+        java17=${JAVA_HOME_17_X64:-/usr/lib/jvm/temurin-17-jdk-amd64}
+    fi
+    case "$service" in
+        web|app-web)
+            builder=$(resolve_base node:24-trixie)
+            command='npm ci; npm run build'
+            [[ $service != web ]] || command='npm ci; make all'
+            build_env=()
+            # This approved instance package follows its host origin, never the 118 default.
+            [[ $service != app-web ]] || build_env=(-e VITE_JITSI_SERVER=same-origin)
+            docker run --rm --platform "linux/$TARGET_ARCH" --user "$(id -u):$(id -g)" \
+                -e HOME=/tmp "${build_env[@]}" -v "$source:/src" -w /src "$builder" bash -euc "$command"
+            if [[ $service == app-web ]]; then
+                runtime=$(resolve_base nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311)
+                cp -a "$source/dist" "$context/dist"
+                grep -rq 'same-origin' "$context/dist" || die 'Missing same-origin application configuration'
+                cp "$tools/templates/nginx.conf" "$context/nginx.conf"
+            else
+                runtime=$(resolve_base "$lifecycle_base")
+                checkout_source lifecycle "$work/lifecycle"
+                cp -a "$work/lifecycle/web/rootfs" "$context/rootfs"
+                mkdir -p "$context/payload/css" "$context/payload/resources"
+                cp "$source/"*.html "$source/"*.js "$context/payload/"
+                for directory in fonts images libs static sounds lang; do
+                    cp -a "$source/$directory" "$context/payload/$directory"
+                done
+                cp "$source/css/all.css" "$context/payload/css/"
+                cp "$source/LICENSE" "$context/payload/"
+                cp "$source/resources/"*.txt "$context/payload/resources/"
+                printf 'User-agent: *\nDisallow: /\n' > "$context/payload/robots.txt"
+            fi
+            ;;
+        api)
+            runtime=$(resolve_base eclipse-temurin:17-jre-jammy)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            jars=("$source/target/"*.jar)
+            [[ ${#jars[@]} == 1 && -s ${jars[0]} ]] || die 'Expected one API jar'
+            cp "${jars[0]}" "$context/app.jar"
+            ;;
+        jitsi-mgr)
+            # jitsi-mgr is not a Docker image service - it outputs JAR and frontend static files
+            # Backend: Spring Boot JAR
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; python3 -B "$tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            backend_jars=("$source/jitsi-mgr-app/target/"jitsi-mgr-*.jar)
+            # Exclude -sources.jar and -javadoc.jar
+            filtered_jars=()
+            for jar in "${backend_jars[@]}"; do
+                [[ $jar == *-sources.jar || $jar == *-javadoc.jar ]] || filtered_jars+=("$jar")
+            done
+            [[ ${#filtered_jars[@]} == 1 && -s ${filtered_jars[0]} ]] || die 'Expected one jitsi-mgr backend jar'
+            mkdir -p "$context/backend"
+            cp "${filtered_jars[0]}" "$context/backend/jitsi-mgr.jar"
+            sha256sum "$context/backend/jitsi-mgr.jar" | tee "$context/backend/jitsi-mgr.jar.sha256"
+            # Frontend: React SPA
+            builder=$(resolve_base node:24-trixie)
+            # Create production env pointing to relative API path
+            printf 'REACT_APP_API_BASE_URL=/api/mgr/v1\nPUBLIC_URL=/api/mgr/ui\n' > "$source/jitsi-mgr-frontend/.env.production"
+            docker run --rm --platform "linux/$TARGET_ARCH" --user "$(id -u):$(id -g)" \
+                -e HOME=/tmp -v "$source/jitsi-mgr-frontend:/src" -w /src "$builder" bash -euc 'npm ci; npm run build'
+            mkdir -p "$context/frontend"
+            cp -a "$source/jitsi-mgr-frontend/build/." "$context/frontend/"
+            # Generate frontend SHA256 manifest
+            (cd "$context/frontend" && find . -type f -exec sha256sum {} \;) | sort > "$context/frontend.sha256"
+            # jitsi-mgr outputs artifacts directly, no Docker image
+            mkdir -p "$repo/output/$service/artifacts"
+            cp "$context/backend/jitsi-mgr.jar" "$repo/output/$service/artifacts/"
+            cp "$context/backend/jitsi-mgr.jar.sha256" "$repo/output/$service/artifacts/"
+            cp -a "$context/frontend" "$repo/output/$service/artifacts/jitsi-mgr-ui"
+            cp "$context/frontend.sha256" "$repo/output/$service/artifacts/jitsi-mgr-ui.sha256"
+            # Record build evidence
+            cat > "$repo/output/$service/build-evidence.json" <<BUILD_EOF
+{
+  "service": "jitsi-mgr",
+  "version": "$VERSION",
+  "batch": "$BATCH",
+  "source_commit": "$SOURCE_COMMIT",
+  "deployment_commit": "$deployment_commit",
+  "backend_jar": "jitsi-mgr.jar",
+  "frontend_dir": "jitsi-mgr-ui",
+  "architecture": "$TARGET_ARCH"
+}
+BUILD_EOF
+            python3 -B - "$repo/output/$service" <<'PY'
+import hashlib,json,os,pathlib
+out=pathlib.Path(__import__('sys').argv[1])
+record=json.loads((out/'build-evidence.json').read_text())
+record.update(run_id=os.environ['GITHUB_RUN_ID'],attempt=os.environ['GITHUB_RUN_ATTEMPT'],
+    version_assignment=json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()),
+    files={p.relative_to(out).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+           for p in (out/'artifacts').rglob('*') if p.is_file()})
+(out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
+PY
+            # Skip Docker image creation for jitsi-mgr
+            return 0
+            ;;
+        gateway)
+            runtime=$(resolve_base "$debian_base")
+            builder=$(resolve_base golang:1.27-trixie)
+            docker run --rm --platform "linux/$TARGET_ARCH" --user "$(id -u):$(id -g)" \
+                -e HOME=/tmp -e GOPATH=/tmp/go -e GOCACHE=/tmp/go-cache -e GOARCH="$TARGET_ARCH" \
+                -v "$source:/src" -w /src "$builder" bash -euc \
+                'export GOTOOLCHAIN=local; go mod download; go mod verify; CGO_ENABLED=0 GOOS=linux go build -p 2 -trimpath -o caddy-candidate ./cmd/caddy'
+            cp "$source/caddy-candidate" "$context/caddy"
+            ;;
+        prosody)
+            resolve_base "$lifecycle_base" > /dev/null
+            resolve_base "$debian_base" > /dev/null
+            # Intermediate tag is unique to this batch and can never be an older fallback.
+            docker build --platform "linux/$TARGET_ARCH" --progress plain \
+                -f "$tools/docker/prosody-core.Dockerfile" -t "cloudmeet-build/prosody-core:$BATCH" "$source"
+            mkdir -p "$source/runtime-downloads"
+            curl -fLsS --retry 3 https://raw.githubusercontent.com/aiq/basexx/v0.4.1/lib/basexx.lua -o "$source/runtime-downloads/basexx.lua"
+            curl -fLsS --retry 3 https://raw.githubusercontent.com/kikito/inspect.lua/v3.1.3/inspect.lua -o "$source/runtime-downloads/inspect.lua"
+            (cd "$source/runtime-downloads"; printf '%s\n' \
+                '6f8241efd8ea7affafdd00f433c317ed88151d87089b13ae4f94a421d4789445  basexx.lua' \
+                '72de901ac081bf927640e367b52146a18ed4f628eab7880dd32f1a6442b9fe6f  inspect.lua' | sha256sum -c -)
+            docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
+                --build-arg "PROSODY_CORE=cloudmeet-build/prosody-core:$BATCH" \
+                -f "$tools/docker/prosody-service.Dockerfile" -t "cloudmeet/prosody:$BATCH" "$source"
+            ;;
+        jicofo|jvb)
+            resolve_base "$lifecycle_base" > /dev/null
+            checkout_source lifecycle "$work/lifecycle"
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            archives=("$source/$service/target/"*-archive.zip)
+            [[ ${#archives[@]} == 1 && -s ${archives[0]} ]] || die 'Expected one distribution archive'
+            mkdir "$context/unpack"
+            unzip -q "${archives[0]}" -d "$context/unpack"
+            jarname=jicofo.jar
+            [[ $service != jvb ]] || jarname=jitsi-videobridge.jar
+            mapfile -t jars < <(find "$context/unpack" -name "$jarname" -type f)
+            [[ ${#jars[@]} == 1 ]] || die 'Expected one application jar'
+            mv "$(dirname "${jars[0]}")" "$context/distribution"
+            cp -a "$work/lifecycle/$service/rootfs" "$context/rootfs"
+            docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
+                --build-arg "SERVICE=$service" -f "$tools/docker/java-service.Dockerfile" \
+                -t "cloudmeet/$service:$BATCH" "$context"
+            ;;
+    esac
+    case "$service" in
+        web|app-web|api|gateway)
+            docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
+                --build-arg "RUNTIME_BASE=$runtime" --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" \
+                -f "$tools/docker/$service.Dockerfile" -t "cloudmeet/$service:$BATCH" "$context"
+            ;;
+    esac
+    # Build outputs may be untracked; tracked source/config/lock changes are forbidden.
+    git -C "$source" diff --exit-code
+    git -C "$source" diff --cached --exit-code
+    [[ ! -s $work/source-before.txt ]] || die 'Dirty checkout before build'
+    docker image inspect "cloudmeet/$service:$BATCH" > "$work/image.json"
+    docker save "cloudmeet/$service:$BATCH" | gzip -1 > "$repo/output/$service/$service.tar.gz"
+    python3 - "$work" "$repo/output/$service" "$tools/sources.json" <<'PY'
+import hashlib, json, os, pathlib, sys
+work, out, sourcefile = map(pathlib.Path, sys.argv[1:])
+service = os.environ['SERVICE']
+info = json.loads((work/'image.json').read_text())[0]
+labels = info['Config']['Labels']
+assert (info['Os'], info['Architecture']) == ('linux', os.environ['TARGET_ARCH']), 'Wrong image architecture'
+assert labels['io.cloudmeet.batch'] == os.environ['BATCH'], 'Batch identity mismatch'
+assert labels['org.opencontainers.image.revision'] == os.environ['SOURCE_COMMIT'], 'Source identity mismatch'
+archive = out/(service+'.tar.gz')
+def digest(path):
+    h=hashlib.sha256()
+    with path.open('rb') as f:
+        for block in iter(lambda:f.read(1024*1024), b''): h.update(block)
+    return h.hexdigest()
+sources=json.loads(sourcefile.read_text())
+record={'service':service,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
+         'version_assignment':json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()),
+        'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
+         'workflow_commit':os.environ['GITHUB_SHA'],'source_dirty':False,
+         'build_overrides':{'VITE_JITSI_SERVER':'same-origin'} if service=='app-web' else {},
+        'deployment_commit':os.environ['DEPLOYMENT_COMMIT'],'source':sources['services'][service],
+         'lifecycle':sources['lifecycle'] if service in ('web','jicofo','jvb') else None,
+         'source_config_sha256':{p:digest(work/'source'/p) for p in
+                                  ('package-lock.json','.env','pom.xml','go.mod','go.sum')
+                                  if (work/'source'/p).is_file()},
+        'tag':'cloudmeet/'+service+':'+os.environ['BATCH'],'image_id':info['Id'],
+          'platform':'linux/'+os.environ['TARGET_ARCH'],'archive':archive.name,'bytes':archive.stat().st_size,
+         'runtime_user':info['Config'].get('User',''),
+        'sha256':digest(archive),'bases':[json.loads(line) for line in (work/'bases.jsonl').read_text().splitlines()],
+        'context_sha256':{p.relative_to(work/'context').as_posix():digest(p)
+                          for p in (work/'context').rglob('*') if p.is_file()},
+        'acceptance':'NOT_RUN_PACKAGING_ONLY'}
+(out/(service+'.json')).write_text(json.dumps(record,indent=2)+'\n')
+PY
+)
+
+assemble_package() {
+    : "${ORIGIN_CONTRACT:?Approved batch origin contract required}"
+    : "${HTTP_PORT:?Set HTTP_PORT for this package}"
+    : "${MEDIA_PORT:?Set MEDIA_PORT for this package}"
+    : "${MEDIA_HOST:=}"
+    export PUBLIC_ORIGIN HTTP_PORT MEDIA_PORT MEDIA_HOST
+    output="$repo/output/cloudmeet-$BATCH-$PACKAGE_ARCH"
+    [[ ! -e $output ]] || die 'Output batch already exists'
+    mkdir -p "$output/bin" "$output/images" "$output/provenance"
+    # Nothing is uploaded from staging if any later check fails.
+    printf '%s\n' '{"status":"ASSEMBLING_NOT_COMPLETE"}' > "$output/candidate.json"
+    # Official Compose, version-locked and checked against the official checksum.
+    compose_version=v2.39.4
+    compose_url="https://github.com/docker/compose/releases/download/$compose_version/docker-compose-linux-$COMPOSE_ARCH"
+    curl -fLsS --retry 3 "$compose_url" -o "$output/bin/docker-compose"
+    curl -fLsS --retry 3 "$compose_url.sha256" -o "$output/provenance/compose.sha256"
+    expected=$(awk '{print $1}' "$output/provenance/compose.sha256")
+    [[ $expected =~ ^[0-9a-f]{64}$ ]] || die 'Invalid Compose checksum'
+    printf '%s  %s\n' "$expected" "$output/bin/docker-compose" | sha256sum -c -
+    chmod 0755 "$output/bin/docker-compose"
+    "$output/bin/docker-compose" version
+    cp "$tools/../runtime/"*.py "$output/"
+    cp "$tools/network-audit.py" "$output/network-audit.py"
+    cp "$tools/setup.py" "$repo/output/setup.py"
+    (cd "$repo/output" && sha256sum setup.py > setup.py.sha256)
+    cp -a "$tools/../patches" "$output/patches"
+    cp "$tools/sources.json" "$output/provenance/sources.json"
+    cp "$VERSION_RECORD" "$output/provenance/version-assignment.json"
+    cp "$tools/../inputs.sha256" "$output/provenance/deployment-inputs.sha256"
+    cp "$repo/incoming/artifacts.json" "$output/provenance/actions-artifacts.json"
+    export PACKAGE_DIR="$output" COMPOSE_URL="$compose_url" COMPOSE_VERSION="$compose_version" SKILL_ROOT="$repo"
+    python3 -B - "$repo" <<'PY'
+import hashlib, importlib.util, json, os, pathlib, shutil, sys, urllib.parse
+sys.dont_write_bytecode=True
+repo=pathlib.Path(sys.argv[1]); out=pathlib.Path(os.environ['PACKAGE_DIR'])
+spec=importlib.util.spec_from_file_location('verifier',out/'install.py')
+verifier=importlib.util.module_from_spec(spec); spec.loader.exec_module(verifier)
+services=('gateway','app-web','api','web','prosody','jicofo','jvb')
+skill_root=pathlib.Path(os.environ['SKILL_ROOT']).resolve()
+sources=json.loads((skill_root/'sources.json').read_text(encoding='utf-8'))
+def digest(p):
+    h=hashlib.sha256()
+    with p.open('rb') as f:
+        for chunk in iter(lambda:f.read(1024*1024),b''): h.update(chunk)
+    return h.hexdigest()
+target_spec=importlib.util.spec_from_file_location('target_config',skill_root/'config/target.py')
+target_module=importlib.util.module_from_spec(target_spec); target_spec.loader.exec_module(target_module)
+target=target_module.validate_target({'SITE_SCHEME':'https','HTTPS_PORT':os.environ.get('HTTPS_PORT','443'),
+    'HTTP_PORT':os.environ['HTTP_PORT'],'MEDIA_PORT':os.environ['MEDIA_PORT'],'MEDIA_HOST':os.environ.get('MEDIA_HOST','')})
+origin_contract=json.loads(pathlib.Path(os.environ['ORIGIN_CONTRACT']).read_text(encoding='utf-8'))
+expected_contract=json.loads(os.environ['ORIGIN_CONTRACT_JSON'])
+if origin_contract!=expected_contract: raise ValueError('Origin contract differs from pre-allocation approval')
+target=target_module.apply_origin_contract(target,origin_contract)
+origin=target['PUBLIC_URL']; url=urllib.parse.urlsplit(origin)
+if (url.scheme!='https' or not url.hostname or url.username or url.password
+        or url.path not in ('','/') or url.query or url.fragment):
+    raise ValueError('An HTTPS origin without path or credentials is required')
+host=url.hostname
+https_port=int(target['HTTPS_PORT']); http_port=int(target['HTTP_PORT']); media_port=int(target['MEDIA_PORT'])
+if any(not 1<=p<=65535 for p in (https_port,http_port,media_port)) or https_port==http_port:
+    raise ValueError('Invalid port configuration')
+records={}
+for s in services:
+    record=json.loads((repo/'incoming'/s/(s+'.json')).read_text())
+    if (record['batch']!=os.environ['BATCH'] or record['version']!=os.environ['VERSION']
+            or record['deployment_commit']!=os.environ['DEPLOYMENT_COMMIT'] or record['service']!=s
+            or record['run_id']!=os.environ['GITHUB_RUN_ID'] or record['attempt']!=os.environ['GITHUB_RUN_ATTEMPT']):
+        raise ValueError('Batch identity mismatch: '+s)
+    if record['source']!=sources['services'][s]: raise ValueError('Source identity mismatch: '+s)
+    if record.get('version_assignment')!=json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()):
+        raise ValueError('Version allocation mismatch: '+s)
+    if record['platform']!='linux/'+os.environ.get('TARGET_ARCH','arm64') or record['archive']!=s+'.tar.gz': raise ValueError('Wrong platform/archive')
+    archive=repo/'incoming'/s/record['archive']
+    if archive.stat().st_size!=record['bytes'] or digest(archive)!=record['sha256']:
+        raise ValueError('Archive integrity failure: '+s)
+    verifier.verify_image_archive(archive, record)
+    shutil.copyfile(archive,out/'images'/record['archive'])
+    shutil.copyfile(repo/'incoming'/s/(s+'.json'),out/'provenance'/(s+'.json'))
+    for audit_file in (repo/'incoming'/s).glob('network-audit.*'):
+        destination=out/'provenance'/('source-network-'+s)
+        destination.mkdir(exist_ok=True)
+        shutil.copyfile(audit_file,destination/audit_file.name)
+    records[s]=record
+mgr=json.loads((repo/'incoming/jitsi-mgr/build-evidence.json').read_text())
+for key,value in {'service':'jitsi-mgr','batch':os.environ['BATCH'],'version':os.environ['VERSION'],
+        'deployment_commit':os.environ['DEPLOYMENT_COMMIT'],'run_id':os.environ['GITHUB_RUN_ID'],
+        'attempt':os.environ['GITHUB_RUN_ATTEMPT'],'architecture':os.environ['TARGET_ARCH'],
+        'source_commit':sources['services']['jitsi-mgr']['commit'],
+        'version_assignment':json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text())}.items():
+    if mgr.get(key)!=value: raise ValueError('jitsi-mgr build identity mismatch: '+key)
+payload=repo/'incoming/jitsi-mgr/artifacts'
+actual={p.relative_to(payload.parent).as_posix():digest(p) for p in payload.rglob('*') if p.is_file()}
+if not actual or actual!=mgr.get('files') or any(p.is_symlink() for p in payload.rglob('*')):
+    raise ValueError('jitsi-mgr artifact integrity failure')
+shutil.copytree(payload,out/'artifacts')
+shutil.copyfile(repo/'incoming/jitsi-mgr/build-evidence.json',out/'provenance/jitsi-mgr.json')
+shutil.copyfile(skill_root/'tools/init-jitsi-mgr.py',out/'init-jitsi-mgr.py')
+shutil.copyfile(skill_root/'config/jitsi-mgr.env',out/'jitsi-mgr.env')
+common={'PUBLIC_URL':'${PUBLIC_URL:?required}','XMPP_DOMAIN':'meet.jitsi','XMPP_AUTH_DOMAIN':'auth.meet.jitsi',
+ 'XMPP_MUC_DOMAIN':'muc.meet.jitsi','XMPP_INTERNAL_MUC_DOMAIN':'internal-muc.meet.jitsi',
+ 'XMPP_SERVER':'xmpp.meet.jitsi','XMPP_PORT':'5222','JVB_BREWERY_MUC':'jvbbrewery',
+ 'JICOFO_AUTH_USER':'focus','JVB_AUTH_USER':'jvb','JICOFO_AUTH_PASSWORD':'${JICOFO_AUTH_PASSWORD:?required}',
+ 'JVB_AUTH_PASSWORD':'${JVB_AUTH_PASSWORD:?required}','ENABLE_AUTH':'1','AUTH_TYPE':'jwt',
+ 'JWT_APP_ID':'zhsz','JWT_APP_SECRET':'${JWT_APP_SECRET:?required}','JWT_ALLOW_EMPTY':'1',
+ 'ENABLE_AUTO_OWNER':'0','XMPP_MUC_MODULES':'muc_jwt_owner','ENABLE_P2P':'0',
+ 'ENABLE_XMPP_WEBSOCKET':'1','JICOFO_MAX_MEMORY':'256m','JVB_MAX_MEMORY':'384m',
+ 'VIDEOBRIDGE_MAX_MEMORY':'384m','JVB_ADVERTISE_IPS':'${JVB_ADVERTISE_IPS:-}',
+  'JVB_PORT':'${JVB_PORT:?required}','TZ':'Asia/Shanghai'}
+common['BOSH_RELATIVE']='1'
+configs={s:{'image':records[s]['tag'],'pull_policy':'never','restart':'unless-stopped',
+            'mem_limit':'640m','pids_limit':512,'networks':{'meeting':{}}} for s in services}
+public_settings=target_module.read_env(skill_root/'config/jitsi.env')
+# Runtime contracts remain required, but their maintained public values come from jitsi.env.
+for key in set(common) & set(public_settings):
+    common[key]=public_settings[key]
+for key in ('ENABLE_COLIBRI_WEBSOCKET','CODEC_ORDER_JVB','CODEC_ORDER_JVB_MOBILE','JICOFO_REST_PORT','JVB_COLIBRI_PORT'):
+    if key in public_settings: common[key]=public_settings[key]
+for s in ('web','prosody','jicofo','jvb'):
+    configs[s]['environment']=dict(common)
+    configs[s]['volumes']=['./data/jitsi/'+s+':/config']
+    if s!='prosody': configs[s]['depends_on']=['prosody']
+configs['prosody']['networks']['meeting']['aliases']=['xmpp.meet.jitsi']
+configs['prosody']['environment']['XMPP_MUC_MODULES']='muc_jwt_owner,muc_host_transfer'
+configs['prosody']['environment']['CLOUDMEET_HOST_CONTROL_CA']='/host-control/ca.crt'
+configs['prosody']['volumes']=['./data/jitsi/prosody/config:/config',
+ './data/jitsi/storage/prosody:/var/lib/prosody',
+  './data/jitsi/prosody/prosody-plugins-custom:/prosody-plugins-custom:ro',
+  './data/host-control/ca.crt:/host-control/ca.crt:ro']
+configs['web']['environment'].update(DISABLE_HTTPS='1',ENABLE_LETSENCRYPT='0',
+ ENABLE_HTTP_REDIRECT='0',NGINX_WORKER_PROCESSES='1',XMPP_BOSH_URL_BASE='http://xmpp.meet.jitsi:5280')
+configs['jvb']['ports']=['${MEDIA_PORT:?required}:${JVB_PORT:?required}/udp']
+configs['api'].update(mem_limit='384m',environment={'JITSI_TOKEN_APP_ID':'zhsz',
+ 'JITSI_ROLE_CHECK_SECRET':'${JITSI_ROLE_CHECK_SECRET:?required}',
+ 'JITSI_TOKEN_APP_SECRET':'${JWT_APP_SECRET:?required}','JITSI_TOKEN_DOMAIN':'meet.jitsi',
+ 'JITSI_MEET_DB_URL':'jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db','BANNER_LOGO_DIRECTORY':'/data/banner-logos'},
+ volumes=['./data/api:/app/data','./data/logos:/data/banner-logos'])
+configs['app-web'].update(depends_on=['api'],volumes=['./data/logos:/data/banner-logos:ro'])
+mgr_settings=target_module.read_env(skill_root/'config/jitsi-mgr.env')
+mgr_postgres=mgr_settings['JITSI_MGR_DB_URL'].startswith('jdbc:postgresql:')
+if not mgr_postgres and not mgr_settings['JITSI_MGR_DB_URL'].startswith('jdbc:h2:file:/app/data/'):
+    raise ValueError('Unsupported jitsi-mgr persistent database configuration')
+configs['jitsi-mgr']={'image':records['api']['tag'],'pull_policy':'never','restart':'unless-stopped',
+ 'entrypoint':['java','-XX:MaxRAMPercentage=65','-jar','/app/jitsi-mgr.jar'],
+ 'mem_limit':'512m','pids_limit':512,'networks':{'meeting':{}},
+ 'environment':{'SERVER_PORT':'8080','SPRING_PROFILES_ACTIVE':mgr_settings['JITSI_MGR_PROFILE'],
+  'DATABASE_URL':mgr_settings['JITSI_MGR_DB_URL'],'DATABASE_USERNAME':mgr_settings['JITSI_MGR_DB_USER'],
+  'DATABASE_PASSWORD':'${JITSI_MGR_DB_PASSWORD:?required}',
+  'SPRING_DATASOURCE_URL':mgr_settings['JITSI_MGR_DB_URL'],
+  'SPRING_DATASOURCE_USERNAME':mgr_settings['JITSI_MGR_DB_USER'],
+  'SPRING_DATASOURCE_PASSWORD':'${JITSI_MGR_DB_PASSWORD:?required}',
+  'SPRING_DATASOURCE_DRIVER_CLASS_NAME':'org.postgresql.Driver' if mgr_postgres else 'org.h2.Driver',
+  'SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT':'org.hibernate.dialect.PostgreSQLDialect' if mgr_postgres else 'org.hibernate.dialect.H2Dialect',
+  'JWT_PRIVATE_KEY':'file:/app/data/keys/jwt-private.pem',
+  'JWT_PUBLIC_KEY':'file:/app/data/keys/jwt-public.pem','CORS_ALLOWED_ORIGINS':'${PUBLIC_URL:?required}'},
+ 'volumes':['./artifacts/jitsi-mgr.jar:/app/jitsi-mgr.jar:ro','./data/jitsi-mgr:/app/data']}
+configs['gateway'].update(depends_on=['app-web','web'],environment={'SITE_HOST':'${SITE_HOST:?required}',
+ 'PUBLIC_URL':'${PUBLIC_URL:?required}'},
+  ports=['${HTTPS_PORT:?required}:443','${HTTP_PORT:?required}:80'],
+  volumes=['./Caddyfile:/etc/caddy/Caddyfile:ro','caddy_data:/data','caddy_config:/config',
+           './data/host-control/gateway.crt:/host-control/gateway.crt:ro',
+            './data/host-control/gateway.key:/host-control/gateway.key:ro'])
+configs['gateway']['depends_on'].append('jitsi-mgr')
+configs['gateway']['volumes'].append('./artifacts/jitsi-mgr-ui:/jitsi-mgr-ui:ro')
+compose={'name':'cloudmeet-'+os.environ['BATCH'].lower().replace('_','-'),
+ 'services':configs,'networks':{'meeting':{}},'volumes':{'caddy_data':{},'caddy_config':{}}}
+(out/'jitsi-base.yaml').write_text(json.dumps(compose,indent=2)+'\n')
+for name in ('docker-compose.yml','source-images.yaml'): (out/name).write_text('services: {}\n')
+shutil.copyfile(skill_root/'config/jitsi.env',out/'jitsi.env')
+target_file=out/'target.env'
+target_file.write_text('SITE_SCHEME=https\nHTTPS_PORT='+target['HTTPS_PORT']+'\nHTTP_PORT='+target['HTTP_PORT']+'\nMEDIA_PORT='+target['MEDIA_PORT']+'\nMEDIA_HOST='+target['MEDIA_HOST']+'\n',encoding='utf-8')
+shutil.copyfile(skill_root/'config/target.py',out/'target.py')
+if origin_contract.get('tls_mode') not in ('private-ca','caddy-public-acme'):
+    raise ValueError('Approved TLS mode missing from origin contract')
+(out/'provenance/origin-contract.json').write_text(json.dumps(origin_contract,sort_keys=True,indent=2)+'\n',encoding='utf-8')
+(out/'server.env.example').write_text('# Public target parameters are in target.env; .env contains generated secrets only.\n')
+caddy=(skill_root/'config/Caddyfile').read_text(encoding='utf-8')
+if origin_contract['tls_mode']=='caddy-public-acme':
+    cert_spec=importlib.util.spec_from_file_location('certificate_contract',skill_root/'runtime/certificate.py')
+    certificate=importlib.util.module_from_spec(cert_spec);cert_spec.loader.exec_module(certificate)
+    caddy=certificate.public_caddy(caddy,origin)
+(out/'Caddyfile').write_text(caddy)
+if origin_contract.get('client_ca_file'):
+    ca=skill_root/'config'/origin_contract['client_ca_file']
+    if not ca.is_file() or ca.is_symlink(): raise ValueError('Approved client CA is absent or unsafe')
+    shutil.copyfile(ca,out/'client-ca.crt')
+manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
+  'version_assignment':json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()),
+  'network_audit_required':True,
+ 'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
+ 'workflow_commit':os.environ['GITHUB_SHA'],
+   'architecture':os.environ.get('TARGET_ARCH','arm64'),'target_profile':'linux-'+os.environ.get('PACKAGE_ARCH','aarch64')+'-existing-engine','origin':origin,
+  'origin_contract':origin_contract,'tls_mode':origin_contract['tls_mode'],
+  'client_origin':origin,
+ 'entry_mode':'request-origin-local-certificate',
+ 'prosody_storage_owner':[1000,1000],
+ 'deployment_commit':os.environ['DEPLOYMENT_COMMIT'],
+ 'images':{s:[r['tag'],r['image_id']] for s,r in records.items()},
+ 'image_archives':{s:{'tag':r['tag'],'image_id':r['image_id'],'file':r['archive'],'bytes':r['bytes'],
+                     'sha256':r['sha256']} for s,r in records.items()},
+ 'compose':{'file':'bin/docker-compose','sha256':digest(out/'bin/docker-compose'),
+            'url':os.environ['COMPOSE_URL'],'version':os.environ['COMPOSE_VERSION']},
+ 'patches':{p.relative_to(out).as_posix():digest(p) for p in (out/'patches').rglob('*') if p.is_file()},
+  'requires':['Existing Linux '+os.environ.get('PACKAGE_ARCH','aarch64')+' Docker Engine (27.3.1 baseline; actual host prerequisite not checked)',
+             'Python >=3.7, root for installation, working cgroups/storage/network, correct system clock',
+             'Free TCP '+str(https_port)+'/'+str(http_port)+' and UDP '+str(media_port),
+             '4 GiB RAM recommended; lower-memory host compatibility is not established'],
+ 'not_tested':['target host compatibility','installation','service runtime','clients/media'],
+ 'publication':'NOT_PUBLISHED; publish these exact images only after separately approved acceptance'}
+manifest['jitsi_mgr']=mgr
+(out/'candidate.json').write_text(json.dumps(manifest,indent=2)+'\n')
+verifier.verify_jitsi_mgr(out,manifest,compose)
+if records['prosody']['runtime_user']!='1000:1000':
+    raise ValueError('Prosody storage owner does not match image user')
+verifier.require_ready(manifest); verifier.verify_product(out,compose)
+for s in services:
+    if configs[s]['pull_policy']!='never' or configs[s].get('build'):
+        raise ValueError('Offline image configuration required')
+if './data/jitsi/web:/config' not in configs['web']['volumes']:
+    raise ValueError('Missing external web patch mount')
+if './data/jitsi/prosody/prosody-plugins-custom:/prosody-plugins-custom:ro' not in configs['prosody']['volumes']:
+    raise ValueError('Missing role plugin mount')
+if 'custom.css' not in (out/'patches/web/custom-head.html').read_text():
+    raise ValueError('Missing CSS head reference')
+if 'custom.css' not in (out/'patches/web/nginx-custom/custom-css.conf').read_text():
+    raise ValueError('Missing CSS route reference')
+# Retain derived package input audit before checksums; rendering is checked below.
+audit_module=__import__('importlib.util').util
+spec=audit_module.spec_from_file_location('network_audit',skill_root/'tools/network-audit.py')
+network_audit=audit_module.module_from_spec(spec); spec.loader.exec_module(network_audit)
+network_audit.write_report(network_audit.audit(repo),out/'provenance/network-preflight')
+# Host transfer is part of the default product; HTTP downgrade remains optional.
+manifest['patch_decisions']={name:('install' if name in verifier.PRODUCT_PATCHES else
+ 'not installed: documentation or optional Web/HTTP customization') for name in manifest['patches']}
+(out/'candidate.json').write_text(json.dumps(manifest,indent=2)+'\n')
+(out/'INSTALL.md').write_text('''# CloudMeet aarch64 offline package
+
+Target-side certificate installation:
+Keep this archive, its .sha256, setup.py, setup.py.sha256 and private cert.tar.gz together.
+Check both SHA256 sidecars before executing setup.py. Never upload cert.tar.gz to Actions/Git.
+sudo python3 -B setup.py --server-package <archive.tar.gz> --verify-origin https://<actual-host>:<port> --target-env /absolute/path/instance-target.env
+setup refuses an existing extraction directory. Keep any initialized secrets/data after failure;
+do not rerun first-install or overwrite an existing instance. Certificate activation restarts
+only gateway and verifies strict HTTPS /cm/desktop/ with the supplied CA, without redirects.
+The target must reach this origin (including any NAT/firewall path).
+Legacy direct first-install examples below require --verify-origin and target certificate staging.
+
+Batch: '''+os.environ['BATCH']+'\nOrigin: '+origin+'''
+
+This package contains all seven freshly built images, selected product configuration,
+public patches, bundled native Compose and shared installation tools. It does NOT
+include Docker Engine, a host OS, credentials, databases or CA private keys.
+See candidate.json requires for host prerequisites. Do not assume previous server
+software remains installed. Provide compatible Docker Engine separately if missing.
+Packaging completion is not installation, host-compatibility or media acceptance.
+
+## Manual first installation (operator only)
+1. Compare the downloaded archive SHA256 with its separately supplied .sha256 file.
+2. Extract into a new dedicated directory, then cd into that directory. Preserve file modes.
+3. Check `uname -m` (aarch64), `python3 --version` (>=3.7),
+   `docker info` (Linux ARM64 engine), system clock, disk/RAM and port availability.
+4. Run `sha256sum -c SHA256SUMS` and `python3 -B install.py --verify-only`.
+5. Run `./bin/docker-compose version` (no system plugin installation needed).
+6. Copy target.env OUTSIDE the extracted package to an absolute instance-target.env path.
+   Set its ports and a usable explicit MEDIA_HOST. Do not change immutable package files
+   or SHA256SUMS. Browser signaling follows the page origin. The supplied certificate
+   must match --verify-origin. Static checks do not prove NAT/firewall/UDP reachability.
+7. Prefer setup.py above, or after certificate staging run
+   `sudo python3 -B deploy.py --first-install --verify-origin https://<actual-host>:<port> --target-env /absolute/path/instance-target.env` to import the included
+   images, generate fresh secrets, install baseline patches and start the services.
+   The command refuses existing .env/data, never builds/pulls and does not replace Docker.
+   Do not re-run after partial installation by deleting data; inspect the failure first.
+8. Keep .env, data and Caddy volumes on the server. Only export the public CA root
+   for scoped client trust; never export CA private keys. Do not use global TLS bypasses.
+
+No automatic upload, target installation, registry publication or media test was run.
+After initialization the delivery checksum inventory intentionally no longer represents
+the mutable instance; do not rerun first-install verification as an upgrade procedure.
+Publishing later must load these same archives and tag/push without recompiling.
+Registry manifest digest is distinct from Docker image config ID; record both.
+'''.replace('aarch64', os.environ.get('HOST_ARCH','aarch64')).replace('ARM64', os.environ.get('TARGET_ARCH','arm64').upper()))
+for path in out.rglob('*'):
+    if path.is_file() and (path.name=='.env' or path.suffix in ('.key','.pfx','.p12')
+                           or b'-----BEGIN PRIVATE KEY-----' in (path.read_bytes() if path.stat().st_size<2_000_000 else b'')):
+        raise ValueError('Secret material in package: '+str(path))
+import subprocess
+subprocess.run(['python3','-B',str(skill_root/'tools/stage-h5.py'),str(repo),str(repo/'h5-source'),str(out),os.environ['VERSION_RECORD']],check=True)
+render_env=dict(os.environ,JWT_APP_SECRET='RENDER_ONLY',JICOFO_AUTH_PASSWORD='RENDER_ONLY',
+                JVB_AUTH_PASSWORD='RENDER_ONLY',JITSI_ROLE_CHECK_SECRET='RENDER_ONLY',JITSI_MGR_DB_PASSWORD='RENDER_ONLY')
+render_env.update(target)
+rendered=json.loads(subprocess.check_output([str(out/'bin/docker-compose'),'-f',
+    str(out/'jitsi-base.yaml'),'config','--format','json'],env=render_env,stderr=subprocess.PIPE))
+network_report=network_audit.audit(repo,rendered=rendered)
+network_audit.write_report(network_report,out/'provenance/network-rendered')
+network_audit.write_report(network_report,repo/'output/network-audit-assemble-package/rendered')
+if network_report['errors']: raise ValueError('Rendered network audit failed; see retained report')
+(out/'SHA256SUMS').write_text(''.join(digest(p)+'  '+p.relative_to(out).as_posix()+'\n'
+ for p in sorted(out.rglob('*')) if p.is_file() and p.name!='SHA256SUMS'))
+verifier.verify_checksums(out)
+PY
+    # Rendering only: no daemon operation or application startup.
+    # target.py already exported validated public settings; example files are not inputs.
+    JWT_APP_SECRET=RENDER_ONLY JICOFO_AUTH_PASSWORD=RENDER_ONLY JVB_AUTH_PASSWORD=RENDER_ONLY \
+    JITSI_ROLE_CHECK_SECRET=RENDER_ONLY JITSI_MGR_DB_PASSWORD=RENDER_ONLY \
+        "$output/bin/docker-compose" -f "$output/jitsi-base.yaml" config --quiet
+    python3 -B "$output/install.py" --verify-only
+    python3 -B "$tools/online-material.py" --source "$output" --destination "$output-online"
+    tar -czf "$output.tar.gz" -C "$(dirname "$output")" "$(basename "$output")"
+    (cd "$(dirname "$output")"; sha256sum "$(basename "$output").tar.gz" > "$(basename "$output").tar.gz.sha256")
+    # Re-read the actual final archive, not only the staging directory.
+    python3 - "$output.tar.gz" <<'PY'
+import hashlib, json, pathlib, sys, tarfile
+archive=pathlib.Path(sys.argv[1])
+with tarfile.open(archive,'r:gz') as tar:
+    files={m.name:m for m in tar.getmembers() if m.isfile()}
+    prefix=archive.name[:-7]+'/'
+    expected={}
+    for line in tar.extractfile(files[prefix+'SHA256SUMS']).read().decode().splitlines():
+        digest,name=line.split('  ',1); expected[prefix+name]=digest
+    if set(files)!=set(expected)|{prefix+'SHA256SUMS'}: raise ValueError('Archive member mismatch')
+    for name,digest in expected.items():
+        h=hashlib.sha256()
+        with tar.extractfile(files[name]) as stream:
+            for block in iter(lambda:stream.read(1024*1024),b''): h.update(block)
+        if h.hexdigest()!=digest: raise ValueError('Archive integrity failure: '+name)
+evidence={'status':'PASS_MATERIALS_ONLY','batch':__import__('os').environ['BATCH'],
+ 'archive':archive.name,'files':len(expected),'not_run':['installation','services','media','publication']}
+(archive.parent/'package-evidence.json').write_text(json.dumps(evidence,indent=2)+'\n')
+PY
+}
+
+case "${1:-}" in
+    build) build_service "${2:?Missing service}" ;;
+    assemble) assemble_package ;;
+    *) die 'Usage: package.sh build SERVICE | assemble' ;;
+esac

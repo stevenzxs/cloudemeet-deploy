@@ -47,7 +47,7 @@ jobs:
         run: |
           test "$MATERIAL_COMMIT" = "$GITHUB_SHA"
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
-          sha256sum -c build-tools/inputs.sha256
+          sha256sum -c skills/full-build-deploy/inputs.sha256
           printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
@@ -62,13 +62,13 @@ jobs:
           name: cloudmeet-${{ inputs.architecture == 'amd64' && 'amd64' || 'aarch64' }}-${{ github.run_id }}-${{ github.run_attempt }}
           path: server-downloads
       - name: Validate both clients and prepare immutable Release assets before any publication
-        run: python3 -B build-tools/joint-release.py prepare
+        run: python3 -B skills/full-build-deploy/tools/joint-release.py prepare
       - name: Authenticate to GHCR only
         run: printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
       - name: Publish exact seven images, then Release assets
         run: |
-          python3 -B build-tools/publish.py
-          python3 -B build-tools/joint-release.py publish
+          python3 -B skills/full-build-deploy/tools/publish.py
+          python3 -B skills/full-build-deploy/tools/joint-release.py publish
       - name: Remove registry session
         if: always()
         run: docker logout ghcr.io

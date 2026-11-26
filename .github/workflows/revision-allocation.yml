@@ -20,6 +20,8 @@ on:
     outputs:
       assignment:
         value: ${{ jobs.allocate.outputs.assignment }}
+      origin_contract:
+        value: ${{ jobs.allocate.outputs.origin_contract }}
 permissions:
   contents: write
 jobs:
@@ -29,6 +31,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       assignment: ${{ steps.record.outputs.assignment }}
+      origin_contract: ${{ steps.origin.outputs.contract }}
     steps:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
@@ -42,9 +45,18 @@ jobs:
         run: |
           test "$MATERIAL_SHA" = "$GITHUB_SHA"
           test "$MATERIAL_SHA" = "$(git rev-parse HEAD)"
-          sha256sum -c build-tools/inputs.sha256
-          python3 -B -m unittest discover -s build-tools/tests -p 'test_tls_contract.py'
-          python3 -B build-tools/tls_contract.py
+          sha256sum -c skills/full-build-deploy/inputs.sha256
+          python3 -B -m unittest discover -s skills/full-build-deploy/tests -p 'test_tls_dynamic_origin.py'
+          python3 -B skills/full-build-deploy/tools/tls_contract.py
+      - name: Normalize user origin and retain DNS evidence before revision allocation
+        id: origin
+        env:
+          EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
+          EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
+        run: |
+          python3 -B skills/full-build-deploy/tools/origin_contract.py --output origin-contract.json
+          contract=$(jq -c . origin-contract.json)
+          echo "contract=$contract" >> "$GITHUB_OUTPUT"
       - name: Allocate or verify inherited parent record against persistent ledger
         id: record
         env:
@@ -53,10 +65,12 @@ jobs:
           INHERITED_ASSIGNMENT: ${{ inputs.assignment }}
           LEDGER_ANCHOR: ${{ vars.CLOUDMEET_LEDGER_ANCHOR }}
           GH_TOKEN: ${{ github.token }}
+          EXPECTED_ORIGIN_CONTRACT: ${{ steps.origin.outputs.contract }}
         run: |
+          test "$(python3 -c 'import json;print(json.load(open("origin-contract.json"))["origin"])')" = "$(python3 -c 'import json,os;print(json.loads(os.environ["EXPECTED_ORIGIN_CONTRACT"])["origin"])')"
           export LEDGER_AUTH_HEADER="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 -w0)"
           echo "::add-mask::${LEDGER_AUTH_HEADER}"
           unset GH_TOKEN
-          python3 -B build-tools/allocate-workflow.py
+          python3 -B skills/full-build-deploy/tools/allocate-workflow.py
       - name: Verify revision contract after persistent allocation (failure still consumes revision)
-        run: python3 -B -m unittest discover -s build-tools/tests -p 'test_revision*.py'
+        run: python3 -B -m unittest discover -s skills/full-build-deploy/tests -p 'test_revision*.py'
