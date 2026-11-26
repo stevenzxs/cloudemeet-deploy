@@ -389,8 +389,12 @@ async function main() {
   let originContract = null;
   if (!options.check) {
     const contract = JSON.parse(fs.readFileSync(options.originContract, 'utf8'));
-    if (contract.origin !== config.origin || contract.scheme !== config.values.SITE_SCHEME
+    const authorityHost = contract.host.includes(':') ? `[${contract.host}]` : contract.host;
+    const defaultPort = contract.scheme === 'https' ? 443 : 80;
+    const canonicalOrigin = `${contract.scheme}://${authorityHost}${Number(contract.port) === defaultPort ? '' : `:${contract.port}`}`;
+    if (contract.scheme !== config.values.SITE_SCHEME
         || contract.host !== config.values.SITE_DOMAIN || String(contract.port) !== config.values.SITE_PORT
+        || config.origin !== canonicalOrigin
         || (contract.tls_mode && contract.tls_mode !== config.tlsMode)
         || (contract.tls_mode === 'private-ca' && contract.client_ca_file !== config.values.CLIENT_CA_FILE)) {
       throw Error('Batch client configuration differs from normalized origin contract');

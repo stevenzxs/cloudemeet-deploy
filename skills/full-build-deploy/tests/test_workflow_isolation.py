@@ -18,6 +18,19 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertLess(workflow.index("Normalize user origin"), workflow.index("Allocate or verify inherited parent record"))
         self.assertNotIn("build-tools/", workflow[:workflow.index("Verify revision contract after persistent allocation")])
 
+    def test_package_script_verifies_repository_manifest_from_repository_root(self):
+        script = (ROOT / "scripts/package.sh").read_text(encoding="utf-8")
+        self.assertRegex(script, r"\(cd\s+\"\$repo/\.\./\.\.\";\s*sha256sum -c skills/full-build-deploy/inputs\.sha256\)")
+
+    def test_build_workflows_verify_the_current_skill_manifest(self):
+        for name in ("revision-allocation.yml", "build-package.yml", "publish-release.yml"):
+            workflow = (WORKFLOWS / name).read_text(encoding="utf-8")
+            self.assertIn("sha256sum -c skills/full-build-deploy/inputs.sha256", workflow, name)
+        manifest = (ROOT / "inputs.sha256").read_text(encoding="utf-8")
+        self.assertIn("skills/full-build-deploy/scripts/package.sh", manifest)
+        self.assertIn("skills/full-build-deploy/tools/clients/build-clients.cjs", manifest)
+        self.assertIn(".github/workflows/build-package.yml", manifest)
+
     def test_client_batch_config_is_shared_origin_source_for_build_and_audit(self):
         workflow = (WORKFLOWS / "build-clients.yml").read_text(encoding="utf-8")
         self.assertIn("--env-file", workflow)
