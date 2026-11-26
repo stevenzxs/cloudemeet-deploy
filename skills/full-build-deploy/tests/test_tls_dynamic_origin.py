@@ -46,6 +46,17 @@ class DynamicOriginTests(unittest.TestCase):
         self.assertEqual(result['tls_mode'], "private-ca")
         self.assertEqual(result['client_ca_file'], 'client-ca.crt')
 
+    def test_required_client_env_is_tracked_and_available_in_checkout(self):
+        root = Path(__file__).resolve().parents[3]
+        config = root / "skills/full-build-deploy/config/client.env"
+        tracked = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", str(config.relative_to(root))],
+            cwd=root, capture_output=True, text=True,
+        )
+        self.assertEqual(tracked.returncode, 0, tracked.stderr)
+        self.assertTrue(config.is_file())
+        self.assertIn("CLIENT_VERSION=", config.read_text(encoding="utf-8"))
+
 
 if __name__ == "__main__":
     unittest.main()
