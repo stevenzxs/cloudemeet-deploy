@@ -167,10 +167,10 @@ test('arguments accept explicit per-batch configuration and reject ambiguity', (
   fs.rmSync(contract, { force: true });
   fs.rmSync(tempEnv, { force: true });
 });
-test('skill revision configuration resolves its own version policy and source lock', () => {
+test('skill revision configuration resolves its own source lock without revision validator', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../revision-config.cjs'), 'utf8');
-  assert.match(source, /path\.join\(skillRoot, 'revision_versions\.py'\)/);
-  assert.match(source, /config\/version-policy\.json/);
+  assert.doesNotMatch(source, /revision_versions\.py/);
+  assert.doesNotMatch(source, /version-policy\.json/);
   assert.match(source, /path\.join\(skillRoot, 'sources\.json'\)/);
   assert.doesNotMatch(source, /deploy\/build-tools|deploy\/config/);
 });

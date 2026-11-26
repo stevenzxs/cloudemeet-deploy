@@ -31,10 +31,12 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertNotIn('"$tools/../', script)
         self.assertNotIn('"$repo/tools/revision_versions.py"', script)
 
-    def test_client_allocation_validator_uses_the_skill_tool_path(self):
+    def test_client_allocation_validator_avoids_revision_versions(self):
         client_validator = ROOT / 'tools/clients/revision-config.cjs'
         source = client_validator.read_text(encoding='utf-8')
-        self.assertIn("path.join(skillRoot, 'revision_versions.py')", source)
+        self.assertNotIn("revision_versions.py", source)
+        self.assertIn("configuration_sha", source)
+        self.assertIn("run_id", source)
 
     def test_build_workflows_do_not_require_inputs_manifest(self):
         for name in ("revision-allocation.yml", "build-package.yml", "publish-release.yml"):

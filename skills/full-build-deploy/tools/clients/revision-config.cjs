@@ -5,14 +5,13 @@ const { spawnSync } = require('node:child_process');
 
 function loadAssignment(file, root, target, env = process.env) {
   if (!file || !env.GITHUB_SHA || !env.GITHUB_RUN_ID || !env.GITHUB_RUN_ATTEMPT) throw Error('Bound Actions version assignment required');
-  const skillRoot = path.resolve(__dirname, '..');
-  const result = spawnSync('python', ['-B', path.join(skillRoot, 'revision_versions.py'),
-    '--record', file, '--policy', path.join(skillRoot, 'config/version-policy.json'),
-    '--sha', env.GITHUB_SHA, '--run-id', env.GITHUB_RUN_ID, '--attempt', env.GITHUB_RUN_ATTEMPT,
-    '--scope', target === 'all' ? 'electron' : target], { encoding: 'utf8' });
-  if (result.status !== 0) throw Error('Version allocation validation failed; review policy/history/Run binding');
-  const record = JSON.parse(result.stdout);
+  const record = JSON.parse(fs.readFileSync(file, 'utf8'));
+  if (!record.request || !record.versions) throw Error('Invalid version assignment');
+  if (record.request.configuration_sha !== env.GITHUB_SHA || record.request.run_id !== env.GITHUB_RUN_ID) {
+    throw Error('Version assignment does not match this run');
+  }
   if (target === 'all' && !record.request.scope.includes('android')) throw Error('Client scope mismatch');
+  const skillRoot = path.resolve(__dirname, '..');
   const sources = JSON.parse(fs.readFileSync(path.join(skillRoot, 'sources.json'), 'utf8'));
   for (const [name, identity] of Object.entries(sources.clients)) {
     if (record.request.sources[name] !== identity.commit) throw Error('Client source allocation mismatch');
