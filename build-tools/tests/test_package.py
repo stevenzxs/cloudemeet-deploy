@@ -118,7 +118,7 @@ PUBLIC_ORIGIN=$PUBLIC_URL
         # This reviewed tree contains jitsi-mgr-app/pom.xml and
         # jitsi-mgr-frontend/package-lock.json and the JJWT 0.12 parser repair.
         self.assertEqual(sources['services']['jitsi-mgr']['commit'],
-                         'e98c935297e9fdf23d98ae7a9a80e1c0e8bc0bd1')
+                         '174c03cad23ab87c7ca2c1b999edc799dfd2c50a')
 
     def test_embedded_python_is_valid_and_checks_actual_image_archive(self):
         script = (ROOT / 'build-tools/package.sh').read_text(encoding='utf-8')
