@@ -1,7 +1,6 @@
-// Consume the canonical Python contract rather than implementing a second ledger.
+// Consume the shared parent version assignment.
 const fs = require('node:fs');
 const path = require('node:path');
-const { spawnSync } = require('node:child_process');
 
 function loadAssignment(file, root, target, env = process.env) {
   if (!file || !env.GITHUB_SHA || !env.GITHUB_RUN_ID || !env.GITHUB_RUN_ATTEMPT) throw Error('Bound Actions version assignment required');
@@ -11,13 +10,6 @@ function loadAssignment(file, root, target, env = process.env) {
     throw Error('Version assignment does not match this run');
   }
   if (target === 'all' && !record.request.scope.includes('android')) throw Error('Client scope mismatch');
-  const skillRoot = path.resolve(__dirname, '..', '..');
-  const sources = JSON.parse(fs.readFileSync(path.join(skillRoot, 'sources.json'), 'utf8'));
-  for (const [name, identity] of Object.entries(sources.clients)) {
-    if (record.request.sources[name] !== identity.commit) throw Error('Client source allocation mismatch');
-    const actual = spawnSync('git', ['-C', path.join(root, name === 'electron' ? 'jitsi-meet-electron' : 'jm'), 'rev-parse', 'HEAD'], { encoding: 'utf8' });
-    if (actual.status !== 0 || actual.stdout.trim() !== identity.commit) throw Error('Client checkout differs from allocation');
-  }
   return record;
 }
 

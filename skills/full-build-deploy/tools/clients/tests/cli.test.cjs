@@ -167,11 +167,12 @@ test('arguments accept explicit per-batch configuration and reject ambiguity', (
   fs.rmSync(contract, { force: true });
   fs.rmSync(tempEnv, { force: true });
 });
-test('skill revision configuration resolves its own source lock without revision validator', () => {
+test('skill revision configuration avoids legacy validators and checkout binding', () => {
   const source = fs.readFileSync(path.resolve(__dirname, '../revision-config.cjs'), 'utf8');
   assert.doesNotMatch(source, /revision_versions\.py/);
   assert.doesNotMatch(source, /version-policy\.json/);
-  assert.match(source, /path\.join\(skillRoot, 'sources\.json'\)/);
+  assert.doesNotMatch(source, /sources\.json/);
+  assert.doesNotMatch(source, /Client checkout differs from allocation/);
   assert.doesNotMatch(source, /deploy\/build-tools|deploy\/config/);
 });
 test('skill-local client config contains no fixed endpoint or fixed TLS approval', () => {
