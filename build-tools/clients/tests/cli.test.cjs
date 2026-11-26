@@ -8,6 +8,19 @@ const { argumentsFor, collect, androidTasks } = require('../build-clients.cjs');
 test('Android always repackages APK while retaining dependency compilation cache', () => {
   assert.deepEqual(androidTasks(), [':app:packageRelease', '--rerun', ':app:assembleRelease']);
 });
+test('Android phase timing uses a monotonic clock and records verification and delivery', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../build-clients.cjs'), 'utf8');
+  for (const marker of ['android-gradle-build', 'android-package-verification', 'android-delivery']) {
+    assert.ok(source.includes(marker), `Missing phase timing ${marker}`);
+  }
+  assert.match(source, /process\.hrtime\.bigint\(\)/);
+  assert.match(source, /finally\s*\{\s*timing\.durationMs = elapsedMs\(started\);[\s\S]{0,100}save\(\)/);
+});
+test('Android Gradle invocation enables build cache and preserves forced APK packaging', () => {
+  const source = fs.readFileSync(path.join(__dirname, '../build-clients.cjs'), 'utf8');
+  assert.deepEqual(androidTasks(), [':app:packageRelease', '--rerun', ':app:assembleRelease']);
+  assert.match(source, /'--no-daemon', '--build-cache'/);
+});
 const { parseConfig } = require('../core.cjs');
 test('failed child retains sanitized diagnostics and reports the actual exit code', async () => {
   const { run } = require('../build-clients.cjs');

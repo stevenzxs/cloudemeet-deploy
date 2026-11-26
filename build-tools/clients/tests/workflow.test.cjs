@@ -27,6 +27,11 @@ test('client workflow keeps Android signing but removes Windows signing credenti
   assert.match(text, /client-ca.crt/);
   assert.match(text, /27.1.12297006/);
   assert.match(text, /java-version: '17'/);
+  assert.match(text, /cache: gradle/);
+  assert.match(text, /jm\/android\/gradle\/wrapper\/gradle-wrapper\.properties/);
+  assert.match(text, /Gradle dependency cache restored: \$hit/);
+  assert.ok(text.indexOf('path: jm') < text.indexOf('Set up Java and restore Gradle dependency cache'),
+    'Android source must be checked out before the dependency cache is calculated');
   assert.match(text, /name: Retain audit and sanitized build diagnostics even on failure\s+if: always\(\)/);
   assert.match(text, /path: client-network-audit\//);
   assert.doesNotMatch(text, /path:.*(?:cloudmeet-clients-|electron\.log|android\.log)/);

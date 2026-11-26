@@ -179,6 +179,10 @@ function androidTasks() {
   return [':app:packageRelease', '--rerun', ':app:assembleRelease'];
 }
 
+function elapsedMs(started) {
+  return Number((process.hrtime.bigint() - started) / 1000000n);
+}
+
 function androidLayout(abis) {
   const actual = [...new Set(abis)].sort();
   const supported = ['armeabi-v7a', 'arm64-v8a', 'x86_64'];
@@ -224,8 +228,27 @@ async function build(options, config, report) {
     const candidate = createCandidate();
     require('./network-audit.cjs').stageReports(options.auditDir, candidate);
     if (!config.assignment) throw Error('Allocated version required; legacy versions are diagnostic-only');
-    const manifest = { ...report, tls_mode: config.tlsMode, versionAssignment: config.assignment, status: 'building', candidate, started: new Date().toISOString(), artifacts: [] };
+    const manifest = { ...report, tls_mode: config.tlsMode, versionAssignment: config.assignment, status: 'building', candidate, started: new Date().toISOString(), artifacts: [], phaseTimings: [] };
     const save = () => fs.writeFileSync(path.join(candidate, 'build.json'), JSON.stringify(manifest, null, 2) + '\n');
+    const timed = async (name, action, artifact) => {
+      const started = process.hrtime.bigint();
+      const timing = { phase: name, ...(artifact ? { artifact: path.basename(artifact) } : {}), status: 'running' };
+      manifest.phaseTimings.push(timing);
+      console.error(`[client-timing] ${name} started`);
+      save();
+      try {
+        const result = await action();
+        timing.status = 'success';
+        return result;
+      } catch (error) {
+        timing.status = 'failed';
+        throw error;
+      } finally {
+        timing.durationMs = elapsedMs(started);
+        console.error(`[client-timing] ${name} ${timing.status} ${timing.durationMs}ms`);
+        save();
+      }
+    };
     const recordNetwork = (name, data) => {
       writeAudit(candidate, name, data, root);
       if (process.env.CLOUDMEET_AUDIT_DIR) writeAudit(process.env.CLOUDMEET_AUDIT_DIR, name, data, root);
@@ -302,17 +325,17 @@ async function build(options, config, report) {
             restrictions: fs.readFileSync(restrictions, 'utf8'),
             trust: (ca || config.tlsMode === 'caddy-public-acme') ? fs.readFileSync(path.join(project, 'android/app/src/main/res/xml/network_security_config.xml'), 'utf8') : null
           }));
-          const gradleArgs = [...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'];
+          const gradleArgs = [...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon', '--build-cache'];
           if (process.env.CLOUDMEET_GRADLE_INIT) gradleArgs.push('--init-script', process.env.CLOUDMEET_GRADLE_INIT);
           // Bound repository downloads so a degraded Maven egress fails fast
           // and retries instead of stalling the build for tens of minutes.
           const gradleEnv = { ...env, GRADLE_OPTS: `${env.GRADLE_OPTS || ''} -Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=60000`.trim() };
           if (process.platform === 'win32') {
-            await run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...gradleArgs], path.join(project, 'android'), gradleEnv, path.join(candidate, 'android.log'));
+            await timed('android-gradle-build', () => run(process.env.ComSpec || 'cmd.exe', ['/d', '/c', 'gradlew.bat', ...gradleArgs], path.join(project, 'android'), gradleEnv, path.join(candidate, 'android.log')));
           } else {
             const wrapper = path.join(project, 'android', 'gradlew');
             fs.chmodSync(wrapper, 0o755);
-            await run(wrapper, gradleArgs, path.join(project, 'android'), gradleEnv, path.join(candidate, 'android.log'));
+            await timed('android-gradle-build', () => run(wrapper, gradleArgs, path.join(project, 'android'), gradleEnv, path.join(candidate, 'android.log')));
           }
           manifest.artifacts.push(...collect(path.join(project, 'android/app/build/outputs/apk/release'), candidate, '.apk', started, inspectApk));
         });
@@ -321,13 +344,14 @@ async function build(options, config, report) {
       manifest.status = 'checking-packages'; save();
       for (const artifact of manifest.artifacts) {
         const scratch = fs.mkdtempSync(path.join(candidate, 'inspection-'));
-        artifact.checks = require('./verify-package.cjs').verifyPackage(
-          path.join(candidate, artifact.file), artifact, config, ca, root, scratch);
+        artifact.checks = await timed(options.target === 'android' ? 'android-package-verification' : 'client-package-verification', () => require('./verify-package.cjs').verifyPackage(
+          path.join(candidate, artifact.file), artifact, config, ca, root, scratch), artifact.file);
       }
       manifest.networkAudit = writeAudit(candidate, 'network-final-packages', auditPackages(manifest), root);
       recordNetwork('network-final-packages', manifest.networkAudit);
       console.error('[client-stage] Deliver verified packages');
-      manifest.deliveries = require('./delivery.cjs').deliver(manifest, report.deliveryRoot);
+      manifest.deliveries = await timed(options.target === 'android' ? 'android-delivery' : 'client-delivery',
+        () => require('./delivery.cjs').deliver(manifest, report.deliveryRoot));
       manifest.status = 'packaged-delivered';
       manifest.acceptance = 'Package checks and delivery completed; installation, endpoint TLS and media acceptance not performed.';
       save(); console.log(JSON.stringify(manifest, null, 2));
