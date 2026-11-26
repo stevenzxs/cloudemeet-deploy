@@ -12,12 +12,17 @@ if [ -z "$CHANGED_BUILD_FILES" ]; then
     exit 0
 fi
 
-# 检查 inputs.sha256 是否也被修改
-INPUTS_SHA256_CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep -E '^build-tools/inputs\.sha256$' || true)
+# 修改技能闭包时检查技能自己的清单；旧构建目录继续使用旧清单。
+if printf '%s\n' "$CHANGED_BUILD_FILES" | grep -q '^skills/full-build-deploy/'; then
+    MANIFEST=skills/full-build-deploy/inputs.sha256
+else
+    MANIFEST=build-tools/inputs.sha256
+fi
+INPUTS_SHA256_CHANGED=$(git diff --cached --name-only --diff-filter=ACM | grep -Fx "$MANIFEST" || true)
 
 if [ -z "$INPUTS_SHA256_CHANGED" ]; then
     echo ""
-    echo "❌ 错误：检测到构建文件修改，但 build-tools/inputs.sha256 未更新"
+    echo "❌ 错误：检测到构建文件修改，但 $MANIFEST 未更新"
     echo ""
     echo "修改的构建文件："
     echo "$CHANGED_BUILD_FILES" | sed 's/^/  - /'
@@ -25,7 +30,7 @@ if [ -z "$INPUTS_SHA256_CHANGED" ]; then
     echo "请执行以下操作："
     echo "  1. 重新计算修改文件的哈希并更新 inputs.sha256"
     echo "  2. 或运行: bash .githooks/update-inputs-sha256.sh"
-    echo "  3. git add build-tools/inputs.sha256"
+    echo "  3. git add $MANIFEST"
     echo ""
     echo "如需跳过此检查（不推荐）: git commit --no-verify"
     echo ""
@@ -37,7 +42,7 @@ echo "✓ 检测到 inputs.sha256 已更新，验证哈希..."
 
 # 检出暂存区的 inputs.sha256 到临时文件
 TEMP_SHA256=$(mktemp)
-git show :build-tools/inputs.sha256 > "$TEMP_SHA256"
+git show ":$MANIFEST" > "$TEMP_SHA256"
 
 # 验证哈希（排除 inputs.sha256 自身和 .new 文件）
 VALIDATION_FAILED=false

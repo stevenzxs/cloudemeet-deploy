@@ -27,7 +27,7 @@ export TARGET_ARCH HOST_ARCH PACKAGE_ARCH COMPOSE_ARCH
 [[ $BATCH == "${VERSION/+/-}-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT" ]] || die 'Batch identity mismatch'
 deployment_commit=$(git -C "$repo" rev-parse HEAD)
 [[ $deployment_commit == "$GITHUB_SHA" ]] || die 'Workflow commit mismatch'
-(cd "$repo/.."; sha256sum -c inputs.sha256)
+(cd "$repo/../.."; sha256sum -c skills/full-build-deploy/inputs.sha256)
 export VERSION BATCH DEPLOYMENT_COMMIT="$deployment_commit"
 : "${VERSION_RECORD:?Bound version allocation record required}"
 python3 -B "$tools/revision_versions.py" --record "$VERSION_RECORD" --policy "$repo/config/version-policy.json" \
