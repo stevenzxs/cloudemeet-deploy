@@ -1,4 +1,4 @@
-"""Run Maven with Central-only, artifact-level Aliyun/404 fallback routing."""
+"""Run Maven through the approved Tencent mirror with Central fallback."""
 import argparse
 import http.server
 import json
@@ -15,7 +15,7 @@ import urllib.parse
 import urllib.request
 import xml.etree.ElementTree as ET
 
-ALIYUN = 'https://maven.aliyun.com/repository/public/'
+TENCENT = 'https://mirrors.cloud.tencent.com/nexus/repository/maven-public/'
 CENTRAL = 'https://repo.maven.apache.org/maven2/'
 
 
@@ -75,8 +75,8 @@ def failure_reason(error):
 
 
 def fetch_artifact(relative, opener, audit=lambda record: None):
-    """Only an explicit Aliyun 404 permits a request to Central."""
-    for origin in (ALIYUN, CENTRAL):
+    """Only an explicit Tencent 404 permits a request to Central."""
+    for origin in (TENCENT, CENTRAL):
         for attempt in range(1, 4):
             started = time.monotonic()
             record = {'artifact': relative, 'origin': origin, 'attempt': attempt,
@@ -88,7 +88,7 @@ def fetch_artifact(relative, opener, audit=lambda record: None):
                 status = error.code if http_error else 502
                 reason = 'http_status' if http_error else failure_reason(error)
                 transient = status in (502, 503, 504) if http_error else reason in ('timeout', 'connection_reset')
-                fallback = http_error and status == 404 and origin == ALIYUN
+                fallback = http_error and status == 404 and origin == TENCENT
                 retry = transient and attempt < 3
                 record.update(status=status, failure_kind='upstream_http' if http_error else 'transport',
                               exception_type=type(error).__name__, reason=reason,

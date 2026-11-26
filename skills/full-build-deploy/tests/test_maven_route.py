@@ -28,12 +28,12 @@ class MavenRouteTests(unittest.TestCase):
         self.assertIn('allowInsecureProtocol = true', text)
         self.assertIn('http://127.0.0.1:12345/', text)
 
-    def test_aliyun_success_never_requests_central(self):
+    def test_tencent_success_never_requests_central(self):
         opener = Mock()
         response, origin = route.fetch_artifact('g/a/1/a-1.pom', opener)
         self.assertIs(response, opener.open.return_value)
-        self.assertEqual(origin, route.ALIYUN)
-        opener.open.assert_called_once_with(route.ALIYUN + 'g/a/1/a-1.pom', timeout=60)
+        self.assertEqual(origin, route.TENCENT)
+        opener.open.assert_called_once_with(route.TENCENT + 'g/a/1/a-1.pom', timeout=60)
 
     def test_only_404_falls_back_for_same_artifact(self):
         opener = Mock()
@@ -41,7 +41,7 @@ class MavenRouteTests(unittest.TestCase):
         _, origin = route.fetch_artifact('g/a/1/a-1.jar', opener)
         self.assertEqual(origin, route.CENTRAL)
         self.assertEqual([call.args[0] for call in opener.open.call_args_list],
-                         [route.ALIYUN + 'g/a/1/a-1.jar', route.CENTRAL + 'g/a/1/a-1.jar'])
+                         [route.TENCENT + 'g/a/1/a-1.jar', route.CENTRAL + 'g/a/1/a-1.jar'])
 
     def test_http_errors_fail_closed(self):
         for status in (401, 403, 429, 500, 301):
@@ -70,8 +70,8 @@ class MavenRouteTests(unittest.TestCase):
                 opener.open.side_effect = [error, error, Mock(status=200)]
                 records = []
                 _, origin = route.fetch_artifact('a.pom', opener, records.append)
-                self.assertEqual(origin, route.ALIYUN)
-                self.assertEqual([c.args[0] for c in opener.open.call_args_list], [route.ALIYUN+'a.pom']*3)
+                self.assertEqual(origin, route.TENCENT)
+                self.assertEqual([c.args[0] for c in opener.open.call_args_list], [route.TENCENT+'a.pom']*3)
                 self.assertEqual([c.args[0] for c in sleep.call_args_list], [2, 5])
                 self.assertEqual([r['attempt'] for r in records], [1, 2, 3])
                 self.assertTrue(all('elapsed_ms' in r and 'origin' in r for r in records))
@@ -95,7 +95,7 @@ class MavenRouteTests(unittest.TestCase):
         with patch.object(route.time, 'sleep'), self.assertRaises(urllib.error.HTTPError):
             route.fetch_artifact('a.pom', opener, records.append)
         self.assertEqual(opener.open.call_count, 3)
-        self.assertTrue(all(r['origin'] == route.ALIYUN for r in records))
+        self.assertTrue(all(r['origin'] == route.TENCENT for r in records))
         self.assertEqual(records[-1]['failure_kind'], 'upstream_http')
         self.assertEqual(records[-1]['action'], 'fail')
 
@@ -107,7 +107,7 @@ class MavenRouteTests(unittest.TestCase):
             _, origin = route.fetch_artifact('a.pom.sha1', opener)
         self.assertEqual(origin, route.CENTRAL)
         self.assertEqual([c.args[0] for c in opener.open.call_args_list],
-                         [route.ALIYUN+'a.pom.sha1', route.CENTRAL+'a.pom.sha1', route.CENTRAL+'a.pom.sha1'])
+                         [route.TENCENT+'a.pom.sha1', route.CENTRAL+'a.pom.sha1', route.CENTRAL+'a.pom.sha1'])
         sleep.assert_called_once_with(2)
 
     def test_diagnostics_never_echo_exception_secrets(self):
@@ -134,7 +134,7 @@ class MavenRouteTests(unittest.TestCase):
 
     def test_all_maven_builds_use_router(self):
         script = (pathlib.Path(__file__).parents[1] / 'scripts' / 'package.sh').read_text(encoding='utf-8')
-        self.assertEqual(script.count('"$tools/maven-route.py"'), 3)
+        self.assertEqual(script.count('"$repo/tools/maven-route.py"'), 3)
         self.assertNotIn('; mvn -B', script)
 
     def test_settings_preserve_private_repositories_credentials_and_proxies(self):

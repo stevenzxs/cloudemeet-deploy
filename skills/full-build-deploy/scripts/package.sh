@@ -130,7 +130,7 @@ print(i["RepoDigests"][0])' "$ref"
             ;;
         api)
             runtime=$(resolve_base eclipse-temurin:17-jre-jammy)
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; mvn -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
             jars=("$source/target/"*.jar)
             [[ ${#jars[@]} == 1 && -s ${jars[0]} ]] || die 'Expected one API jar'
             cp "${jars[0]}" "$context/app.jar"
@@ -138,7 +138,7 @@ print(i["RepoDigests"][0])' "$ref"
         jitsi-mgr)
             # jitsi-mgr is not a Docker image service - it outputs JAR and frontend static files
             # Backend: Spring Boot JAR
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; mvn -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
             backend_jars=("$source/jitsi-mgr-app/target/"jitsi-mgr-*.jar)
             # Exclude -sources.jar and -javadoc.jar
             filtered_jars=()
@@ -219,7 +219,7 @@ PY
         jicofo|jvb)
             resolve_base "$lifecycle_base" > /dev/null
             checkout_source lifecycle "$work/lifecycle"
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; mvn -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
             archives=("$source/$service/target/"*-archive.zip)
             [[ ${#archives[@]} == 1 && -s ${archives[0]} ]] || die 'Expected one distribution archive'
             mkdir "$context/unpack"
