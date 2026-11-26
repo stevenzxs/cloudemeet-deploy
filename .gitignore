@@ -49,6 +49,7 @@
 !.env.example
 client.env
 !/config/client.env
+!/skills/full-build-deploy/config/client.env
 !/config/client-ca.crt
 !/config/client-ca.json
 .client-build.lock
