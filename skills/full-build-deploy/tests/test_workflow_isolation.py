@@ -24,6 +24,11 @@ class WorkflowContractTests(unittest.TestCase):
         script = (ROOT / "scripts/package.sh").read_text(encoding="utf-8")
         self.assertRegex(script, r"\(cd\s+\"\$repo/\.\./\.\.\";\s*sha256sum -c skills/full-build-deploy/inputs\.sha256\)")
         self.assertIn('"$repo/sources.json"', script)
+        self.assertIn('"$repo/tools/network-audit.py"', script)
+        self.assertNotIn('"$tools/network-audit.py"', script)
+        self.assertNotIn('"$tools/sources.json"', script)
+        self.assertNotIn('"$tools/docker/', script)
+        self.assertNotIn('"$tools/../', script)
         self.assertNotIn('"$repo/tools/revision_versions.py"', script)
 
     def test_client_allocation_validator_uses_the_skill_tool_path(self):

@@ -37,11 +37,11 @@ assert r['versions']['server_version']==os.environ['VERSION'], 'Version assignme
 for name,item in s['services'].items():
     assert r['request']['sources'].get(name)==item['commit'], 'Source allocation mismatch'
 PY
-python3 -B "$tools/network-audit.py" --root "$repo" --mode generic \
+python3 -B "$repo/tools/network-audit.py" --root "$repo" --mode generic \
     --output "$repo/output/network-audit-${1}-${2:-package}/preflight"
 
 source_field() {
-    python3 - "$tools/sources.json" "$1" "$2" <<'PY'
+    python3 - "$repo/sources.json" "$1" "$2" <<'PY'
 import json, sys
 sources = json.load(open(sys.argv[1]))
 record = sources['lifecycle'] if sys.argv[2] == 'lifecycle' else sources['services'][sys.argv[2]]
@@ -68,7 +68,7 @@ build_service() (
     mkdir -p "$work/context" "$repo/output"
     mkdir "$repo/output/$service"
     checkout_source "$service" "$work/source"
-    python3 -B "$tools/network-audit.py" --root "$repo" --source "$work/source" --service "$service" \
+    python3 -B "$repo/tools/network-audit.py" --root "$repo" --source "$work/source" --service "$service" \
         --output "$repo/output/network-audit-build-$service/source"
     cp "$repo/output/network-audit-build-$service/source/"network-audit.* "$repo/output/$service/"
     SOURCE_COMMIT=$(source_field "$service" commit)
@@ -115,7 +115,7 @@ print(i["RepoDigests"][0])' "$ref"
                 runtime=$(resolve_base nginx:1.30.6-alpine@sha256:583b7f2fce1cdb8da5ad5c39ebd3c33b98b87d493190e548bdee1fa8c619c311)
                 cp -a "$source/dist" "$context/dist"
                 grep -rq 'same-origin' "$context/dist" || die 'Missing same-origin application configuration'
-                cp "$tools/templates/nginx.conf" "$context/nginx.conf"
+                cp "$repo/templates/nginx.conf" "$context/nginx.conf"
             else
                 runtime=$(resolve_base "$lifecycle_base")
                 checkout_source lifecycle "$work/lifecycle"
@@ -133,7 +133,7 @@ print(i["RepoDigests"][0])' "$ref"
             ;;
         api)
             runtime=$(resolve_base eclipse-temurin:17-jre-jammy)
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
             jars=("$source/target/"*.jar)
             [[ ${#jars[@]} == 1 && -s ${jars[0]} ]] || die 'Expected one API jar'
             cp "${jars[0]}" "$context/app.jar"
@@ -141,7 +141,7 @@ print(i["RepoDigests"][0])' "$ref"
         jitsi-mgr)
             # jitsi-mgr is not a Docker image service - it outputs JAR and frontend static files
             # Backend: Spring Boot JAR
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; python3 -B "$tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
             backend_jars=("$source/jitsi-mgr-app/target/"jitsi-mgr-*.jar)
             # Exclude -sources.jar and -javadoc.jar
             filtered_jars=()
@@ -208,7 +208,7 @@ PY
             resolve_base "$debian_base" > /dev/null
             # Intermediate tag is unique to this batch and can never be an older fallback.
             docker build --platform "linux/$TARGET_ARCH" --progress plain \
-                -f "$tools/docker/prosody-core.Dockerfile" -t "cloudmeet-build/prosody-core:$BATCH" "$source"
+                -f "$repo/docker/prosody-core.Dockerfile" -t "cloudmeet-build/prosody-core:$BATCH" "$source"
             mkdir -p "$source/runtime-downloads"
             curl -fLsS --retry 3 https://raw.githubusercontent.com/aiq/basexx/v0.4.1/lib/basexx.lua -o "$source/runtime-downloads/basexx.lua"
             curl -fLsS --retry 3 https://raw.githubusercontent.com/kikito/inspect.lua/v3.1.3/inspect.lua -o "$source/runtime-downloads/inspect.lua"
@@ -217,12 +217,12 @@ PY
                 '72de901ac081bf927640e367b52146a18ed4f628eab7880dd32f1a6442b9fe6f  inspect.lua' | sha256sum -c -)
             docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
                 --build-arg "PROSODY_CORE=cloudmeet-build/prosody-core:$BATCH" \
-                -f "$tools/docker/prosody-service.Dockerfile" -t "cloudmeet/prosody:$BATCH" "$source"
+                -f "$repo/docker/prosody-service.Dockerfile" -t "cloudmeet/prosody:$BATCH" "$source"
             ;;
         jicofo|jvb)
             resolve_base "$lifecycle_base" > /dev/null
             checkout_source lifecycle "$work/lifecycle"
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
             archives=("$source/$service/target/"*-archive.zip)
             [[ ${#archives[@]} == 1 && -s ${archives[0]} ]] || die 'Expected one distribution archive'
             mkdir "$context/unpack"
@@ -234,7 +234,7 @@ PY
             mv "$(dirname "${jars[0]}")" "$context/distribution"
             cp -a "$work/lifecycle/$service/rootfs" "$context/rootfs"
             docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
-                --build-arg "SERVICE=$service" -f "$tools/docker/java-service.Dockerfile" \
+                --build-arg "SERVICE=$service" -f "$repo/docker/java-service.Dockerfile" \
                 -t "cloudmeet/$service:$BATCH" "$context"
             ;;
     esac
@@ -242,7 +242,7 @@ PY
         web|app-web|api|gateway)
             docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
                 --build-arg "RUNTIME_BASE=$runtime" --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" \
-                -f "$tools/docker/$service.Dockerfile" -t "cloudmeet/$service:$BATCH" "$context"
+                -f "$repo/docker/$service.Dockerfile" -t "cloudmeet/$service:$BATCH" "$context"
             ;;
     esac
     # Build outputs may be untracked; tracked source/config/lock changes are forbidden.
@@ -251,7 +251,7 @@ PY
     [[ ! -s $work/source-before.txt ]] || die 'Dirty checkout before build'
     docker image inspect "cloudmeet/$service:$BATCH" > "$work/image.json"
     docker save "cloudmeet/$service:$BATCH" | gzip -1 > "$repo/output/$service/$service.tar.gz"
-    python3 - "$work" "$repo/output/$service" "$tools/sources.json" <<'PY'
+    python3 - "$work" "$repo/output/$service" "$repo/sources.json" <<'PY'
 import hashlib, json, os, pathlib, sys
 work, out, sourcefile = map(pathlib.Path, sys.argv[1:])
 service = os.environ['SERVICE']
@@ -309,14 +309,14 @@ assemble_package() {
     printf '%s  %s\n' "$expected" "$output/bin/docker-compose" | sha256sum -c -
     chmod 0755 "$output/bin/docker-compose"
     "$output/bin/docker-compose" version
-    cp "$tools/../runtime/"*.py "$output/"
-    cp "$tools/network-audit.py" "$output/network-audit.py"
-    cp "$tools/setup.py" "$repo/output/setup.py"
+    cp "$repo/runtime/"*.py "$output/"
+    cp "$repo/tools/network-audit.py" "$output/network-audit.py"
+    cp "$repo/tools/setup.py" "$repo/output/setup.py"
     (cd "$repo/output" && sha256sum setup.py > setup.py.sha256)
-    cp -a "$tools/../patches" "$output/patches"
-    cp "$tools/sources.json" "$output/provenance/sources.json"
+    cp -a "$repo/patches" "$output/patches"
+    cp "$repo/sources.json" "$output/provenance/sources.json"
     cp "$VERSION_RECORD" "$output/provenance/version-assignment.json"
-    cp "$tools/../inputs.sha256" "$output/provenance/deployment-inputs.sha256"
+    cp "$repo/inputs.sha256" "$output/provenance/deployment-inputs.sha256"
     cp "$repo/incoming/artifacts.json" "$output/provenance/actions-artifacts.json"
     export PACKAGE_DIR="$output" COMPOSE_URL="$compose_url" COMPOSE_VERSION="$compose_version" SKILL_ROOT="$repo"
     python3 -B - "$repo" <<'PY'
@@ -593,7 +593,7 @@ PY
     JITSI_ROLE_CHECK_SECRET=RENDER_ONLY JITSI_MGR_DB_PASSWORD=RENDER_ONLY \
         "$output/bin/docker-compose" -f "$output/jitsi-base.yaml" config --quiet
     python3 -B "$output/install.py" --verify-only
-    python3 -B "$tools/online-material.py" --source "$output" --destination "$output-online"
+    python3 -B "$repo/tools/online-material.py" --source "$output" --destination "$output-online"
     tar -czf "$output.tar.gz" -C "$(dirname "$output")" "$(basename "$output")"
     (cd "$(dirname "$output")"; sha256sum "$(basename "$output").tar.gz" > "$(basename "$output").tar.gz.sha256")
     # Re-read the actual final archive, not only the staging directory.
