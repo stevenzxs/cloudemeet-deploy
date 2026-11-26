@@ -7,17 +7,17 @@
   "previous_android_code": 1021,
   "previous_msi_version": "1.0.21",
   "approved": true,
-  "current_revision": 38,
+  "current_revision": 39,
   "last_allocation": {
-    "run_id": "45866009387",
+    "run_id": "45868977096",
     "attempt": 1,
     "record": {
       "namespace": "cloudmeet-joint-v1",
       "request": {
         "repository": "stevenzxs/cloudemeet-deploy",
         "workflow": "stevenzxs/cloudemeet-deploy/.github/workflows/build-joint.yml@refs/heads/main",
-        "run_id": "45866009387",
-        "configuration_sha": "2c1b1caf0e0dd98b8d54101cc0a334c834efd797",
+        "run_id": "45868977096",
+        "configuration_sha": "ecc3bf71f8e90a976494c3a01666889210325e57",
         "sources": {
           "web": "f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259",
           "app-web": "784c1d004cfcea32f5316314f5979cb74aba88b0",
@@ -32,7 +32,7 @@
           "lifecycle": "276801c7fd4233f7288ba95bd132c219852c7ac7",
           "h5": "ffd2886135206f195b6fd031a20b46448f91a53b"
         },
-        "task": "actions-45866009387",
+        "task": "actions-45868977096",
         "scope": [
           "server",
           "h5",
@@ -41,15 +41,15 @@
         ]
       },
       "versions": {
-        "revision": 38,
-        "server_version": "11248.0.1+r38",
-        "server_tag": "11248.0.1-r38",
-        "client_version": "1.0.21+r38",
-        "android_code": 102138,
-        "msi_version": "1.0.59",
-        "pe_version": "1.0.59.0"
+        "revision": 39,
+        "server_version": "11248.0.1+r39",
+        "server_tag": "11248.0.1-r39",
+        "client_version": "1.0.21+r39",
+        "android_code": 102139,
+        "msi_version": "1.0.60",
+        "pe_version": "1.0.60.0"
       },
-      "allocation_sha256": "455f8cc904834e51192dfb747629c7d45eb6f88ab7a77a5f319bd68a22a0a1bd"
+      "allocation_sha256": "01a13d1ae65c342ef8ddf7385f45f5fbbbc308ac3f055b46bed810f37f629d92"
     }
   }
 }
