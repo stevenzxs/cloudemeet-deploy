@@ -16,6 +16,18 @@ spec.loader.exec_module(route)
 
 
 class MavenRouteTests(unittest.TestCase):
+    def test_gradle_init_covers_settings_plugins_and_included_projects(self):
+        text = route.gradle_init('http://127.0.0.1:12345/')
+        self.assertIn('beforeSettings', text)
+        self.assertIn('pluginManagement.repositories', text)
+        self.assertIn('beforeProject', text)
+        self.assertIn('buildscript.repositories', text)
+        self.assertIn('repo.maven.apache.org', text)
+        self.assertIn('repo1.maven.org', text)
+        self.assertIn('excludeGroup("com.google.code.gson")', text)
+        self.assertIn('allowInsecureProtocol = true', text)
+        self.assertIn('http://127.0.0.1:12345/', text)
+
     def test_aliyun_success_never_requests_central(self):
         opener = Mock()
         response, origin = route.fetch_artifact('g/a/1/a-1.pom', opener)
@@ -122,7 +134,7 @@ class MavenRouteTests(unittest.TestCase):
 
     def test_all_maven_builds_use_router(self):
         script = (pathlib.Path(__file__).parents[1] / 'package.sh').read_text(encoding='utf-8')
-        self.assertEqual(script.count('"$tools/maven-route.py"'), 2)
+        self.assertEqual(script.count('"$tools/maven-route.py"'), 3)
         self.assertNotIn('; mvn -B', script)
 
     def test_settings_preserve_private_repositories_credentials_and_proxies(self):

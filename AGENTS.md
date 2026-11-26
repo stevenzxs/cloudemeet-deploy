@@ -232,7 +232,7 @@ README 仅导航材料和报告实际状态；技能仅提供操作方法；检�
 | 路径 | 作用 |
 |---|---|
 | `build-tools/package.sh` | 唯一构建/组包编排入口：build SERVICE 编译并导出，assemble 收集本run/attempt七服务并校验最终归档；不启动产品服务 |
-| `build-tools/maven-route.py`、`build-tools/tests/test_maven_route.py` | API/Jicofo/JVB的Central依赖逐项阿里云优先、仅404回退Central；回环代理、严格上游TLS/校验及选路审计，专用仓库不覆盖；定向回归不构建产品 |
+| `build-tools/maven-route.py`、`build-tools/tests/test_maven_route.py` | API/Jicofo/JVB及Android Gradle的Central依赖逐项阿里云优先、仅404回退Central；Android以临时init脚本覆盖主/包含构建的Central仓库，将插件门户的Gson依赖限定交给同一代理；回环代理、严格上游TLS/校验及选路审计，专用仓库不覆盖；定向回归不构建产品 |
 | `build-tools/publish.py` | 已成功组包后显式发布同run七镜像；逐项校验归档、平台、源码及镜像config身份，核对远端digest，保留部分发布与未部署状态，不重编译 |
 | `build-tools/actions.py`、`build-tools/tests/test_actions.py` | 仓库限定Actions API调度/状态及参数/认证边界回归；凭据文件仓库外600，意图先落盘防止断线重发，不代表Hermes模型调用及制品验证已验收 |
 | `build-tools/offline-runtime/online_update.py`、`build-tools/tests/test_online_update.py` | 显式绑定实际root/project/target.env的image-only更新，线上pull/离线load共用；严格TLS/归属/空闲与配置兼容检查、数据备份，失败保留现场不执行回滚，不清数据 |

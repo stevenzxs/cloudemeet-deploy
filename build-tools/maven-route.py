@@ -2,6 +2,7 @@
 import argparse
 import http.server
 import json
+import os
 import pathlib
 import shutil
 import subprocess
@@ -161,9 +162,47 @@ def handler_factory(opener, audit):
     return Handler
 
 
+def gradle_init(url):
+    """Route Central and the portal's Gson dependency without replacing private repos."""
+    return '''
+def routeRepositories = { repos ->
+    def configureRepo = { repo ->
+        if (repo instanceof org.gradle.api.artifacts.repositories.MavenArtifactRepository) {
+            def host = repo.url.host
+            if (host in ['repo.maven.apache.org', 'repo1.maven.org']) {
+                repo.url = ROUTE_URL
+                repo.allowInsecureProtocol = true
+            }
+            if (host == 'plugins.gradle.org') {
+                repo.content { excludeGroup("com.google.code.gson") }
+            }
+        }
+    }
+    repos.all(configureRepo)
+    repos.maven {
+        name = 'CloudMeetCentralRoute'
+        url = ROUTE_URL
+        allowInsecureProtocol = true
+        content { includeGroup("com.google.code.gson") }
+    }
+}
+gradle.beforeSettings { settings ->
+    routeRepositories(settings.pluginManagement.repositories)
+}
+gradle.settingsEvaluated { settings ->
+    routeRepositories(settings.dependencyResolutionManagement.repositories)
+}
+gradle.beforeProject { project ->
+    routeRepositories(project.buildscript.repositories)
+    routeRepositories(project.repositories)
+}
+'''.replace('ROUTE_URL', json.dumps(url))
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--audit', required=True)
+    parser.add_argument('--gradle-command', action='store_true')
     parser.add_argument('maven_args', nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.maven_args
@@ -186,6 +225,11 @@ def main():
         thread.start()
         try:
             with tempfile.TemporaryDirectory(prefix='cloudmeet-maven-') as folder:
+                if args.gradle_command:
+                    init = pathlib.Path(folder) / 'central.init.gradle'
+                    init.write_text(gradle_init(f'http://127.0.0.1:{server.server_port}/'), encoding='utf-8')
+                    env = dict(os.environ, CLOUDMEET_GRADLE_INIT=str(init))
+                    return subprocess.call(command, env=env)
                 settings = pathlib.Path(folder) / 'settings.xml'
                 user_settings = pathlib.Path.home() / '.m2' / 'settings.xml'
                 settings.write_text(settings_xml(

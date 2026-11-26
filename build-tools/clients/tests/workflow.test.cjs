@@ -17,7 +17,8 @@ test('client workflow keeps Android signing but removes Windows signing credenti
   const policy = JSON.parse(fs.readFileSync(path.join(__dirname, '../../../config/signing-policy.json'), 'utf8'));
   assert.match(policy.android_certificate_der_sha256, /^[0-9a-f]{64}$/);
   assert.match(text, /build-clients.cjs --target/);
-  assert.equal((text.match(/node deploy\/build-tools\/clients\/build-clients\.cjs --target/g) || []).length, 1);
+  assert.equal((text.match(/node deploy\/build-tools\/clients\/build-clients\.cjs --target/g) || []).length, 2, 'Mutually exclusive branches each invoke the builder once');
+  assert.match(text, /maven-route\.py --audit client-network-audit\/maven-route\.jsonl --gradle-command -- node/);
   assert.doesNotMatch(text, /--version-record version-assignment\.json --check/);
   assert.match(text, /Client build or package verification failed/);
   assert.match(text, /runs-on: \$\{\{ matrix\.target == 'android' && 'ubuntu-24\.04' \|\| 'windows-2022' \}\}/);

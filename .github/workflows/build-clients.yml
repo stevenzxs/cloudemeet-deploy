@@ -160,7 +160,11 @@ jobs:
         timeout-minutes: 35
         shell: pwsh
         run: |
-          node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json
+          if ('${{ matrix.target }}' -eq 'android') {
+            python deploy/build-tools/maven-route.py --audit client-network-audit/maven-route.jsonl --gradle-command -- node deploy/build-tools/clients/build-clients.cjs --target android --version-record version-assignment.json
+          } else {
+            node deploy/build-tools/clients/build-clients.cjs --target ${{ matrix.target }} --version-record version-assignment.json
+          }
           if ($LASTEXITCODE) { throw 'Client build or package verification failed; inspect the preceding error' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:

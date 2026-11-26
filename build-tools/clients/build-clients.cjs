@@ -303,6 +303,7 @@ async function build(options, config, report) {
             trust: (ca || config.tlsMode === 'caddy-public-acme') ? fs.readFileSync(path.join(project, 'android/app/src/main/res/xml/network_security_config.xml'), 'utf8') : null
           }));
           const gradleArgs = [...androidTasks(), `-PappVersion=${config.version}`, `-PcloudmeetVersionCode=${manifest.versionCode}`, '--no-daemon'];
+          if (process.env.CLOUDMEET_GRADLE_INIT) gradleArgs.push('--init-script', process.env.CLOUDMEET_GRADLE_INIT);
           // Bound repository downloads so a degraded Maven egress fails fast
           // and retries instead of stalling the build for tens of minutes.
           const gradleEnv = { ...env, GRADLE_OPTS: `${env.GRADLE_OPTS || ''} -Dorg.gradle.internal.http.connectionTimeout=60000 -Dorg.gradle.internal.http.socketTimeout=60000`.trim() };
