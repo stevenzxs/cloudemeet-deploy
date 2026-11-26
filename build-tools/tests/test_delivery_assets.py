@@ -38,11 +38,33 @@ def add_h5_fixture(root, manifest):
         'configuration_commit':manifest['deployment_commit'],'version_assignment':manifest['version_assignment']})
 
 
+def add_mgr_fixture(root, manifest):
+    (root/'provenance').mkdir(exist_ok=True)
+    (root/'provenance/sources.json').write_text(json.dumps({'services':{'jitsi-mgr':{'commit':'b'*40}}}))
+    (root/'artifacts/jitsi-mgr-ui').mkdir(parents=True,exist_ok=True)
+    (root/'artifacts/jitsi-mgr.jar').write_bytes(b'fixture jar')
+    (root/'artifacts/jitsi-mgr-ui/index.html').write_text('fixture ui')
+    for name in ('init-jitsi-mgr.py','jitsi-mgr.env'):
+        (root/name).write_text('fixture')
+    record={key:manifest.get(key) for key in ('batch','version','deployment_commit','run_id','attempt','architecture','version_assignment')}
+    record.update(service='jitsi-mgr',source_commit='b'*40,
+        files={p.relative_to(root).as_posix():hashfile(p) for p in (root/'artifacts').rglob('*') if p.is_file()})
+    manifest['jitsi_mgr']=record
+    services={s:{'image':image[0]} for s,image in manifest['images'].items()}
+    services['gateway']['volumes']=['./artifacts/jitsi-mgr-ui:/jitsi-mgr-ui:ro']
+    services['jitsi-mgr']={'image':manifest['images']['api'][0],'pull_policy':'never',
+        'entrypoint':['java','-XX:MaxRAMPercentage=65','-jar','/app/jitsi-mgr.jar'],
+        'volumes':['./artifacts/jitsi-mgr.jar:/app/jitsi-mgr.jar:ro','./data/jitsi-mgr:/app/data']}
+    (root/'jitsi-base.yaml').write_text(json.dumps({'services':services}))
+
+
 class DeliveryAssetTests(unittest.TestCase):
     def setUp(self):
         self.approval={'tls_mode':'private-ca','origin':'https://cloudmeet.stevenzxs.cn'}
         self.env=patch.dict(os.environ,EXPECTED_TLS_MODE=self.approval['tls_mode'],EXPECTED_ORIGIN=self.approval['origin'])
         self.env.start();self.addCleanup(self.env.stop)
+        self.contract=patch('tls_contract.approved_contract',return_value=self.approval)
+        self.contract.start();self.addCleanup(self.contract.stop)
 
     def approved_record(self,record):
         record['approved_tls_contract']=self.approval
@@ -70,6 +92,7 @@ class DeliveryAssetTests(unittest.TestCase):
                   'deployment_commit':'a'*40,'compose':{'file':'bin/docker-compose','sha256':'a'*64},
                   'requires':['engine'],'image_transport':'registry','images':images}
         add_h5_fixture(root,manifest)
+        add_mgr_fixture(root,manifest)
         (root/'candidate.json').write_text(json.dumps(manifest))
         (root/'SHA256SUMS').write_text(''.join(hashfile(p)+'  '+p.relative_to(root).as_posix()+'\n' for p in root.rglob('*') if p.is_file()))
         return record
@@ -127,12 +150,20 @@ class DeliveryAssetTests(unittest.TestCase):
                     (root/'build-evidence.json').write_text(json.dumps(evidence))
                 source=Path('source');self.source(source)
                 candidate=json.loads((source/'candidate.json').read_text())
-                candidate.update(version_assignment=assignment,run_id='100',attempt='1')
+                candidate.update(version_assignment=assignment,run_id='100',attempt='1',
+                    tls_mode='private-ca',client_origin=self.approval['origin'])
                 add_h5_fixture(source,candidate)
+                add_mgr_fixture(source,candidate)
                 (source/'candidate.json').write_text(json.dumps(candidate))
                 (source/'SHA256SUMS').write_text(''.join(hashfile(p)+'  '+p.relative_to(source).as_posix()+'\n' for p in source.rglob('*') if p.is_file() and p.name!='SHA256SUMS'))
                 Path('server-downloads').mkdir()
-                load('material',TOOLS/'online-material.py').assemble(source,Path('server-downloads/batch-online'))
+                read_text=Path.read_text
+                def fixed_client(path,*args,**kwargs):
+                    if path==TOOLS.parent/'config/client.env':
+                        return 'TLS_MODE=private-ca\nSITE_SCHEME=https\nSITE_DOMAIN=cloudmeet.stevenzxs.cn\nSITE_PORT=443\nCLIENT_CA_FILE=client-ca.crt\n'
+                    return read_text(path,*args,**kwargs)
+                with patch.object(Path,'read_text',fixed_client):
+                    load('material',TOOLS/'online-material.py').assemble(source,Path('server-downloads/batch-online'))
                 Path('server-downloads/setup.py').write_text('fixture')
                 Path('server-downloads/setup.py.sha256').write_text(hashfile(Path('server-downloads/setup.py'))+'  setup.py\n')
                 environment={'VERSION_RECORD':'assignment.json','GITHUB_RUN_ID':'100','GITHUB_RUN_ATTEMPT':'1',

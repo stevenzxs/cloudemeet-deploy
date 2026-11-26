@@ -2,6 +2,16 @@
 
 ## Status: Implementation in Progress
 
+### 2026-11-26 r29 missing-material repair
+
+- Root cause: the mgr build artifact was downloaded but the seven-image assembler never consumed it.
+- Repair: same-run/attempt/source/config/version assignment and per-file hashes; package JAR/UI, public config and initialization tool; eighth Compose service reuses the same-batch API Java 17 image with explicit entrypoint, persistent data and gateway UI mount. No eighth image or separate installer.
+- Shared first-install core generates target-only PKCS#8 keys and database secret, refuses overwrite, accepts only the expected initialized key directory, and checks payload before host changes. Explicit Spring datasource overrides avoid the prod profile's localhost PostgreSQL default; configured H2/PostgreSQL selects matching driver/dialect.
+- Online material and joint-release gates reject missing or modified mgr payload; new revision >=15 cannot omit mgr evidence. Historical packages are not rewritten.
+- Verification: 105 focused auxiliary tests passed (package, delivery assets/contracts, installer/start/deploy, network audit and online update). Full suite: 210 tests, 9 failure reports in existing skill-text assertions and WSL mounted-filesystem permissions; baseline archive also reproduces these categories (206 tests, 10 failure reports, 3 errors, 1 skip). No all-green suite claim.
+- Not executed: product builds, revision allocation, Actions, publication, SSH, installation or media acceptance. r29 remains blocked and immutable; a future new batch is needed.
+- Remaining integration/acceptance: actual UI BrowserRouter subpath navigation, JWKS/Prosody token flow, initial administrator behavior, real Java/H2 startup, target API/ACME and media verification. Image-only updater intentionally rejects external JAR/UI/config changes rather than silently migrating them.
+
 ### Completed ✅
 
 1. **Configuration Files**

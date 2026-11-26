@@ -174,8 +174,9 @@ class DeliveryContractTests(unittest.TestCase):
                       'images':{s:['tag-'+s,'sha256:'+str(i)*64] for i,s in enumerate(('gateway','app-web','api','web','prosody','jicofo','jvb'))},
                       'image_archives':{s:{} for s in ('gateway','app-web','api','web','prosody','jicofo','jvb')},
                       'version_assignment':{'fixture':'preserved'}}
-            from test_delivery_assets import add_h5_fixture
+            from test_delivery_assets import add_h5_fixture, add_mgr_fixture
             add_h5_fixture(root,manifest)
+            add_mgr_fixture(root,manifest)
             (root/'candidate.json').write_text(json.dumps(manifest))
             (root/'images').mkdir();(root/'images/large.tar.gz').write_bytes(b'image')
             (root/'SHA256SUMS').write_text(''.join(hashlib.sha256(p.read_bytes()).hexdigest()+'  '+p.relative_to(root).as_posix()+'\n' for p in root.rglob('*') if p.is_file()))

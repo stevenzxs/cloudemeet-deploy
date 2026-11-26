@@ -28,6 +28,8 @@ def runtime_environment(root, external=None, preflight=False):
     env.update(target.read_env(root/'jitsi.env'))
     env.update(target.resolve_target(root,external))
     keys={'JWT_APP_SECRET','JICOFO_AUTH_PASSWORD','JVB_AUTH_PASSWORD','JITSI_ROLE_CHECK_SECRET'}
+    if (root/'candidate.json').is_file() and json.loads((root/'candidate.json').read_text()).get('jitsi_mgr'):
+        keys.add('JITSI_MGR_DB_PASSWORD')
     secrets={k:'PREFLIGHT_ONLY' for k in keys} if preflight else target.read_env(root/'.env')
     if set(secrets)!=keys:
         raise ValueError('Instance .env must contain secrets only')
@@ -64,8 +66,21 @@ def validate_initialized_data(root):
     if not data.exists():
         return
     expected={'ca.key','ca.crt','gateway.key','gateway.csr','cert.ext','gateway.crt'}
+    children={'host-control'}
+    if (root/'candidate.json').is_file() and json.loads((root/'candidate.json').read_text()).get('jitsi_mgr'):
+        children.add('jitsi-mgr')
+        mgr=data/'jitsi-mgr';keys=mgr/'keys'
+        if (mgr.is_symlink() or not mgr.is_dir() or {p.name for p in mgr.iterdir()}!={'keys'}
+                or keys.is_symlink() or not keys.is_dir()
+                or {p.name for p in keys.iterdir()}!={'jwt-private.pem','jwt-public.pem'}):
+            raise ValueError('Unsafe jitsi-mgr initialization state')
+        for p in keys.iterdir():
+            if p.is_symlink() or not p.is_file() or not p.stat().st_size:
+                raise ValueError('Unsafe jitsi-mgr key')
+        if (keys/'jwt-private.pem').stat().st_mode & 0o077:
+            raise ValueError('jitsi-mgr private key permissions too open')
     control=data/'host-control'
-    if (not data.is_dir() or {p.name for p in data.iterdir()}!={'host-control'}
+    if (not data.is_dir() or {p.name for p in data.iterdir()}!=children
             or control.is_symlink() or not control.is_dir()
             or {p.name for p in control.iterdir()} not in (expected,expected|{'ca.srl'})):
         raise ValueError('First-start refuses existing business data or incomplete TLS bootstrap')
@@ -168,12 +183,19 @@ def main():
         audit_module.write_report(report,root/'instance-audit/network-startup')
         if report['errors']:
             raise ValueError('Target network audit failed; see instance-audit/network-startup')
-    if set(rendered['services'])!=set(manifest['images']):
+    expected_services=set(manifest['images']) | ({'jitsi-mgr'} if manifest.get('jitsi_mgr') else set())
+    if manifest.get('jitsi_mgr'):
+        verifier.verify_jitsi_mgr(root,manifest,json.loads((root/'jitsi-base.yaml').read_text()))
+    if set(rendered['services'])!=expected_services:
         raise ValueError('Unexpected service set')
     for service,config in rendered['services'].items():
-        if config.get('build') or config.get('pull_policy')!='never' or config['image']!=manifest['images'][service][0]:
+        image_service='api' if service=='jitsi-mgr' else service
+        if config.get('build') or config.get('pull_policy')!='never' or config['image']!=manifest['images'][image_service][0]:
             raise ValueError('Unsafe source-image configuration')
-        if any('/artifacts/' in volume.get('source','') for volume in config.get('volumes',[])):
+        allowed_artifacts={'jitsi-mgr':{str(root/'artifacts/jitsi-mgr.jar')},
+                           'gateway':{str(root/'artifacts/jitsi-mgr-ui')}} if manifest.get('jitsi_mgr') else {}
+        if any('/artifacts/' in volume.get('source','') and volume['source'] not in allowed_artifacts.get(service,set())
+               for volume in config.get('volumes',[])):
             raise ValueError('Old artifact shadow mount')
     directories=['data/api','data/logos','data/jitsi/web/nginx-custom','data/jitsi/storage/web',
                  'data/jitsi/storage/transcripts','data/jitsi/storage/prosody','data/jitsi/prosody/config',

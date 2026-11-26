@@ -11,6 +11,43 @@ import tarfile
 
 SERVICES={'web','app-web','api','gateway','prosody','jicofo','jvb'}
 
+
+def verify_jitsi_mgr(root, manifest, rendered):
+    """Require the eighth service and same-batch non-image payload."""
+    root = Path(root)
+    record = manifest.get('jitsi_mgr', {})
+    files = record.get('files', {})
+    if (record.get('service') != 'jitsi-mgr' or not files
+            or 'artifacts/jitsi-mgr.jar' not in files
+            or 'artifacts/jitsi-mgr-ui/index.html' not in files):
+        raise ValueError('Missing jitsi-mgr delivery material')
+    for key in ('batch', 'version', 'deployment_commit', 'run_id', 'attempt', 'architecture', 'version_assignment'):
+        if record.get(key) != manifest.get(key):
+            raise ValueError('jitsi-mgr provenance mismatch: '+key)
+    sources = json.loads((root/'provenance/sources.json').read_text())
+    if record.get('source_commit') != sources['services']['jitsi-mgr']['commit']:
+        raise ValueError('jitsi-mgr source mismatch')
+    for name, checksum in files.items():
+        relative = Path(name)
+        if (relative.is_absolute() or '..' in relative.parts or '\\' in name
+                or not name.startswith('artifacts/') or (root/relative).is_symlink()
+                or sha256_file(root/relative) != checksum):
+            raise ValueError('jitsi-mgr artifact integrity failure')
+    actual={p.relative_to(root).as_posix() for p in (root/'artifacts').rglob('*') if p.is_file()}
+    if actual != set(files) or any(p.is_symlink() for p in (root/'artifacts').rglob('*')):
+        raise ValueError('jitsi-mgr inventory mismatch')
+    for name in ('init-jitsi-mgr.py', 'jitsi-mgr.env'):
+        if not (root/name).is_file(): raise ValueError('Missing jitsi-mgr initialization material')
+    services = rendered.get('services', {})
+    mgr = services.get('jitsi-mgr', {})
+    if (set(services) != SERVICES | {'jitsi-mgr'} or mgr.get('image') != manifest['images']['api'][0]
+            or mgr.get('pull_policy') != 'never' or mgr.get('build') or mgr.get('ports')
+            or mgr.get('entrypoint') != ['java','-XX:MaxRAMPercentage=65','-jar','/app/jitsi-mgr.jar']
+            or './artifacts/jitsi-mgr.jar:/app/jitsi-mgr.jar:ro' not in mgr.get('volumes', [])
+            or './data/jitsi-mgr:/app/data' not in mgr.get('volumes', [])
+            or './artifacts/jitsi-mgr-ui:/jitsi-mgr-ui:ro' not in services['gateway'].get('volumes', [])):
+        raise ValueError('Incomplete jitsi-mgr runtime configuration')
+
 # Required external baseline. Built-in alternatives require separate qualification;
 # a package cannot exempt itself merely by declaring a patch in its own manifest.
 PRODUCT_PATCHES = (
@@ -145,6 +182,8 @@ def verify_checksums(root):
     return len(seen)
 
 def require_ready(manifest):
+    if manifest.get('version_assignment',{}).get('versions',{}).get('revision',0)>=15 and not manifest.get('jitsi_mgr'):
+        raise ValueError('New batches require jitsi-mgr delivery material')
     if manifest.get('status') not in ('READY_FOR_INSTALL', 'PACKAGED'):
         raise ValueError('Incomplete candidate; installation refused')
     if manifest.get('status') == 'PACKAGED':
@@ -270,7 +309,9 @@ def main():
         compose_prefix(root, manifest)
         config = json.loads((root/'jitsi-base.yaml').read_text())
         verify_product(root, config)
-        if set(config.get('services', {})) != SERVICES:
+        if manifest.get('jitsi_mgr'):
+            verify_jitsi_mgr(root, manifest, config)
+        elif set(config.get('services', {})) != SERVICES:
             raise ValueError('Unexpected package service set')
         for service, image in manifest['images'].items():
             settings = config['services'][service]

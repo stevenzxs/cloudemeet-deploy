@@ -81,6 +81,16 @@ class StartTests(unittest.TestCase):
             spec=importlib.util.spec_from_file_location('initialize',path)
             initialize=importlib.util.module_from_spec(spec); spec.loader.exec_module(initialize)
             initialize.initialize_host_control(root)
+            shutil.copyfile(Path(__file__).parents[1]/'init-jitsi-mgr.py',root/'init-jitsi-mgr.py')
+            initialize.initialize_jitsi_mgr(root)
+            (root/'candidate.json').write_text(json.dumps({'status':'PACKAGED','jitsi_mgr':{'service':'jitsi-mgr'}}))
+            (root/'.env').chmod(0o600)
+            self.module.require_instance(root)
+            # Legacy seven-service fixtures below retain their original contract.
+            (root/'data/jitsi-mgr/keys/jwt-private.pem').unlink()
+            (root/'data/jitsi-mgr/keys/jwt-public.pem').unlink()
+            (root/'data/jitsi-mgr/keys').rmdir()
+            (root/'data/jitsi-mgr').rmdir()
             (root/'candidate.json').write_text(json.dumps({'status':'PACKAGED'}))
             (root/'.env').write_text('secret=preserved\n'); (root/'.env').chmod(0o600)
             before={p.name:p.read_bytes() for p in (root/'data/host-control').iterdir()}

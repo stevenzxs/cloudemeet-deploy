@@ -70,6 +70,8 @@ def deploy(root,verifier,runner=subprocess.run,verify_origin=None,target_env=Non
     if manifest.get('tls_mode')=='caddy-public-acme' and manifest.get('image_transport')!='registry':
         raise ValueError('Public ACME requires online target connectivity; offline installation is unsupported')
     verifier.require_ready(manifest)
+    if manifest.get('jitsi_mgr'):
+        verifier.verify_jitsi_mgr(root,manifest,json.loads((root/'jitsi-base.yaml').read_text()))
     if manifest.get('client_origin') and manifest['client_origin']!=verify_origin:
         raise ValueError('Deployment origin differs from built clients')
     if manifest.get('client_ca_sha256'):

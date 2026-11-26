@@ -124,8 +124,10 @@ def audit(root, mode='generic', target=None, rendered=None):
 
     if rendered is not None:
         configs = rendered.get('services', {})
-        if set(configs) != set(SERVICES):
-            errors.append('Rendered Compose must contain exactly seven services')
+        if set(configs) not in (set(SERVICES), set(SERVICES) | {'jitsi-mgr'}):
+            errors.append('Rendered Compose must contain the seven image services and optional legacy-compatible jitsi-mgr')
+        if configs.get('jitsi-mgr', {}).get('ports'):
+            errors.append('jitsi-mgr must not publish an internal API port')
         for service, settings in configs.items():
             if service in ('gateway', 'jvb'):
                 expected = ({(values['HTTPS_PORT'], '443', 'tcp'),

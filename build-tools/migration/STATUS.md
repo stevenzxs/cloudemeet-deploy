@@ -276,3 +276,14 @@ JSON/Markdown随独立Actions审计制品及包provenance保存。新包首次�
 - 台账普通追加提交484f7cb59010816daef2beda54d94db69e5f3764保留原四文件及13f7558历史，加入规范化ledger.json；r1～r14分配/attempt与一致性SQLite快照完全相同，14个GitHub Run/配置SHA核验，锚点变量读回一致，无新占号。
 - 推送成功后超时回归先红后绿；保留迁移文件的不可变校验先红后绿。版本专项22/22、完整Python辅助164/164、客户端Node53/53通过。独立机器bundle恢复并对比快照/远端状态通过。
 - 范围仅配置/规范及150文件同步，不执行Actions、产品编译、发布或118升级。真实hosted token、活会话加载、后续云端和目标验收待核验；七天快照须在后续调度前刷新，不把本条当永久就绪证明。
+# 2026-11-26 jitsi-mgr delivery omission repair (auxiliary verification only)
+
+The r29 downloaded mgr artifact was discarded by the image-only assembly loop. The
+repair consumes same-batch JAR/UI and provenance, emits an eighth service using the
+same API Java runtime image, wires target-only initialization through the shared
+first-install core, and checks mandatory payload at package/online/publication gates.
+105 focused tests pass; full suite 210 tests retains 9 existing skill-text/WSL
+permission failure reports (baseline independently reproduced). No build, allocation,
+publication, SSH or target installation was executed. Historical r29 is unchanged
+and still cannot be installed as a complete eight-service batch. Integration details
+and remaining UI/JWKS/runtime acceptance are tracked in docs/plans/jitsi-mgr-integration.md.

@@ -8,6 +8,60 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 class PackageTests(unittest.TestCase):
+    def test_mgr_delivery_is_not_discarded(self):
+        script = (ROOT/'build-tools/package.sh').read_text(encoding='utf-8')
+        self.assertIn("repo/'incoming/jitsi-mgr/build-evidence.json'", script)
+        self.assertIn("manifest['jitsi_mgr']", script)
+        self.assertIn("configs['jitsi-mgr']", script)
+        self.assertIn('initialize_jitsi_mgr(root)',
+                      (ROOT/'build-tools/offline-runtime/initialize.py').read_text())
+
+    def test_mgr_material_gate_rejects_missing_payload(self):
+        import importlib.util
+        import tempfile
+        spec = importlib.util.spec_from_file_location('mgr_verifier', ROOT/'build-tools/offline-runtime/install.py')
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(ValueError, 'jitsi-mgr'):
+                module.verify_jitsi_mgr(Path(directory), {}, {})
+
+    def test_mgr_payload_tamper_and_runtime_rejected(self):
+        import tempfile
+        from test_delivery_assets import add_mgr_fixture, load
+        module=load('mgr_verify',ROOT/'build-tools/offline-runtime/install.py')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory)
+            manifest={'images':{s:['tag-'+s,'id'] for s in module.SERVICES}}
+            add_mgr_fixture(root,manifest)
+            compose=json.loads((root/'jitsi-base.yaml').read_text())
+            module.verify_jitsi_mgr(root,manifest,compose)
+            compose['services']['jitsi-mgr']['ports']=['8080:8080']
+            with self.assertRaisesRegex(ValueError,'jitsi-mgr'):
+                module.verify_jitsi_mgr(root,manifest,compose)
+            compose['services']['jitsi-mgr'].pop('ports')
+            (root/'artifacts/jitsi-mgr.jar').write_bytes(b'tampered')
+            with self.assertRaisesRegex(ValueError,'jitsi-mgr'):
+                module.verify_jitsi_mgr(root,manifest,compose)
+
+    def test_mgr_target_initialization_without_network_or_secret_output(self):
+        import tempfile, subprocess, stat, contextlib, io
+        from test_delivery_assets import load
+        module=load('mgr_initialize',ROOT/'build-tools/init-jitsi-mgr.py')
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);module.DEPLOY_ROOT=root
+            module.JITSI_MGR_DATA=root/'data/jitsi-mgr';module.KEYS_DIR=module.JITSI_MGR_DATA/'keys'
+            output=io.StringIO()
+            with contextlib.redirect_stdout(output):module.main()
+            private=module.KEYS_DIR/'jwt-private.pem'
+            self.assertIn('BEGIN PRIVATE KEY',private.read_text())
+            self.assertEqual(stat.S_IMODE(private.stat().st_mode),0o600)
+            subprocess.run(['openssl','pkey','-in',str(private),'-check','-noout'],check=True,capture_output=True)
+            secret=(root/'.env').read_text().split('=',1)[1].strip()
+            self.assertNotIn(secret,output.getvalue())
+            before=private.read_bytes()
+            with self.assertRaises((ValueError,FileExistsError)):module.main()
+            self.assertEqual(private.read_bytes(),before)
+
     def test_base_inspection_python_survives_shell_quoting(self):
         import os
         import subprocess
@@ -217,8 +271,9 @@ base=out/'jitsi-base.yaml';data=json.loads(base.read_text());data['services']['g
             sources = json.loads((tools / 'sources.json').read_text())
             (repo / 'config').mkdir()
             shutil.copyfile(ROOT / 'config/Caddyfile', repo / 'config/Caddyfile')
-            for name in ('target.env','target.py','jitsi.env'):
+            for name in ('target.env','target.py','jitsi.env','jitsi-mgr.env'):
                 shutil.copyfile(ROOT/'config'/name,repo/'config'/name)
+            shutil.copyfile(ROOT/'build-tools/init-jitsi-mgr.py',tools/'init-jitsi-mgr.py')
             out = repo / 'fixture'
             out.mkdir()
             (out / 'bin').mkdir()
@@ -236,6 +291,7 @@ print(json.dumps(data))
             (out / 'bin/docker-compose').chmod(0o755)
             (out / 'images').mkdir()
             (out / 'provenance').mkdir()
+            shutil.copyfile(tools/'sources.json',out/'provenance/sources.json')
             assignment = {'fixture': 'test-only allocation'}
             version_record = repo / 'version-assignment.json'
             version_record.write_text(json.dumps(assignment))
@@ -245,6 +301,19 @@ print(json.dumps(data))
             for service in sources['services']:
                 directory = repo / 'incoming' / service
                 directory.mkdir(parents=True)
+                if service == 'jitsi-mgr':
+                    payload=directory/'artifacts'
+                    (payload/'jitsi-mgr-ui').mkdir(parents=True)
+                    (payload/'jitsi-mgr.jar').write_bytes(b'jar fixture')
+                    (payload/'jitsi-mgr-ui/index.html').write_text('fixture')
+                    mgr={'service':service,'batch':'test-123-1','version':'test',
+                         'run_id':'123','attempt':'1','deployment_commit':'d'*40,
+                         'architecture':architecture,'source_commit':sources['services'][service]['commit'],
+                         'version_assignment':assignment,
+                         'files':{p.relative_to(directory).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+                                  for p in payload.rglob('*') if p.is_file()}}
+                    (directory/'build-evidence.json').write_text(json.dumps(mgr))
+                    continue
                 labels = {'io.cloudmeet.batch': 'test-123-1', 'io.cloudmeet.service': service,
                           'io.cloudmeet.deployment': 'd' * 40, 'org.opencontainers.image.version': 'test',
                           'org.opencontainers.image.revision': sources['services'][service]['commit']}

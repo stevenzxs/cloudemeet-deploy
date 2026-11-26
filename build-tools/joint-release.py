@@ -89,6 +89,20 @@ def prepare():
         candidates=[m for m in tar.getmembers() if m.name.endswith('/candidate.json')]
         if len(candidates)!=1:raise ValueError('Expected one server candidate')
         candidate=json.load(tar.extractfile(candidates[0]))
+        mgr=candidate.get('jitsi_mgr',{})
+        if not {'artifacts/jitsi-mgr.jar','artifacts/jitsi-mgr-ui/index.html'} <= set(mgr.get('files',{})):
+            raise ValueError('Missing jitsi-mgr payload inventory')
+        if (mgr.get('service')!='jitsi-mgr' or mgr.get('version_assignment')!=assignment
+                or mgr.get('deployment_commit')!=os.environ['GITHUB_SHA']
+                or mgr.get('run_id')!=run or mgr.get('attempt')!=attempt):
+            raise ValueError('Joint publication requires same-batch jitsi-mgr')
+        prefix=candidates[0].name.rsplit('/',1)[0]+'/'
+        for name in ('artifacts/jitsi-mgr.jar','artifacts/jitsi-mgr-ui/index.html','init-jitsi-mgr.py','jitsi-mgr.env'):
+            member=tar.getmember(prefix+name)
+            if not member.isfile() or not member.size:raise ValueError('Missing jitsi-mgr payload')
+        for name,checksum in mgr.get('files',{}).items():
+            if hashlib.sha256(tar.extractfile(prefix+name).read()).hexdigest()!=checksum:
+                raise ValueError('jitsi-mgr payload mismatch')
     if (candidate.get('version_assignment')!=assignment or candidate.get('deployment_commit')!=os.environ['GITHUB_SHA']
             or candidate.get('architecture')!=os.environ['TARGET_ARCH']
             or candidate.get('run_id')!=run or candidate.get('attempt')!=attempt
@@ -143,7 +157,7 @@ def publish():
     # Create a draft first: failed uploads must not expose an apparently complete release.
     subprocess.run(['gh','release','create',tag,'--repo',os.environ['GITHUB_REPOSITORY'],
                     '--target',os.environ['GITHUB_SHA'],'--draft','--title',tag,
-                    '--notes',f"Seven services + H5 + Electron unsigned / Android signed. TLS mode: {contract['tls_mode']}. Origin: {contract['origin']}. NOT_DEPLOYED: publication does not change the live certificate; ACME issuance/renewal requires separate target acceptance."],check=True)
+                     '--notes',f"Eight services (seven images + jitsi-mgr JAR/UI) + H5 + Electron unsigned / Android signed. TLS mode: {contract['tls_mode']}. Origin: {contract['origin']}. NOT_DEPLOYED: publication does not change the live certificate; ACME issuance/renewal requires separate target acceptance."],check=True)
     subprocess.run(['gh','release','upload',tag,*[str(p) for p in sorted(root.iterdir())],
                     '--repo',os.environ['GITHUB_REPOSITORY']],check=True)
     subprocess.run(['gh','release','edit',tag,'--draft=false','--latest=false',

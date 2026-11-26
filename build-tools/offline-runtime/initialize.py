@@ -26,6 +26,17 @@ def initialize_host_control(root):
         path.chmod(0o644 if path.suffix == '.crt' else 0o600)
 
 
+def initialize_jitsi_mgr(root):
+    spec = importlib.util.spec_from_file_location('mgr_init', root/'init-jitsi-mgr.py')
+    module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+    module.DEPLOY_ROOT = root
+    module.JITSI_MGR_DATA = root/'data/jitsi-mgr'
+    module.KEYS_DIR = module.JITSI_MGR_DATA/'keys'
+    module.create_directories()
+    if not module.generate_jwt_keys() or not module.generate_db_password():
+        raise ValueError('jitsi-mgr initialization failed; preserve installation state')
+
+
 def main():
     root = Path(__file__).resolve().parent
     spec = importlib.util.spec_from_file_location('verifier', root / 'install.py')
@@ -50,6 +61,8 @@ def main():
     with os.fdopen(fd, 'w') as stream:
         stream.write(text)
     initialize_host_control(root)
+    if json.loads((root/'candidate.json').read_text()).get('jitsi_mgr'):
+        initialize_jitsi_mgr(root)
     print('Fresh secrets generated. Gateway will generate a new target CA; never export its private key.')
 
 

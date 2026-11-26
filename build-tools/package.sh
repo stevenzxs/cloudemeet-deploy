@@ -157,7 +157,7 @@ print(i["RepoDigests"][0])' "$ref"
             # Frontend: React SPA
             builder=$(resolve_base node:24-trixie)
             # Create production env pointing to relative API path
-            printf 'REACT_APP_API_BASE_URL=/api/mgr/v1\n' > "$source/jitsi-mgr-frontend/.env.production"
+            printf 'REACT_APP_API_BASE_URL=/api/mgr/v1\nPUBLIC_URL=/api/mgr/ui\n' > "$source/jitsi-mgr-frontend/.env.production"
             docker run --rm --platform "linux/$TARGET_ARCH" --user "$(id -u):$(id -g)" \
                 -e HOME=/tmp -v "$source/jitsi-mgr-frontend:/src" -w /src "$builder" bash -euc 'npm ci; npm run build'
             mkdir -p "$context/frontend"
@@ -183,6 +183,16 @@ print(i["RepoDigests"][0])' "$ref"
   "architecture": "$TARGET_ARCH"
 }
 BUILD_EOF
+            python3 -B - "$repo/output/$service" <<'PY'
+import hashlib,json,os,pathlib
+out=pathlib.Path(__import__('sys').argv[1])
+record=json.loads((out/'build-evidence.json').read_text())
+record.update(run_id=os.environ['GITHUB_RUN_ID'],attempt=os.environ['GITHUB_RUN_ATTEMPT'],
+    version_assignment=json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()),
+    files={p.relative_to(out).as_posix():hashlib.sha256(p.read_bytes()).hexdigest()
+           for p in (out/'artifacts').rglob('*') if p.is_file()})
+(out/'build-evidence.json').write_text(json.dumps(record,indent=2)+'\n')
+PY
             # Skip Docker image creation for jitsi-mgr
             return 0
             ;;
@@ -357,6 +367,21 @@ for s in services:
         destination.mkdir(exist_ok=True)
         shutil.copyfile(audit_file,destination/audit_file.name)
     records[s]=record
+mgr=json.loads((repo/'incoming/jitsi-mgr/build-evidence.json').read_text())
+for key,value in {'service':'jitsi-mgr','batch':os.environ['BATCH'],'version':os.environ['VERSION'],
+        'deployment_commit':os.environ['DEPLOYMENT_COMMIT'],'run_id':os.environ['GITHUB_RUN_ID'],
+        'attempt':os.environ['GITHUB_RUN_ATTEMPT'],'architecture':os.environ['TARGET_ARCH'],
+        'source_commit':sources['services']['jitsi-mgr']['commit'],
+        'version_assignment':json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text())}.items():
+    if mgr.get(key)!=value: raise ValueError('jitsi-mgr build identity mismatch: '+key)
+payload=repo/'incoming/jitsi-mgr/artifacts'
+actual={p.relative_to(payload.parent).as_posix():digest(p) for p in payload.rglob('*') if p.is_file()}
+if not actual or actual!=mgr.get('files') or any(p.is_symlink() for p in payload.rglob('*')):
+    raise ValueError('jitsi-mgr artifact integrity failure')
+shutil.copytree(payload,out/'artifacts')
+shutil.copyfile(repo/'incoming/jitsi-mgr/build-evidence.json',out/'provenance/jitsi-mgr.json')
+shutil.copyfile(repo/'build-tools/init-jitsi-mgr.py',out/'init-jitsi-mgr.py')
+shutil.copyfile(repo/'config/jitsi-mgr.env',out/'jitsi-mgr.env')
 common={'PUBLIC_URL':'${PUBLIC_URL:?required}','XMPP_DOMAIN':'meet.jitsi','XMPP_AUTH_DOMAIN':'auth.meet.jitsi',
  'XMPP_MUC_DOMAIN':'muc.meet.jitsi','XMPP_INTERNAL_MUC_DOMAIN':'internal-muc.meet.jitsi',
  'XMPP_SERVER':'xmpp.meet.jitsi','XMPP_PORT':'5222','JVB_BREWERY_MUC':'jvbbrewery',
@@ -396,12 +421,32 @@ configs['api'].update(mem_limit='384m',environment={'JITSI_TOKEN_APP_ID':'zhsz',
  'JITSI_MEET_DB_URL':'jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db','BANNER_LOGO_DIRECTORY':'/data/banner-logos'},
  volumes=['./data/api:/app/data','./data/logos:/data/banner-logos'])
 configs['app-web'].update(depends_on=['api'],volumes=['./data/logos:/data/banner-logos:ro'])
+mgr_settings=target_module.read_env(repo/'config/jitsi-mgr.env')
+mgr_postgres=mgr_settings['JITSI_MGR_DB_URL'].startswith('jdbc:postgresql:')
+if not mgr_postgres and not mgr_settings['JITSI_MGR_DB_URL'].startswith('jdbc:h2:file:/app/data/'):
+    raise ValueError('Unsupported jitsi-mgr persistent database configuration')
+configs['jitsi-mgr']={'image':records['api']['tag'],'pull_policy':'never','restart':'unless-stopped',
+ 'entrypoint':['java','-XX:MaxRAMPercentage=65','-jar','/app/jitsi-mgr.jar'],
+ 'mem_limit':'512m','pids_limit':512,'networks':{'meeting':{}},
+ 'environment':{'SERVER_PORT':'8080','SPRING_PROFILES_ACTIVE':mgr_settings['JITSI_MGR_PROFILE'],
+  'DATABASE_URL':mgr_settings['JITSI_MGR_DB_URL'],'DATABASE_USERNAME':mgr_settings['JITSI_MGR_DB_USER'],
+  'DATABASE_PASSWORD':'${JITSI_MGR_DB_PASSWORD:?required}',
+  'SPRING_DATASOURCE_URL':mgr_settings['JITSI_MGR_DB_URL'],
+  'SPRING_DATASOURCE_USERNAME':mgr_settings['JITSI_MGR_DB_USER'],
+  'SPRING_DATASOURCE_PASSWORD':'${JITSI_MGR_DB_PASSWORD:?required}',
+  'SPRING_DATASOURCE_DRIVER_CLASS_NAME':'org.postgresql.Driver' if mgr_postgres else 'org.h2.Driver',
+  'SPRING_JPA_PROPERTIES_HIBERNATE_DIALECT':'org.hibernate.dialect.PostgreSQLDialect' if mgr_postgres else 'org.hibernate.dialect.H2Dialect',
+  'JWT_PRIVATE_KEY':'file:/app/data/keys/jwt-private.pem',
+  'JWT_PUBLIC_KEY':'file:/app/data/keys/jwt-public.pem','CORS_ALLOWED_ORIGINS':'${PUBLIC_URL:?required}'},
+ 'volumes':['./artifacts/jitsi-mgr.jar:/app/jitsi-mgr.jar:ro','./data/jitsi-mgr:/app/data']}
 configs['gateway'].update(depends_on=['app-web','web'],environment={'SITE_HOST':'${SITE_HOST:?required}',
  'PUBLIC_URL':'${PUBLIC_URL:?required}'},
   ports=['${HTTPS_PORT:?required}:443','${HTTP_PORT:?required}:80'],
   volumes=['./Caddyfile:/etc/caddy/Caddyfile:ro','caddy_data:/data','caddy_config:/config',
            './data/host-control/gateway.crt:/host-control/gateway.crt:ro',
-           './data/host-control/gateway.key:/host-control/gateway.key:ro'])
+            './data/host-control/gateway.key:/host-control/gateway.key:ro'])
+configs['gateway']['depends_on'].append('jitsi-mgr')
+configs['gateway']['volumes'].append('./artifacts/jitsi-mgr-ui:/jitsi-mgr-ui:ro')
 compose={'name':'cloudmeet-'+os.environ['BATCH'].lower().replace('_','-'),
  'services':configs,'networks':{'meeting':{}},'volumes':{'caddy_data':{},'caddy_config':{}}}
 (out/'jitsi-base.yaml').write_text(json.dumps(compose,indent=2)+'\n')
@@ -433,7 +478,9 @@ manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION
              '4 GiB RAM recommended; lower-memory host compatibility is not established'],
  'not_tested':['target host compatibility','installation','service runtime','clients/media'],
  'publication':'NOT_PUBLISHED; publish these exact images only after separately approved acceptance'}
+manifest['jitsi_mgr']=mgr
 (out/'candidate.json').write_text(json.dumps(manifest,indent=2)+'\n')
+verifier.verify_jitsi_mgr(out,manifest,compose)
 if records['prosody']['runtime_user']!='1000:1000':
     raise ValueError('Prosody storage owner does not match image user')
 verifier.require_ready(manifest); verifier.verify_product(out,compose)
@@ -510,7 +557,7 @@ for path in out.rglob('*'):
 import subprocess
 subprocess.run(['python3','-B',str(repo/'build-tools/stage-h5.py'),str(repo),str(repo/'h5-source'),str(out),os.environ['VERSION_RECORD']],check=True)
 render_env=dict(os.environ,JWT_APP_SECRET='RENDER_ONLY',JICOFO_AUTH_PASSWORD='RENDER_ONLY',
-                JVB_AUTH_PASSWORD='RENDER_ONLY',JITSI_ROLE_CHECK_SECRET='RENDER_ONLY')
+                JVB_AUTH_PASSWORD='RENDER_ONLY',JITSI_ROLE_CHECK_SECRET='RENDER_ONLY',JITSI_MGR_DB_PASSWORD='RENDER_ONLY')
 render_env.update(target)
 rendered=json.loads(subprocess.check_output([str(out/'bin/docker-compose'),'-f',
     str(out/'jitsi-base.yaml'),'config','--format','json'],env=render_env,stderr=subprocess.PIPE))
@@ -525,7 +572,7 @@ PY
     # Rendering only: no daemon operation or application startup.
     # target.py already exported validated public settings; example files are not inputs.
     JWT_APP_SECRET=RENDER_ONLY JICOFO_AUTH_PASSWORD=RENDER_ONLY JVB_AUTH_PASSWORD=RENDER_ONLY \
-    JITSI_ROLE_CHECK_SECRET=RENDER_ONLY \
+    JITSI_ROLE_CHECK_SECRET=RENDER_ONLY JITSI_MGR_DB_PASSWORD=RENDER_ONLY \
         "$output/bin/docker-compose" -f "$output/jitsi-base.yaml" config --quiet
     python3 -B "$output/install.py" --verify-only
     python3 -B "$tools/online-material.py" --source "$output" --destination "$output-online"
