@@ -1,4 +1,8 @@
+import json
+import os
+import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -54,6 +58,19 @@ class OriginContractTests(unittest.TestCase):
     def test_dns_failure_is_an_error(self):
         with self.assertRaises(ValueError):
             normalize_origin("https://cloudmeet.example", resolver=lambda host, port: [])
+
+    def test_cli_writes_origin_contract_json(self):
+        tools = Path(__file__).resolve().parents[1] / "tools"
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "origin-contract.json"
+            env = dict(os.environ, EXPECTED_ORIGIN="https://cloudmeet.stevenzxs.cn:443", EXPECTED_TLS_MODE="caddy-public-acme")
+            result = subprocess.run(
+                [sys.executable, "-B", str(tools / "origin_contract.py"), "--output", str(output)],
+                env=env, capture_output=True, text=True,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            contract = json.loads(output.read_text(encoding="utf-8"))
+            self.assertEqual(contract["origin"], "https://cloudmeet.stevenzxs.cn:443")
 
 
 if __name__ == "__main__":
