@@ -12,6 +12,16 @@ on:
         description: Approved complete HTTPS origin
         type: string
         required: true
+      http_port:
+        description: Published HTTP port for this package
+        type: string
+        default: '80'
+        required: false
+      media_port:
+        description: Published WebRTC media UDP port
+        type: string
+        default: '10000'
+        required: false
       material_commit:
         description: 'Reviewed deployment-material commit SHA (must equal workflow commit)'
         required: true
@@ -40,6 +50,12 @@ on:
       expected_origin:
         type: string
         required: true
+      http_port:
+        type: string
+        default: '80'
+      media_port:
+        type: string
+        default: '10000'
       material_commit:
         type: string
         required: true
@@ -81,6 +97,7 @@ jobs:
       VERSION: ${{ fromJSON(needs.version.outputs.assignment).versions.server_version }}
       BATCH: ${{ fromJSON(needs.version.outputs.assignment).versions.server_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
       ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
+      ORIGIN_CONTRACT_JSON: ${{ needs.version.outputs.origin_contract }}
     runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 120
     strategy:
@@ -97,12 +114,12 @@ jobs:
           MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
-          sha256sum -c build-tools/inputs.sha256
+          sha256sum -c skills/full-build-deploy/inputs.sha256
           printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
       - name: Build one service from pinned source and export exact image
         env:
           SERVICE: ${{ matrix.service }}
-        run: bash build-tools/package.sh build "$SERVICE"
+        run: bash skills/full-build-deploy/scripts/package.sh build "$SERVICE"
       - name: Retain build network audit
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
@@ -141,8 +158,8 @@ jobs:
           MATERIAL_COMMIT: ${{ inputs.material_commit }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
-          sha256sum -c build-tools/inputs.sha256
-          python3 -B -m unittest discover -s build-tools/tests -p test_publish.py
+          sha256sum -c skills/full-build-deploy/inputs.sha256
+          python3 -B -m unittest discover -s skills/full-build-deploy/tests -p test_publish.py
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
@@ -154,7 +171,7 @@ jobs:
       - name: Publish exact verified images and registry identities
         run: |
           printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
-          python3 -B build-tools/publish.py
+          python3 -B skills/full-build-deploy/tools/publish.py
       - name: Remove runner registry session
         if: always()
         run: docker logout ghcr.io
@@ -175,6 +192,7 @@ jobs:
       VERSION: ${{ fromJSON(needs.version.outputs.assignment).versions.server_version }}
       BATCH: ${{ fromJSON(needs.version.outputs.assignment).versions.server_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
       ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
+      ORIGIN_CONTRACT_JSON: ${{ needs.version.outputs.origin_contract }}
     runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
     timeout-minutes: 40
     steps:
@@ -187,7 +205,7 @@ jobs:
           MATERIAL_COMMIT: ${{ inputs.material_commit || github.sha }}
         run: |
           test "$MATERIAL_COMMIT" = "$(git rev-parse HEAD)"
-          sha256sum -c build-tools/inputs.sha256
+          sha256sum -c skills/full-build-deploy/inputs.sha256
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
         with:
           pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
@@ -220,7 +238,7 @@ jobs:
         run: |
           python3 -B - <<'PY' >> "$GITHUB_OUTPUT"
           import json,re
-          lock=json.load(open('config/h5-source.json'))
+          lock=json.load(open('skills/full-build-deploy/config/h5-source.json'))
           assert lock['repository']=='stevenzxs/jitsi-weixin'
           assert re.fullmatch('[0-9a-f]{40}',lock['commit'])
           print('commit='+lock['commit'])
@@ -236,9 +254,15 @@ jobs:
           # requires a deliberate reviewed workflow change instead.
           persist-credentials: false
       - name: Assemble complete package and check material integrity only
+        env:
+          HTTP_PORT: ${{ inputs.http_port || '80' }}
+          MEDIA_PORT: ${{ inputs.media_port || '10000' }}
+          HTTPS_PORT: ${{ fromJSON(needs.version.outputs.origin_contract).port }}
+          ORIGIN_CONTRACT: ${{ github.workspace }}/origin-contract.json
         run: |
+          printf '%s' "$ORIGIN_CONTRACT_JSON" > "$ORIGIN_CONTRACT"
           printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
-          bash build-tools/package.sh assemble
+          bash skills/full-build-deploy/scripts/package.sh assemble
       - name: Retain assembly network audit
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
