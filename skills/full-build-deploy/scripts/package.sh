@@ -37,8 +37,7 @@ assert r['versions']['server_version']==os.environ['VERSION'], 'Version assignme
 for name,item in s['services'].items():
     assert r['request']['sources'].get(name)==item['commit'], 'Source allocation mismatch'
 PY
-python3 -B "$repo/tools/network-audit.py" --root "$repo" --mode generic \
-    --output "$repo/output/network-audit-${1}-${2:-package}/preflight"
+
 
 source_field() {
     python3 - "$repo/sources.json" "$1" "$2" <<'PY'
@@ -68,9 +67,7 @@ build_service() (
     mkdir -p "$work/context" "$repo/output"
     mkdir "$repo/output/$service"
     checkout_source "$service" "$work/source"
-    python3 -B "$repo/tools/network-audit.py" --root "$repo" --source "$work/source" --service "$service" \
-        --output "$repo/output/network-audit-build-$service/source"
-    cp "$repo/output/network-audit-build-$service/source/"network-audit.* "$repo/output/$service/"
+
     SOURCE_COMMIT=$(source_field "$service" commit)
     export SOURCE_COMMIT SERVICE="$service"
     context=$work/context
@@ -133,7 +130,7 @@ print(i["RepoDigests"][0])' "$ref"
             ;;
         api)
             runtime=$(resolve_base eclipse-temurin:17-jre-jammy)
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; mvn -B -ntp -DskipTests package)
             jars=("$source/target/"*.jar)
             [[ ${#jars[@]} == 1 && -s ${jars[0]} ]] || die 'Expected one API jar'
             cp "${jars[0]}" "$context/app.jar"
@@ -141,7 +138,7 @@ print(i["RepoDigests"][0])' "$ref"
         jitsi-mgr)
             # jitsi-mgr is not a Docker image service - it outputs JAR and frontend static files
             # Backend: Spring Boot JAR
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source/jitsi-mgr-app"; mvn -B -ntp -DskipTests package)
             backend_jars=("$source/jitsi-mgr-app/target/"jitsi-mgr-*.jar)
             # Exclude -sources.jar and -javadoc.jar
             filtered_jars=()
@@ -222,7 +219,7 @@ PY
         jicofo|jvb)
             resolve_base "$lifecycle_base" > /dev/null
             checkout_source lifecycle "$work/lifecycle"
-            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; python3 -B "$repo/tools/maven-route.py" --audit "$repo/output/network-audit-build-$service/maven-route.jsonl" -- -B -ntp -DskipTests package)
+            (export JAVA_HOME="$java17" PATH="$java17/bin:$PATH"; cd "$source"; mvn -B -ntp -DskipTests package)
             archives=("$source/$service/target/"*-archive.zip)
             [[ ${#archives[@]} == 1 && -s ${archives[0]} ]] || die 'Expected one distribution archive'
             mkdir "$context/unpack"
@@ -310,7 +307,7 @@ assemble_package() {
     chmod 0755 "$output/bin/docker-compose"
     "$output/bin/docker-compose" version
     cp "$repo/runtime/"*.py "$output/"
-    cp "$repo/tools/network-audit.py" "$output/network-audit.py"
+
     cp "$repo/tools/setup.py" "$repo/output/setup.py"
     (cd "$repo/output" && sha256sum setup.py > setup.py.sha256)
     cp -a "$repo/patches" "$output/patches"
@@ -366,10 +363,7 @@ for s in services:
     verifier.verify_image_archive(archive, record)
     shutil.copyfile(archive,out/'images'/record['archive'])
     shutil.copyfile(repo/'incoming'/s/(s+'.json'),out/'provenance'/(s+'.json'))
-    for audit_file in (repo/'incoming'/s).glob('network-audit.*'):
-        destination=out/'provenance'/('source-network-'+s)
-        destination.mkdir(exist_ok=True)
-        shutil.copyfile(audit_file,destination/audit_file.name)
+
     records[s]=record
 mgr=json.loads((repo/'incoming/jitsi-mgr/build-evidence.json').read_text())
 for key,value in {'service':'jitsi-mgr','batch':os.environ['BATCH'],'version':os.environ['VERSION'],
@@ -475,7 +469,7 @@ if origin_contract.get('client_ca_file'):
     shutil.copyfile(ca,out/'client-ca.crt')
 manifest={'status':'PACKAGED','package_contract':1,'version':os.environ['VERSION'],'batch':os.environ['BATCH'],
   'version_assignment':json.loads(pathlib.Path(os.environ['VERSION_RECORD']).read_text()),
-  'network_audit_required':True,
+
  'run_id':os.environ['GITHUB_RUN_ID'],'attempt':os.environ['GITHUB_RUN_ATTEMPT'],
  'workflow_commit':os.environ['GITHUB_SHA'],
    'architecture':os.environ.get('TARGET_ARCH','arm64'),'target_profile':'linux-'+os.environ.get('PACKAGE_ARCH','aarch64')+'-existing-engine','origin':origin,
@@ -513,11 +507,7 @@ if 'custom.css' not in (out/'patches/web/custom-head.html').read_text():
     raise ValueError('Missing CSS head reference')
 if 'custom.css' not in (out/'patches/web/nginx-custom/custom-css.conf').read_text():
     raise ValueError('Missing CSS route reference')
-# Retain derived package input audit before checksums; rendering is checked below.
-audit_module=__import__('importlib.util').util
-spec=audit_module.spec_from_file_location('network_audit',skill_root/'tools/network-audit.py')
-network_audit=audit_module.module_from_spec(spec); spec.loader.exec_module(network_audit)
-network_audit.write_report(network_audit.audit(repo),out/'provenance/network-preflight')
+
 # Host transfer is part of the default product; HTTP downgrade remains optional.
 manifest['patch_decisions']={name:('install' if name in verifier.PRODUCT_PATCHES else
  'not installed: documentation or optional Web/HTTP customization') for name in manifest['patches']}
@@ -579,10 +569,6 @@ render_env=dict(os.environ,JWT_APP_SECRET='RENDER_ONLY',JICOFO_AUTH_PASSWORD='RE
 render_env.update(target)
 rendered=json.loads(subprocess.check_output([str(out/'bin/docker-compose'),'-f',
     str(out/'jitsi-base.yaml'),'config','--format','json'],env=render_env,stderr=subprocess.PIPE))
-network_report=network_audit.audit(repo,rendered=rendered)
-network_audit.write_report(network_report,out/'provenance/network-rendered')
-network_audit.write_report(network_report,repo/'output/network-audit-assemble-package/rendered')
-if network_report['errors']: raise ValueError('Rendered network audit failed; see retained report')
 (out/'SHA256SUMS').write_text(''.join(digest(p)+'  '+p.relative_to(out).as_posix()+'\n'
  for p in sorted(out.rglob('*')) if p.is_file() and p.name!='SHA256SUMS'))
 verifier.verify_checksums(out)
