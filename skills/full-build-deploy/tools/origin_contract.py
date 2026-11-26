@@ -6,6 +6,7 @@ import ipaddress
 import json
 import socket
 import argparse
+import sys
 from pathlib import Path
 from typing import Callable
 from urllib.parse import urlsplit, urlunsplit
