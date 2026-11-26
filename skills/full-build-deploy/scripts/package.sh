@@ -30,7 +30,7 @@ deployment_commit=$(git -C "$repo" rev-parse HEAD)
 (cd "$repo/../.."; sha256sum -c skills/full-build-deploy/inputs.sha256)
 export VERSION BATCH DEPLOYMENT_COMMIT="$deployment_commit"
 : "${VERSION_RECORD:?Bound version allocation record required}"
-python3 -B - "$VERSION_RECORD" "$tools/sources.json" <<'PY'
+python3 -B - "$VERSION_RECORD" "$repo/sources.json" <<'PY'
 import json,os,sys
 r=json.load(open(sys.argv[1])); s=json.load(open(sys.argv[2]))
 assert r['versions']['server_version']==os.environ['VERSION'], 'Version assignment mismatch'
