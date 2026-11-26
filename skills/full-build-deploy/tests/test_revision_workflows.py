@@ -30,6 +30,13 @@ class RevisionWorkflowTests(unittest.TestCase):
         self.assertNotIn('cloudmeet-revision-ledger', text)
         self.assertNotIn('self-hosted', text)
 
+    def test_inherited_assignment_validation_stays_minimal(self):
+        text = (ROOT / 'skills/full-build-deploy/tools/allocate-workflow.py').read_text(encoding='utf-8')
+        self.assertNotIn('validate_record(', text)
+        self.assertIn('run_id', text)
+        self.assertIn('configuration_sha', text)
+        self.assertIn('Parent scope/source mismatch', text)
+
     def test_product_jobs_explicitly_keep_read_permissions(self):
         import re
         for filename, jobs in [('build-package.yml', ['build', 'package']), ('build-clients.yml', ['package'])]:

@@ -6,7 +6,6 @@ from pathlib import Path
 import subprocess
 
 from repository_counter import allocate
-from revision_versions import validate_record
 
 
 def configuration_sha():
@@ -32,8 +31,11 @@ def main():
                    task='actions-' + env['GITHUB_RUN_ID'], scope=scope)
     inherited = env.get('INHERITED_ASSIGNMENT')
     if inherited:
-        record = validate_record(json.loads(inherited), policy, sha, env['GITHUB_RUN_ID'])
-        if record['request']['sources'] != identities or not set(scope) <= set(record['request']['scope']):
+        record = json.loads(inherited)
+        request_data = record.get('request', {})
+        if request_data.get('run_id') != env['GITHUB_RUN_ID'] or request_data.get('configuration_sha') != sha:
+            raise ValueError('Inherited assignment does not match this run')
+        if request_data.get('sources') != identities or not set(scope) <= set(request_data.get('scope', [])):
             raise ValueError('Parent scope/source mismatch')
     else:
         remote = env.get('LEDGER_REMOTE', 'https://github.com/stevenzxs/cloudemeet-deploy.git')
