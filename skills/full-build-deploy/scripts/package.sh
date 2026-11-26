@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 # One build/assembly entry. Docker is used only on the native Actions runner.
 set -euo pipefail
 tools=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
