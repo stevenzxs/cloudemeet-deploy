@@ -6,7 +6,7 @@ const { spawnSync } = require('node:child_process');
 function loadAssignment(file, root, target, env = process.env) {
   if (!file || !env.GITHUB_SHA || !env.GITHUB_RUN_ID || !env.GITHUB_RUN_ATTEMPT) throw Error('Bound Actions version assignment required');
   const skillRoot = path.resolve(__dirname, '..');
-  const result = spawnSync('python', ['-B', path.join(skillRoot, 'tools/revision_versions.py'),
+  const result = spawnSync('python', ['-B', path.join(skillRoot, 'revision_versions.py'),
     '--record', file, '--policy', path.join(skillRoot, 'config/version-policy.json'),
     '--sha', env.GITHUB_SHA, '--run-id', env.GITHUB_RUN_ID, '--attempt', env.GITHUB_RUN_ATTEMPT,
     '--scope', target === 'all' ? 'electron' : target], { encoding: 'utf8' });

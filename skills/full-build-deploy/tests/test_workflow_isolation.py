@@ -21,6 +21,12 @@ class WorkflowContractTests(unittest.TestCase):
     def test_package_script_verifies_repository_manifest_from_repository_root(self):
         script = (ROOT / "scripts/package.sh").read_text(encoding="utf-8")
         self.assertRegex(script, r"\(cd\s+\"\$repo/\.\./\.\.\";\s*sha256sum -c skills/full-build-deploy/inputs\.sha256\)")
+        self.assertIn('"$repo/tools/revision_versions.py"', script)
+
+    def test_client_allocation_validator_uses_the_skill_tool_path(self):
+        client_validator = ROOT / 'tools/clients/revision-config.cjs'
+        source = client_validator.read_text(encoding='utf-8')
+        self.assertIn("path.join(skillRoot, 'revision_versions.py')", source)
 
     def test_build_workflows_verify_the_current_skill_manifest(self):
         for name in ("revision-allocation.yml", "build-package.yml", "publish-release.yml"):

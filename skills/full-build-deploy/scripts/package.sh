@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 # One build/assembly entry. Docker is used only on the native Actions runner.
 set -euo pipefail
 tools=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
@@ -30,7 +30,7 @@ deployment_commit=$(git -C "$repo" rev-parse HEAD)
 (cd "$repo/../.."; sha256sum -c skills/full-build-deploy/inputs.sha256)
 export VERSION BATCH DEPLOYMENT_COMMIT="$deployment_commit"
 : "${VERSION_RECORD:?Bound version allocation record required}"
-python3 -B "$tools/revision_versions.py" --record "$VERSION_RECORD" --policy "$repo/config/version-policy.json" \
+python3 -B "$repo/tools/revision_versions.py" --record "$VERSION_RECORD" --policy "$repo/config/version-policy.json" \
     --sha "$deployment_commit" --run-id "$GITHUB_RUN_ID" --scope server --attempt "$GITHUB_RUN_ATTEMPT" >/dev/null
 python3 -B - "$VERSION_RECORD" "$tools/sources.json" <<'PY'
 import json,os,sys
