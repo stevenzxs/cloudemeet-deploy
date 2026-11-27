@@ -1,5 +1,6 @@
 import json
 from pathlib import Path
+import re
 import unittest
 
 import yaml
@@ -84,6 +85,16 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         # always failed; the variable must be expanded (double quotes).
         self.assertNotIn("'$GITHUB_SHA'", self.text)
         self.assertIn('"$GITHUB_SHA"', self.text)
+
+    def test_maven_builds_route_through_tencent_mirror(self):
+        # Central 429-throttles CI runners (run 45989299222 api job).
+        script = (SKILL / 'tools' / 'build-service.sh').read_text(encoding='utf-8')
+        self.assertIn('mirrors.cloud.tencent.com', script)
+        self.assertIn('mirrorOf>central<', script)
+
+    def test_lifecycle_ref_is_literal_not_fromjson(self):
+        # fromJSON('2768…') is parsed as a number and breaks the workflow template.
+        self.assertIsNone(re.search(r"fromJSON\('[^']*[0-9a-f]{40}[^']*'\)", self.text))
 
 
 if __name__ == '__main__':

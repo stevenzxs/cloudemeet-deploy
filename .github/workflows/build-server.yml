@@ -86,7 +86,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: jitsi/docker-jitsi-meet
-          ref: ${{ fromJSON('276801c7fd4233f7288ba95bd132c219852c7ac7') }}
+          ref: 276801c7fd4233f7288ba95bd132c219852c7ac7
           path: lifecycle
           persist-credentials: false
       - name: Set up JDK 17

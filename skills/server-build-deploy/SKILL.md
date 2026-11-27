@@ -50,6 +50,8 @@ description: Use when the user requests a standalone CloudMeet server-side (eigh
 - **GitHub 资产列表可见性延迟 2–6+ 分钟**：禁止资产计数轮询；`gh release upload` 同步退出码才是权威判据（r56–r58 失败点，r59 实证修复）。
 - **失败即消耗 rN，不回收**：修复材料后必须新 Run/新编号。
 - **bash 单引号不展开变量**：`'$GITHUB_SHA'` 是字面字符串，材料一致性断言恒失败（r61 失败点）；shell 变量引用必须双引号（测试已钉住）。
+- **`fromJSON` 只解析 JSON**：commit SHA 以数字开头时 `fromJSON('2768…')` 按数字解析报模板无效（r62 失败点）；固定 ref 直接写字面量，测试钉住与 sources.json 一致。
+- **Maven Central 限流 CI（429）**：`api`/`jicofo`/`jvb`/`jitsi-mgr` 构建必须经腾讯云镜像路由（settings.xml mirrorOf=central），直连 Central 会被 429 拖死（r62 api 失败点）。
 
 ## 必须停止并报告的情形
 
