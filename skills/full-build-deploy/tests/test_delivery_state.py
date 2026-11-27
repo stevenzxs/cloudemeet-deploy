@@ -23,6 +23,7 @@ class Clock:
 
 
 class DeliveryStateTests(unittest.TestCase):
+    @unittest.skipUnless(os.name == 'posix', 'delivery_state uses Linux/POSIX locking and permission semantics')
     def setUp(self):
         self.assertTrue(MODULE.exists(), 'Persistent delivery state is not implemented')
         spec = importlib.util.spec_from_file_location('delivery_state', MODULE)

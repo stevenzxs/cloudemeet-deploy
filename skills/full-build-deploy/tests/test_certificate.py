@@ -70,6 +70,7 @@ class CertificateTests(unittest.TestCase):
     def test_setup_safe_extract_and_existing_directory_refusal(self):
         import hashlib
         import io
+        import os
         import tarfile
         spec=importlib.util.spec_from_file_location('setup',Path(__file__).parents[1]/'tools'/'setup.py')
         setup=importlib.util.module_from_spec(spec);spec.loader.exec_module(setup)
@@ -83,7 +84,10 @@ class CertificateTests(unittest.TestCase):
             Path(str(archive)+'.sha256').write_text(hashlib.sha256(archive.read_bytes()).hexdigest()+'  server.tar.gz\n')
             extracted=setup.extract_server(archive)
             self.assertEqual((extracted/'deploy.py').read_bytes(),b'x')
-            self.assertEqual((extracted/'bin/docker-compose').stat().st_mode & 0o7777,0o755)
+            if os.name == 'posix':
+                self.assertEqual((extracted/'bin/docker-compose').stat().st_mode & 0o7777,0o755)
+            else:
+                self.assertEqual((extracted/'bin/docker-compose').read_bytes(),b'x')
             with self.assertRaises(FileExistsError): setup.extract_server(archive)
             Path(str(archive)+'.sha256').write_text('0'*64+'  server.tar.gz\n')
             with self.assertRaises(ValueError): setup.extract_server(archive)

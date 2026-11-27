@@ -99,6 +99,29 @@ class MavenRouteTests(unittest.TestCase):
         self.assertEqual(records[-1]['failure_kind'], 'upstream_http')
         self.assertEqual(records[-1]['action'], 'fail')
 
+    def test_http_616_retries_same_origin_then_succeeds(self):
+        opener = Mock()
+        error = urllib.error.HTTPError('url', 616, '', {}, None)
+        opener.open.side_effect = [error, urllib.error.HTTPError('url', 616, '', {}, None), Mock(status=200)]
+        records = []
+        with patch.object(route.time, 'sleep') as sleep:
+            _, origin = route.fetch_artifact('com/android/a/1/a-1.jar', opener, records.append)
+        self.assertEqual(origin, route.TENCENT)
+        self.assertEqual([c.args[0] for c in opener.open.call_args_list],
+                         [route.TENCENT+'com/android/a/1/a-1.jar']*3)
+        self.assertEqual([c.args[0] for c in sleep.call_args_list], [2, 5])
+        self.assertEqual([r['action'] for r in records], ['retry', 'retry', 'success'])
+
+    def test_http_616_exhaustion_does_not_fallback_to_central(self):
+        opener = Mock()
+        opener.open.side_effect = urllib.error.HTTPError('url', 616, '', {}, None)
+        records = []
+        with patch.object(route.time, 'sleep'), self.assertRaises(urllib.error.HTTPError):
+            route.fetch_artifact('com/android/a/1/a-1.jar', opener, records.append)
+        self.assertEqual(opener.open.call_count, 3)
+        self.assertTrue(all(r['origin'] == route.TENCENT for r in records))
+        self.assertEqual([r['action'] for r in records], ['retry', 'retry', 'fail'])
+
     def test_central_recovers_without_changing_artifact(self):
         opener = Mock()
         opener.open.side_effect = [urllib.error.HTTPError('url', 404, '', {}, None),

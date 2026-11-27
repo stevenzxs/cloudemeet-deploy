@@ -37,7 +37,8 @@ class DeployTests(unittest.TestCase):
             root=Path(tmp); (root/'candidate.json').write_text('{}')
             verifier=Mock(); verifier.require_target.side_effect=ValueError('Wrong host')
             runner=Mock()
-            with self.assertRaises(ValueError): self.mod.deploy(root,verifier,runner)
+            with patch.object(self.mod,'host_os',return_value={'ID':'test'}):
+                with self.assertRaises(ValueError): self.mod.deploy(root,verifier,runner)
             runner.assert_not_called()
 
     def test_conflicting_image_tag_is_rejected(self):
@@ -119,6 +120,8 @@ class DeployTests(unittest.TestCase):
                 self.mod.check_local_identity(info,'sha256:approved','arm64',archive)
 
     def test_archive_set_missing_prevents_any_load(self):
+        if not hasattr(self.mod.os, 'geteuid'):
+            self.skipTest('target deployment privilege check requires POSIX geteuid')
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
             (root/'candidate.json').write_text(json.dumps({'images':{'jvb':['tag','sha256:approved']}}))
@@ -129,6 +132,8 @@ class DeployTests(unittest.TestCase):
             self.assertFalse(any('load' in call.args[0] for call in runner.call_args_list))
 
     def test_load_identity_mismatch_prevents_initialize(self):
+        if not hasattr(self.mod.os, 'geteuid'):
+            self.skipTest('target deployment privilege check requires POSIX geteuid')
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp); (root/'images').mkdir(); (root/'images/jvb.gz').write_bytes(b'image')
             record={'tag':'tag','image_id':'sha256:approved','file':'jvb.gz','bytes':5,'sha256':'digest'}

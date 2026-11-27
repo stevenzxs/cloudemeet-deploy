@@ -75,6 +75,9 @@ class StartTests(unittest.TestCase):
             with self.assertRaises(ValueError): self.module.safe_directory(root,'../outside')
 
     def test_initialization_then_first_start_preserves_internal_identity(self):
+        openssl = shutil.which('openssl')
+        if not openssl or openssl.lower().endswith(('.cmd', '.bat')):
+            self.skipTest('openssl executable is required for certificate initialization')
         with tempfile.TemporaryDirectory() as tmp:
             root=Path(tmp)
             path=Path(__file__).parents[1]/'runtime/initialize.py'

@@ -263,11 +263,11 @@ def write_report(report, output):
             (repo/'config/jitsi-mgr.env').write_text('JITSI_MGR_PROFILE=prod\nJITSI_MGR_DB_URL=jdbc:h2:file:/app/data/test\nJITSI_MGR_DB_USER=sa\n',encoding='utf-8')
             (repo/'skill').mkdir(exist_ok=True)
             shutil.copyfile(ROOT/'sources.json',repo/'skill/sources.json')
-            shutil.copytree(ROOT/'config',repo/'skill/config')
+            shutil.copytree(ROOT/'config',repo/'skill/config',ignore=shutil.ignore_patterns('jitsi-mgr.env'))
             shutil.copytree(ROOT/'patches',repo/'skill/patches')
             shutil.copytree(ROOT/'runtime',repo/'skill/runtime')
             (repo/'skill/config/jitsi.env').write_text('CONFIG=./data/jitsi\nJVB_AUTH_USER=jvb\nJICOFO_AUTH_USER=focus\nENABLE_AUTH=1\nAUTH_TYPE=jwt\nJWT_APP_ID=zhsz\nJWT_ALLOW_EMPTY=1\nENABLE_AUTO_OWNER=0\nXMPP_MUC_MODULES=muc_jwt_owner\nENABLE_XMPP_WEBSOCKET=1\nBOSH_RELATIVE=1\nENABLE_P2P=0\nTZ=Asia/Shanghai\n',encoding='utf-8')
-            (repo/'skill/config/jitsi-mgr.env').write_text('JITSI_MGR_PROFILE=prod\nJITSI_MGR_DB_URL=jdbc:h2:file:/app/data/test\nJITSI_MGR_DB_USER=sa\n',encoding='utf-8')
+            shutil.copyfile(ROOT/'config/target.py',repo/'skill/config/target.py')
             (repo/'skill/config/Caddyfile').write_text('https://:443 {\n tls internal\n}\n',encoding='utf-8')
             shutil.copyfile(ROOT/'tools/init-jitsi-mgr.py',tools/'init-jitsi-mgr.py')
             out = repo / 'fixture'

@@ -87,7 +87,7 @@ def fetch_artifact(relative, opener, audit=lambda record: None):
                 http_error = isinstance(error, urllib.error.HTTPError)
                 status = error.code if http_error else 502
                 reason = 'http_status' if http_error else failure_reason(error)
-                transient = status in (502, 503, 504) if http_error else reason in ('timeout', 'connection_reset')
+                transient = status in (502, 503, 504, 616) if http_error else reason in ('timeout', 'connection_reset')
                 fallback = http_error and status == 404 and origin == TENCENT
                 retry = transient and attempt < 3
                 record.update(status=status, failure_kind='upstream_http' if http_error else 'transport',
