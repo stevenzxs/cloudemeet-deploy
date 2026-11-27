@@ -313,7 +313,6 @@ assemble_package() {
     cp -a "$repo/patches" "$output/patches"
     cp "$repo/sources.json" "$output/provenance/sources.json"
     cp "$VERSION_RECORD" "$output/provenance/version-assignment.json"
-    cp "$repo/incoming/artifacts.json" "$output/provenance/actions-artifacts.json"
     export PACKAGE_DIR="$output" COMPOSE_URL="$compose_url" COMPOSE_VERSION="$compose_version" SKILL_ROOT="$repo"
     python3 -B - "$repo" <<'PY'
 import hashlib, importlib.util, json, os, pathlib, shutil, sys, urllib.parse
