@@ -66,14 +66,14 @@ jobs:
         run: |
           test "$MATERIAL_SHA" = "$(git -C deploy rev-parse HEAD)"
           test "$MATERIAL_SHA" = "$GITHUB_SHA"
-          cd deploy && python3 -B skills/full-build-deploy/tools/tls_contract.py
+          cd deploy && python3 -B skills/single-build-deploy/tools/tls_contract.py
       - name: Normalize user origin and retain DNS evidence
         id: origin
         env:
           EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
           EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
         run: |
-          python3 -B deploy/skills/full-build-deploy/tools/origin_contract.py --output origin-contract.json
+          python3 -B deploy/skills/single-build-deploy/tools/origin_contract.py --output origin-contract.json
           echo "contract=$(jq -c . origin-contract.json)" >> "$GITHUB_OUTPUT"
       - name: Authenticate read-only to GHCR for base evidence
         if: ${{ !contains(fromJSON('["electron","android","jitsi-mgr"]'), inputs.target) }}
@@ -122,18 +122,18 @@ jobs:
           test "$MATERIAL_COMMIT" = "$(git -C deploy rev-parse HEAD)"
           printf '%s' "$ALLOCATION_JSON" > "$VERSION_RECORD"
       - name: Build the single target from pinned source
-        run: bash deploy/skills/full-build-deploy/scripts/package.sh build "${{ inputs.target }}"
+        run: bash deploy/skills/single-build-deploy/scripts/package.sh build "${{ inputs.target }}"
       - name: Retain build network audit
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: network-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: deploy/skills/full-build-deploy/output/network-audit-*/
+          path: deploy/skills/single-build-deploy/output/network-audit-*/
           if-no-files-found: warn
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: image-${{ inputs.target }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: deploy/skills/full-build-deploy/output/${{ inputs.target }}/
+          path: deploy/skills/single-build-deploy/output/${{ inputs.target }}/
           compression-level: 0
           if-no-files-found: error
           retention-days: 14
@@ -182,7 +182,7 @@ jobs:
           if (!$contract.origin -or !$contract.addresses) { throw 'Normalized origin/DNS evidence is required' }
           if ($contract.origin -ne $env:EXPECTED_ORIGIN -or $contract.tls_mode -ne $env:EXPECTED_TLS_MODE) { throw 'Origin/TLS contract differs from dispatch inputs' }
           $envFile = Join-Path $env:GITHUB_WORKSPACE 'batch-client.env'
-          $fixed = Get-Content deploy/skills/full-build-deploy/config/client.env | Where-Object { $_ -match '^\s*[A-Z_]+\s*=' -and $_ -notmatch '^\s*(SITE_DOMAIN|SITE_SCHEME|SITE_PORT|TLS_MODE|CLIENT_CA_FILE)\s*=' }
+          $fixed = Get-Content deploy/skills/single-build-deploy/config/client.env | Where-Object { $_ -match '^\s*[A-Z_]+\s*=' -and $_ -notmatch '^\s*(SITE_DOMAIN|SITE_SCHEME|SITE_PORT|TLS_MODE|CLIENT_CA_FILE)\s*=' }
           $origin = @("SITE_DOMAIN=$($contract.site_domain)", "SITE_SCHEME=$($contract.site_scheme)", "SITE_PORT=$($contract.site_port)")
           $batch = @($origin + $fixed)
           if ($contract.tls_mode -eq 'caddy-public-acme') { $batch += 'TLS_MODE=caddy-public-acme'; $batch = $batch | Where-Object { $_ -notmatch '^\s*CLIENT_CA_FILE\s*=' } }
@@ -197,7 +197,7 @@ jobs:
           CLIENT_TARGET: ${{ inputs.target }}
           ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
         run: |
-          $sources = Get-Content deploy/skills/full-build-deploy/sources.json | ConvertFrom-Json
+          $sources = Get-Content deploy/skills/single-build-deploy/sources.json | ConvertFrom-Json
           $commit = $sources.clients.$($env:CLIENT_TARGET).commit
           if ($commit -cnotmatch '^[0-9a-f]{40}$') { throw 'Invalid pinned client commit' }
           $record = $env:ALLOCATION_JSON | ConvertFrom-Json
@@ -238,6 +238,14 @@ jobs:
             jm/android/**/gradle.lockfile
             jm/android/**/gradle/dependency-locks/**
             jm/android/**/build.gradle*
+      - name: Report Gradle dependency cache status
+        if: inputs.target == 'android'
+        shell: pwsh
+        env:
+          GRADLE_CACHE_HIT: ${{ steps.java.outputs.cache-hit }}
+        run: |
+          $hit = if ($env:GRADLE_CACHE_HIT -eq 'true') { 'hit' } else { 'miss-or-empty' }
+          Write-Output "Gradle dependency cache restored: $hit"
       - name: Android signing prerequisite
         if: inputs.target == 'android'
         shell: pwsh
@@ -255,7 +263,7 @@ jobs:
       - name: Public CA prerequisite
         shell: pwsh
         run: |
-          $ca = 'deploy/skills/full-build-deploy/config/client-ca.crt'
+          $ca = 'deploy/skills/single-build-deploy/config/client-ca.crt'
           if (!(Test-Path $ca)) { throw 'Public CA missing' }
           node -e "const fs=require('fs'),c=require('crypto'); const x=new c.X509Certificate(fs.readFileSync('$ca')); if(c.createHash('sha256').update(x.raw).digest('hex')!=='fab880721274fa86d6a23d8f00fb93be471af863bec0fced6b7e99780b5e6fde')throw Error('CA mismatch');"
           if ($LASTEXITCODE) { throw 'CA fingerprint mismatch' }
@@ -286,9 +294,9 @@ jobs:
         shell: pwsh
         run: |
           if ('${{ inputs.target }}' -eq 'android') {
-            python deploy/skills/full-build-deploy/tools/maven-route.py --audit client-network-audit/maven-route.jsonl --gradle-command -- node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target android --env-file "$env:GITHUB_WORKSPACE/batch-client.env" --origin-contract "$env:GITHUB_WORKSPACE/batch-origin.json" --version-record patch-assignment.json
+            python deploy/skills/single-build-deploy/tools/maven-route.py --audit client-network-audit/maven-route.jsonl --gradle-command -- node deploy/skills/single-build-deploy/tools/clients/build-clients.cjs --target android --env-file "$env:GITHUB_WORKSPACE/batch-client.env" --origin-contract "$env:GITHUB_WORKSPACE/batch-origin.json" --version-record patch-assignment.json
           } else {
-            node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target ${{ inputs.target }} --env-file "$env:GITHUB_WORKSPACE/batch-client.env" --origin-contract "$env:GITHUB_WORKSPACE/batch-origin.json" --version-record patch-assignment.json
+            node deploy/skills/single-build-deploy/tools/clients/build-clients.cjs --target ${{ inputs.target }} --env-file "$env:GITHUB_WORKSPACE/batch-client.env" --origin-contract "$env:GITHUB_WORKSPACE/batch-origin.json" --version-record patch-assignment.json
           }
           if ($LASTEXITCODE) { throw 'Client build or package verification failed; inspect the preceding error' }
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

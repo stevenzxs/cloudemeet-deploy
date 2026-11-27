@@ -80,7 +80,7 @@ class RecordTests(unittest.TestCase):
         self.assertEqual(record['request']['base_revision'], 45)
         self.assertEqual(record['request']['task'], 'actions-123')
         self.assertEqual(record['request']['sources'], identities())
-        sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'full-build-deploy/tools'))
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'tools'))
         from revision_versions import digest
         unsigned = dict(record)
         unsigned.pop('allocation_sha256')

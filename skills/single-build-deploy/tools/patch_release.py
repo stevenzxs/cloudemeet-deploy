@@ -16,7 +16,10 @@ import sys
 import tarfile
 
 SKILL_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(SKILL_ROOT.parent / 'full-build-deploy' / 'tools'))
+# The joint revision counter (version-policy.json) is live shared STATE, not code:
+# copying it would fork the counter, so it is read from full-build-deploy at runtime.
+FULL_CONFIG = SKILL_ROOT.parent / 'full-build-deploy' / 'config'
+sys.path.insert(0, str(SKILL_ROOT / 'tools'))
 from revision_versions import digest, numeric_version  # noqa: E402
 
 REPOSITORY = 'stevenzxs/cloudemeet-deploy'
@@ -107,13 +110,13 @@ def build_record(policy, identities, base_revision, target, context, patch):
     return record
 
 
-def load_policy_and_identities(skill_root=None):
-    root = Path(skill_root) if skill_root else SKILL_ROOT.parent / 'full-build-deploy'
-    policy = json.loads((root / 'config/version-policy.json').read_text(encoding='utf-8'))
+def load_policy_and_identities(skill_root=None, policy_file=None):
+    root = Path(skill_root) if skill_root else SKILL_ROOT
+    # Live joint counter state (never copied); source locks are this skill's own.
+    policy = json.loads((Path(policy_file) if policy_file else FULL_CONFIG / 'version-policy.json').read_text(encoding='utf-8'))
     sources = json.loads((root / 'sources.json').read_text(encoding='utf-8'))
     identities = {name: item['commit'] for group in ('services', 'clients') for name, item in sources[group].items()}
     identities['lifecycle'] = sources['lifecycle']['commit']
-    identities['h5'] = json.loads((root / 'config/h5-source.json').read_text(encoding='utf-8'))['commit']
     return policy, identities
 
 

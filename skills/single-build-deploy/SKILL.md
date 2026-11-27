@@ -28,7 +28,7 @@
 
 ## 前置条件（缺一即停）
 
-- hotfix 源码 commit 已合入对应源码仓库，并已更新 deploy 仓库 `sources.json` 中该目标的条目；该提交即 `material_commit`。
+- hotfix 源码 commit 已合入对应源码仓库，并已更新本技能 `sources.json` 中该目标的条目；包含该更新的 deploy 仓库提交即 `material_commit`。
 - 基础批次发布证据存在：非 draft 的 `cloudmeet-<server_baseline>-r<base>-*` Release；服务端目标另需 GHCR 基础 tag 可解析 digest；客户端目标另需该 Release 含对应类型资产（`.msi`/`.apk`）。
 - `base_revision` ≤ `version-policy.json` 的 `current_revision`。
 
@@ -37,7 +37,7 @@
 1. 核对配置仓库身份、分支、工作区干净、无在途任务后同步 `origin/main`；记录实际 material commit。
 2. `workflow_dispatch` 输入：`base_revision`、`target`、`expected_tls_mode`、`expected_origin`、`material_commit`、`architecture`（仅服务端）、`publish_images`。
 3. `version` job：校验材料与 origin 契约 → `check-base` 基础发布证据 → `allocate` 推导 patch 号并生成 patch 记录。同 base+target 的并发由 workflow concurrency 组串行化。
-4. `build` job：服务端复用 `skills/full-build-deploy/scripts/package.sh build <target>`；客户端复用 `tools/clients/build-clients.cjs`（源码 commit 从 `sources.json` 动态检出，并断言检出 == sources.json == patch 记录三方一致）。
+4. `build` job：服务端用本技能自带 `scripts/package.sh build <target>`；客户端用本技能自带 `tools/clients/build-clients.cjs`（源码 commit 从本技能 `sources.json` 动态检出，并断言检出 == sources.json == patch 记录三方一致）。
 5. `publish` job（仅授权时）：服务端推 GHCR 新 tag（已存在即停）并建独立 Release；客户端只建 Release（MSI/APK + 证据 + SHA256SUMS）。Release 先 draft 核验再公开，`--latest=false`，证据标注 `NOT_DEPLOYED`。
 6. 保存 Run URL/ID、patch 记录、镜像 digest、Release 与资产摘要；不表述为部署或验收通过。
 

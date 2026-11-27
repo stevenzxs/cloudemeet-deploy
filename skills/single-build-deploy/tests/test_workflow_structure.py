@@ -61,11 +61,22 @@ class WorkflowStructureTests(unittest.TestCase):
     def test_server_build_feeds_patch_record_to_package_script(self):
         self.assertIn('VERSION_RECORD', self.text)
         self.assertIn('patch-assignment.json', self.text)
-        self.assertIn('scripts/package.sh build', self.text)
-
-    def test_workflow_isolation_still_holds(self):
-        sys_path = REPO / 'skills/full-build-deploy/tests'
-        self.assertTrue(sys_path.is_dir())
+        self.assertIn('skills/single-build-deploy/scripts/package.sh build', self.text)
+    def test_single_skill_does_not_reuse_full_build_deploy_code(self):
+        # Self-contained by user decision (2026-11-27): code must not import or execute
+        # the joint skill's tools/scripts. The single sanctioned data dependency is the
+        # live joint revision counter (version-policy.json).
+        root = REPO / 'skills' / 'single-build-deploy'
+        offenders = []
+        for base in (root / 'tools', root / 'scripts'):
+            for path in base.rglob('*'):
+                if path.is_file() and path.suffix in ('.py', '.cjs', '.js', '.sh'):
+                    content = path.read_text(encoding='utf-8', errors='replace')
+                    for line in content.splitlines():
+                        if ('full-build-deploy' in line and 'version-policy.json' not in line
+                                and 'FULL_CONFIG = ' not in line and not line.strip().startswith('#')):
+                            offenders.append(f'{path.relative_to(root)}: {line.strip()[:80]}')
+        self.assertEqual(offenders, [])
 
 
 if __name__ == '__main__':
