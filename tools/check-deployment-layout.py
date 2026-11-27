@@ -11,9 +11,9 @@ CATALOG = {'schema_version': 1, 'routes': [
      'paths': ['deploy/config/init.py', 'deploy/config/start.sh', 'deploy/config/docker-compose.yml',
                 'deploy/config/jitsi-base.yaml']},
     {'id': 'offline-runtime', 'state': 'candidate', 'product_delivery_allowed': False,
-      'paths': ['deploy/build-tools/offline-runtime/install.py', 'deploy/build-tools/offline-runtime/start.py',
-                'deploy/build-tools/offline-runtime/initialize.py', 'deploy/build-tools/offline-runtime/deploy.py',
-                'deploy/build-tools/package.sh']},
+      'paths': ['deploy/skills/full-build-deploy/runtime/install.py', 'deploy/skills/full-build-deploy/runtime/start.py',
+                'deploy/skills/full-build-deploy/runtime/initialize.py', 'deploy/skills/full-build-deploy/runtime/deploy.py',
+                'deploy/skills/full-build-deploy/scripts/package.sh']},
 ]}
 
 
@@ -46,7 +46,7 @@ def validate_catalog(catalog):
 
 def discover(root):
     found = set()
-    for base in ('deploy', 'build-tools'):
+    for base in ('deploy',):
         for p in (root / base).rglob('*'):
             rel = p.relative_to(root)
             if any(part in EXCLUDED for part in rel.parts) or not p.is_file():

@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-# CloudMeet 配置库 pre-commit hook
-# full-build-deploy 简化后不再强制维护 inputs.sha256。
-
-exit 0
