@@ -80,10 +80,10 @@ APK使用SDK工具核对版本、真实ABI、签名和打包资源中的入口/C
 apkanalyzer/aapt/apksigner；管理解包仅展开MSI，不安装应用。
 
 正式交付使用 `release/clients/windows/<x64|arm64>/<批次>/` 或
-`release/clients/android/<armeabi-v7a|arm64-v8a|x86_64|universal>/<批次>/`。
-当前 Windows 仅构建 x64，不生成 x86；Android 读取 APK 实际 ABI，多 ABI 使用
-universal 并记录完整集合，不代表支持所有 ABI。候选使用相同平台/架构分类。
-构建临时排除 Android x86，结束恢复源码。需要 Python 3 检查 APK ZIP 成员。
+`release/clients/android/arm64-v8a/<批次>/`。
+当前 Windows 仅构建 x64，不生成 x86；Android 只构建并交付 arm64-v8a APK。
+候选使用相同平台/架构分类。
+需要 Python 3 检查 APK ZIP 成员。
 deliveryDirectory 仅记录目标模板，不自动晋级、不移动历史产物。
 # Network audit (2026-11-19)
 
