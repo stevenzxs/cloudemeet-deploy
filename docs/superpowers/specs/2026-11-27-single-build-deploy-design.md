@@ -148,6 +148,16 @@ skills/single-build-deploy/
 - origin 契约/TLS 模式/架构与批准输入不符。
 - 任何需要覆盖、删除、替换既有产物的迹象。
 
+## 附录 A：自包含变更（2026-11-27 用户决定，实施中执行）
+
+初版设计为"复用 full-build-deploy 工具链"。用户最终决定改为**完全自包含**：
+
+- `single-build-deploy` 持有构建子集副本：`scripts/package.sh`（裁掉 assemble 分支）、`docker/`、`templates/`、`tools/{maven-route,tls_contract,origin_contract,revision_versions}.py`、`tools/clients/` 全量、`config/{client.env, client-ca.crt, client-ca.json, signing-policy.json}`、`sources.json`（hotfix 更新落在本副本）。
+- 唯一跨技能依赖是**活数据**而非代码：`version-policy.json`（joint 修订号计数器）运行时从 `full-build-deploy/config/` 只读，拷贝会分叉计数器。
+- full-build-deploy 回退 patch 专属改动（package.sh 正则、core.cjs patch 解析、revision-config patch 分支及测试）；×10 预留位公式**保留**（坑位必须在 joint 分配器中预留）。
+- patch 记录 identities 不再含 h5（assemble 专属）。
+- 防漂移缓解：两侧测试套件钉死同一组公式数值；single 侧有跨技能引用隔离测试。
+
 ## 留给实施者
 
 - `patch_release.py` 的函数切分、CLI 形态、错误文案。
