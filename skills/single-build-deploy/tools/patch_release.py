@@ -132,16 +132,18 @@ def check_base(policy, base_revision, target, runner=subprocess.run, repository=
     if target not in TARGETS:
         raise ValueError('Unknown patch target: ' + str(target))
     server = policy['server_baseline']
-    prefix = f'cloudmeet-{server}-r{base_revision}-'
+    # Joint release tags carry run/attempt (cloudmeet-<server>-r<N>-<run>-<attempt>);
+    # this base's own patch tags share the textual prefix and must not qualify.
+    joint_shape = re.compile(re.escape(f'cloudmeet-{server}-r{base_revision}-') + r'[1-9]\d*-[1-9]\d*')
     result = runner(['gh', 'release', 'list', '--repo', repository, '--limit', '1000',
                      '--json', 'tagName,isDraft'], capture_output=True, text=True)
     if getattr(result, 'returncode', 1) != 0:
         raise ValueError('Unable to list releases for base evidence')
     releases = json.loads(result.stdout)
     matches = sorted(r['tagName'] for r in releases
-                     if not r.get('isDraft') and isinstance(r.get('tagName'), str) and r['tagName'].startswith(prefix))
+                     if not r.get('isDraft') and isinstance(r.get('tagName'), str) and joint_shape.fullmatch(r['tagName']))
     if not matches:
-        raise ValueError('Base batch release not found: ' + prefix + '*')
+        raise ValueError(f'Base batch release not found: cloudmeet-{server}-r{base_revision}-<run>-<attempt>')
     evidence = {'release': matches[-1]}
     if target in CLIENTS:
         view = _run(runner, ['gh', 'release', 'view', matches[-1], '--repo', repository, '--json', 'assets'])
@@ -257,6 +259,12 @@ def publish(target, input_dir, record, policy, runner=subprocess.run, env=None, 
         registry_digest = descriptor['digest']
         if not re.fullmatch(r'sha256:[0-9a-f]{64}', registry_digest):
             raise ValueError('Invalid registry digest')
+        # Same standard as the joint publisher: the pushed manifest's config digest
+        # must be the locally built image, not just a well-formed digest.
+        pinned = remote.split(':')[0] + '@' + registry_digest
+        manifest = json.loads(_run(runner, ['docker', 'buildx', 'imagetools', 'inspect', pinned, '--raw']).stdout)
+        if manifest.get('schemaVersion') != 2 or manifest.get('config', {}).get('digest') != build['image_id']:
+            raise ValueError('Registry config identity mismatch')
         publication['image'] = {'reference': remote.split(':')[0] + '@' + registry_digest, 'tag': remote,
                                 'image_id': build['image_id'], 'archive_sha256': build['sha256']}
         assets = [archive, input_dir / f'{target}.json']
@@ -274,6 +282,15 @@ def publish(target, input_dir, record, policy, runner=subprocess.run, env=None, 
         artifacts = input_dir / 'artifacts'
         if not artifacts.is_dir() or any(p.is_symlink() for p in artifacts.rglob('*')):
             raise ValueError('jitsi-mgr artifacts missing or unsafe')
+        # Recompute every artifact digest and require exact equality with the build
+        # evidence, like the joint assembler does before packing.
+        declared = mgr.get('files')
+        if not isinstance(declared, dict) or not declared:
+            raise ValueError('jitsi-mgr evidence file manifest missing')
+        actual = {p.relative_to(input_dir).as_posix(): file_digest(p)
+                  for p in artifacts.rglob('*') if p.is_file()}
+        if actual != declared:
+            raise ValueError('jitsi-mgr artifact integrity failure')
         bundle = input_dir / 'jitsi-mgr-artifacts.tar.gz'
         with tarfile.open(bundle, 'w:gz') as tar:
             for path in sorted(artifacts.rglob('*')):

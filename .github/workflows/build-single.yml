@@ -37,7 +37,7 @@ permissions:
   contents: read
   actions: read
 concurrency:
-  group: cloudmeet-single-patch-${{ inputs.base_revision }}-${{ inputs.target }}
+  group: cloudmeet-single-patch-${{ inputs.base_revision }}
   cancel-in-progress: false
 env:
   VERSION_RECORD: ${{ github.workspace }}/patch-assignment.json

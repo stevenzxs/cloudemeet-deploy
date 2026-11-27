@@ -106,6 +106,14 @@ class CheckBaseTests(unittest.TestCase):
         payload = json.dumps({'assets': [{'name': n} for n in names]})
         return lambda argv: argv[:2] == ['gh', 'release'] and 'view' in argv, ok([], payload)
 
+    def test_patch_release_tags_are_not_base_evidence(self):
+        # A patch release of the same base sorts after the joint tag; it must never
+        # qualify as base evidence.
+        tags = [('cloudmeet-11248.0.2-r45-patch.1', False), ('cloudmeet-11248.0.2-r45-99-1', False)]
+        runner, _ = fake_runner([self.releases(*tags), self.assets('app.msi')])
+        evidence = patch_release.check_base(policy(), 45, 'electron', runner)
+        self.assertEqual(evidence['release'], 'cloudmeet-11248.0.2-r45-99-1')
+
     def test_non_draft_prefix_match_required(self):
         runner, _ = fake_runner([self.releases(('cloudmeet-11248.0.2-r45-9-1', True))])
         with self.assertRaises(ValueError):
@@ -142,6 +150,26 @@ class PublishTests(unittest.TestCase):
                 'GITHUB_REPOSITORY': 'stevenzxs/cloudemeet-deploy', 'TARGET_ARCH': 'amd64'}
 
     def test_jitsi_mgr_publishes_artifacts_without_image_push(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'artifacts').mkdir()
+            (root / 'artifacts' / 'jitsi-mgr.jar').write_bytes(b'jar-bytes')
+            jar_sha = hashlib.sha256(b'jar-bytes').hexdigest()
+            evidence = {'service': 'jitsi-mgr', 'batch': '11248.0.2-r45-patch.1-123-1', 'version': '11248.0.2+r45-patch.1',
+                        'run_id': '123', 'attempt': '1', 'deployment_commit': 'f' * 40,
+                        'architecture': 'amd64', 'source_commit': 'a' * 40,
+                        'version_assignment': self.record('jitsi-mgr'),
+                        'files': {'artifacts/jitsi-mgr.jar': jar_sha}}
+            (root / 'build-evidence.json').write_text(json.dumps(evidence))
+            runner, calls = fake_runner([(lambda argv: argv[:2] == ['gh', 'release'], ok([], '{}'))])
+            patch_release.publish('jitsi-mgr', root, self.record('jitsi-mgr'), policy(), runner, self.env())
+            pushed = [c for c in calls if 'push' in c]
+            self.assertEqual(pushed, [])
+            created = [c for c in calls if c[:2] == ['gh', 'release'] and 'create' in c]
+            self.assertTrue(created and 'cloudmeet-11248.0.2-r45-patch.1' in created[0])
+
+    def test_jitsi_mgr_artifacts_must_match_evidence_files(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             (root / 'artifacts').mkdir()
@@ -150,14 +178,11 @@ class PublishTests(unittest.TestCase):
                         'run_id': '123', 'attempt': '1', 'deployment_commit': 'f' * 40,
                         'architecture': 'amd64', 'source_commit': 'a' * 40,
                         'version_assignment': self.record('jitsi-mgr'),
-                        'files': {'jitsi-mgr.jar': 'x' * 64}}
+                        'files': {'artifacts/jitsi-mgr.jar': '0' * 64}}
             (root / 'build-evidence.json').write_text(json.dumps(evidence))
-            runner, calls = fake_runner([(lambda argv: argv[:2] == ['gh', 'release'], ok([], '{}'))])
-            patch_release.publish('jitsi-mgr', root, self.record('jitsi-mgr'), policy(), runner, self.env())
-            pushed = [c for c in calls if 'push' in c]
-            self.assertEqual(pushed, [])
-            created = [c for c in calls if c[:2] == ['gh', 'release'] and 'create' in c]
-            self.assertTrue(created and 'cloudmeet-11248.0.2-r45-patch.1' in created[0])
+            runner, _ = fake_runner([(lambda argv: argv[:2] == ['gh', 'release'], ok([], '{}'))])
+            with self.assertRaises(ValueError):
+                patch_release.publish('jitsi-mgr', root, self.record('jitsi-mgr'), policy(), runner, self.env())
 
     def test_server_publish_requires_absent_tag_before_push(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -176,9 +201,11 @@ class PublishTests(unittest.TestCase):
             image = json.dumps([{'Id': 'sha256:' + 'b' * 64, 'Os': 'linux', 'Architecture': 'amd64',
                                  'Config': {'Labels': {'org.opencontainers.image.revision': 'a' * 40,
                                                        'io.cloudmeet.batch': '11248.0.2-r45-patch.1-123-1'}}}])
+            raw_manifest = json.dumps({'schemaVersion': 2, 'config': {'digest': 'sha256:' + 'b' * 64}})
             runner, calls = fake_runner([
                 (lambda argv: argv[:2] == ['docker', 'manifest'], subprocess.CompletedProcess([], 1, '', 'manifest unknown')),
                 (lambda argv: argv[:3] == ['docker', 'image', 'inspect'], ok([], image)),
+                (lambda argv: argv[:2] == ['docker', 'buildx'] and '--raw' in argv, ok([], raw_manifest)),
                 (lambda argv: argv[:2] == ['docker', 'buildx'], ok([], '{"digest": "sha256:' + 'b' * 64 + '"}')),
                 (lambda argv: argv[0] == 'docker', ok([], '{}')),
                 (lambda argv: argv[:2] == ['gh', 'release'], ok([], '{}')),
@@ -209,6 +236,35 @@ class PublishTests(unittest.TestCase):
             self.assertEqual([c for c in calls if c[0] == 'docker'], [])
             upload = next(c for c in calls if 'upload' in c)
             self.assertIn('app.msi', [Path(a).name for a in upload])
+
+    def test_registry_config_identity_verified_after_push(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            archive = root / 'api.tar.gz'
+            archive.write_bytes(b'image-bytes')
+            import hashlib
+            sha = hashlib.sha256(b'image-bytes').hexdigest()
+            record = self.record('api')
+            build = {'service': 'api', 'batch': '11248.0.2-r45-patch.1-123-1', 'version': '11248.0.2+r45-patch.1',
+                     'run_id': '123', 'attempt': '1', 'deployment_commit': 'f' * 40, 'workflow_commit': 'f' * 40,
+                     'platform': 'linux/amd64', 'archive': 'api.tar.gz', 'bytes': len(b'image-bytes'), 'sha256': sha,
+                     'tag': 'cloudmeet/api:11248.0.2-r45-patch.1-123-1', 'image_id': 'sha256:' + 'b' * 64,
+                     'source': {'commit': 'a' * 40}, 'source_dirty': False, 'version_assignment': record}
+            (root / 'api.json').write_text(json.dumps(build))
+            image = json.dumps([{'Id': 'sha256:' + 'b' * 64, 'Os': 'linux', 'Architecture': 'amd64',
+                                 'Config': {'Labels': {'org.opencontainers.image.revision': 'a' * 40,
+                                                       'io.cloudmeet.batch': '11248.0.2-r45-patch.1-123-1'}}}])
+            wrong_config = json.dumps({'schemaVersion': 2, 'config': {'digest': 'sha256:' + 'c' * 64}})
+            runner, _ = fake_runner([
+                (lambda argv: argv[:2] == ['docker', 'manifest'], subprocess.CompletedProcess([], 1, '', 'manifest unknown')),
+                (lambda argv: argv[:3] == ['docker', 'image', 'inspect'], ok([], image)),
+                (lambda argv: argv[:2] == ['docker', 'buildx'] and '--raw' in argv, ok([], wrong_config)),
+                (lambda argv: argv[:2] == ['docker', 'buildx'], ok([], '{"digest": "sha256:' + 'b' * 64 + '"}')),
+                (lambda argv: argv[0] == 'docker', ok([], '{}')),
+                (lambda argv: argv[:2] == ['gh', 'release'], ok([], '{}')),
+            ])
+            with self.assertRaises(ValueError):
+                patch_release.publish('api', root, record, policy(), runner, self.env())
 
     def test_existing_registry_tag_refused(self):
         with tempfile.TemporaryDirectory() as tmp:

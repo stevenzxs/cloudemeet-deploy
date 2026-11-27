@@ -26,10 +26,12 @@ class WorkflowStructureTests(unittest.TestCase):
         self.assertEqual(inputs['publish_images']['type'], 'boolean')
         self.assertIs(inputs['publish_images']['default'], False)
 
-    def test_concurrency_guards_same_base_and_target(self):
+    def test_concurrency_guards_same_base(self):
+        # The patch-number namespace is per base revision: all targets of the same
+        # base must serialize, or two runs can derive the same patch number.
         concurrency = self.doc['concurrency']
         self.assertIn('inputs.base_revision', concurrency['group'])
-        self.assertIn('inputs.target', concurrency['group'])
+        self.assertNotIn('inputs.target', concurrency['group'])
         self.assertIs(concurrency['cancel-in-progress'], False)
 
     def test_patch_numbering_and_base_evidence_precede_build(self):
