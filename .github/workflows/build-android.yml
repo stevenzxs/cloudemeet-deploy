@@ -183,6 +183,11 @@ jobs:
           gh release create "$tag" --draft --title "cloudmeet-android-r${REVISION}" --latest=false \
             --notes "$notes" \
             "$apk" "$directory/build-evidence.json" "$directory/SHA256SUMS"
-          assets=$(gh release view "$tag" --json assets --jq 'length')
+          assets=0
+          for attempt in 1 2 3 4 5 6; do
+            assets=$(gh release view "$tag" --json assets --jq 'length')
+            test "$assets" -eq 3 && break
+            sleep 10
+          done
           test "$assets" -eq 3 || { echo "Unexpected asset count $assets"; exit 1; }
           gh release edit "$tag" --draft=false
