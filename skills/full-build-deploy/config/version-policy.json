@@ -7,17 +7,17 @@
   "previous_android_code": 1021,
   "previous_msi_version": "1.0.21",
   "approved": true,
-  "current_revision": 59,
+  "current_revision": 60,
   "last_allocation": {
-    "run_id": "45983990762",
+    "run_id": "45985032379",
     "attempt": 1,
     "record": {
       "namespace": "cloudmeet-joint-v1",
       "request": {
         "repository": "stevenzxs/cloudemeet-deploy",
-        "workflow": "stevenzxs/cloudemeet-deploy/.github/workflows/build-msi.yml@refs/heads/main",
-        "run_id": "45983990762",
-        "configuration_sha": "8b1c789ff90443b94cd24727c3eae7a132a778c2",
+        "workflow": "stevenzxs/cloudemeet-deploy/.github/workflows/build-android.yml@refs/heads/main",
+        "run_id": "45985032379",
+        "configuration_sha": "bb920faa7eab861c90e3603703bfaabd0b2cfc74",
         "sources": {
           "web": "f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259",
           "app-web": "784c1d004cfcea32f5316314f5979cb74aba88b0",
@@ -32,22 +32,22 @@
           "lifecycle": "276801c7fd4233f7288ba95bd132c219852c7ac7",
           "h5": "ffd2886135206f195b6fd031a20b46448f91a53b"
         },
-        "task": "actions-45983990762",
+        "task": "actions-45985032379",
         "scope": [
-          "electron"
+          "android"
         ]
       },
       "versions": {
-        "revision": 59,
-        "server_version": "11248.0.1+r59",
-        "server_tag": "11248.0.1-r59",
-        "client_version": "1.0.21+r59",
-        "android_code": 1021590,
-        "msi_version": "1.0.800",
-        "pe_version": "1.0.800.0",
+        "revision": 60,
+        "server_version": "11248.0.1+r60",
+        "server_tag": "11248.0.1-r60",
+        "client_version": "1.0.21+r60",
+        "android_code": 1021600,
+        "msi_version": "1.0.810",
+        "pe_version": "1.0.810.0",
         "version_formula": 2
       },
-      "allocation_sha256": "73cd916b128a292c1fb592f671d27c6dfd83fce7dcb8b245a2fdffc6e5cc4bc5"
+      "allocation_sha256": "2ea44a2866e8962a41de46d0c4e1d4b3c835d26159d7110eb96d45655461ed1f"
     }
   }
 }
