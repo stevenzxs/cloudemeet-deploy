@@ -244,7 +244,7 @@ jobs:
         with:
           repository: stevenzxs/jitsi-weixin
           ref: ${{ steps.h5.outputs.commit }}
-          path: h5-source
+          path: skills/full-build-deploy/h5-source
           # The H5 source is public and pinned by commit SHA plus the verified file
           # whitelist hashes, so no cross-repo credential is supplied here. A stale or
           # over-scoped token must never gate or widen this fetch; a private source
