@@ -168,6 +168,7 @@ jobs:
       - name: Verify bundle and publish Android Release
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: stevenzxs/cloudemeet-deploy
         run: |
           set -euo pipefail
           directory=$(find downloads -type d -name "$CLIENT_VERSION-*" | head -1)

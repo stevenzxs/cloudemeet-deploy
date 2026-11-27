@@ -60,6 +60,7 @@ class AndroidWorkflowStructureTests(unittest.TestCase):
         self.assertIn('--latest=false', publish)
         self.assertIn('--draft=false', publish)
         self.assertIn('NOT_DEPLOYED', publish)
+        self.assertIn('GH_REPO', publish, 'publish job runs without checkout; gh needs GH_REPO to resolve the repository')
         self.assertIn('cloudmeet-android-r${REVISION}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}', publish)
         # draft create precedes final publish
         self.assertLess(publish.index('gh release create'), publish.index('gh release edit'))
