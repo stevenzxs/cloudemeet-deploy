@@ -11,6 +11,8 @@ description: Use when the user explicitly requests a complete CloudMeet GitHub d
 
 八个服务：`web`、`app-web`、`api`、`jitsi-mgr`、`gateway`、`prosody`、`jicofo`、`jvb`。七个服务构建容器镜像；`jitsi-mgr` 构建后端 JAR 和静态管理前端，由网关托管。两个客户端：Electron Windows MSI（明确 unsigned）和 Android APK（只使用仓库已批准的签名身份/密钥）。服务端还包含 H5 资产。不得把客户端签名身份、上游版本或受信任 HTTPS CA 在本任务中自行更换。
 
+> 客户端的独立（非联合批次）构建与发布已拆分为独立技能：Android APK 见 `skills/android-build-deploy`（最小工作流 `build-android.yml`），Windows MSI 见 `skills/msi-build-deploy`（最小工作流 `build-msi.yml`）。本技能保留的客户端内容仅描述联合批次内的客户端构建与发布；单独构建某一客户端的请求一律转交对应独立技能，不在本联合入口执行。
+
 联合交付使用 GitHub Actions `build-joint.yml`，在同一父 Run/attempt 与分配记录中生成服务端、H5、Electron、Android 证据。可发布时，GHCR 镜像、MSI/APK 和线上安装材料必须由同一经核验批次发布；服务端/客户端构建与发布均不等于已部署或已完成真实端到端验收。
 
 ## 任务终点与授权

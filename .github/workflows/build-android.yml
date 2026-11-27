@@ -1,0 +1,187 @@
+name: CloudMeet Android client build and publish
+on:
+  workflow_dispatch:
+    inputs:
+      expected_tls_mode:
+        description: Approved TLS mode for this batch's user-supplied origin
+        type: choice
+        options: [private-ca, caddy-public-acme]
+        default: private-ca
+      expected_origin:
+        description: User-supplied HTTP(S) origin for this batch (DNS name or IP)
+        type: string
+        required: true
+      material_commit:
+        description: Reviewed full configuration commit SHA (must equal workflow commit)
+        type: string
+        required: true
+      publish_images:
+        description: Approved Android Release publication (no deployment)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cloudmeet-android-${{ github.ref }}
+  cancel-in-progress: false
+env:
+  CLOUDMEET_AUDIT_DIR: ${{ github.workspace }}/client-network-audit
+jobs:
+  version:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/revision-allocation.yml
+    with:
+      material_commit: ${{ inputs.material_commit }}
+      scope: '["android"]'
+      expected_tls_mode: ${{ inputs.expected_tls_mode }}
+      expected_origin: ${{ inputs.expected_origin }}
+  build:
+    needs: version
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    timeout-minutes: 120
+    env:
+      ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
+      ORIGIN_CONTRACT_JSON: ${{ needs.version.outputs.origin_contract }}
+    steps:
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22.22.0'
+      - uses: android-actions/setup-android@9fc6c4e9069bf8d3d10b2204b1fb8f6ef7065407
+        with:
+          # cmdline-tools 16.0 removed the legacy 'tools' package; only install platform-tools.
+          packages: platform-tools
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.material_commit }}
+          path: deploy
+          persist-credentials: false
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: stevenzxs/jm
+          # Reviewed arm64-only Android client; keep the checkout immutable.
+          ref: b68b79e14ef290bd85873eb87056aade1375a706
+          path: jm
+          persist-credentials: false
+      - name: Write batch client configuration
+        shell: pwsh
+        run: |
+          if ('${{ inputs.material_commit }}' -cnotmatch '^[0-9a-f]{40}$') { throw 'Full SHA required' }
+          if ((git -C deploy rev-parse HEAD) -ne '${{ inputs.material_commit }}') { throw 'Material mismatch' }
+          if ('${{ inputs.material_commit }}' -ne '${{ github.sha }}') { throw 'Workflow/material mismatch' }
+          [IO.File]::WriteAllText((Join-Path $env:GITHUB_WORKSPACE 'version-assignment.json'), $env:ALLOCATION_JSON)
+          $contract = $env:ORIGIN_CONTRACT_JSON | ConvertFrom-Json
+          if (!$contract.origin -or !$contract.addresses) { throw 'Normalized origin/DNS evidence is required' }
+          if ($contract.origin -ne '${{ inputs.expected_origin }}' -or $contract.tls_mode -ne '${{ inputs.expected_tls_mode }}') { throw 'Origin/TLS contract differs from dispatch inputs' }
+          $envFile = Join-Path $env:GITHUB_WORKSPACE 'batch-client.env'
+          $fixed = Get-Content deploy/skills/android-build-deploy/config/client.env | Where-Object { $_ -match '^\s*[A-Z_]+\s*=' -and $_ -notmatch '^\s*(SITE_DOMAIN|SITE_SCHEME|SITE_PORT|TLS_MODE|CLIENT_CA_FILE)\s*=' }
+          $batch = @("SITE_DOMAIN=$($contract.site_domain)", "SITE_SCHEME=$($contract.site_scheme)", "SITE_PORT=$($contract.site_port)") + $fixed
+          if ($contract.tls_mode -eq 'caddy-public-acme') { $batch += 'TLS_MODE=caddy-public-acme' }
+          else { $batch += 'TLS_MODE=private-ca'; $batch += "CLIENT_CA_FILE=$($contract.client_ca_file)"; Copy-Item deploy/skills/android-build-deploy/config/client-ca.crt (Join-Path $env:GITHUB_WORKSPACE 'client-ca.crt') }
+          [IO.File]::WriteAllLines($envFile, $batch, [Text.UTF8Encoding]::new($false))
+          [IO.File]::WriteAllText((Join-Path $env:GITHUB_WORKSPACE 'batch-origin.json'), ($contract | ConvertTo-Json -Depth 5), [Text.UTF8Encoding]::new($false))
+      - name: Set up Java and restore Gradle dependency cache
+        id: java
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            jm/android/gradle/wrapper/gradle-wrapper.properties
+            jm/android/settings.gradle*
+            jm/android/build.gradle*
+            jm/android/gradle.properties
+            jm/android/gradle/libs.versions.toml
+            jm/android/**/gradle.lockfile
+            jm/android/**/gradle/dependency-locks/**
+            jm/android/**/build.gradle*
+      - name: Android signing prerequisite
+        shell: pwsh
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          PROPERTIES: ${{ secrets.ANDROID_KEYSTORE_PROPERTIES_BASE64 }}
+        run: |
+          if (!$env:KEYSTORE -or !$env:PROPERTIES) { throw 'Approved Android release signing secrets required; debug fallback prohibited' }
+          $dir = Join-Path $env:GITHUB_WORKSPACE 'jm/android/keystores'
+          New-Item -ItemType Directory -Force $dir | Out-Null
+          [IO.File]::WriteAllBytes((Join-Path $dir 'release.keystore'), [Convert]::FromBase64String($env:KEYSTORE))
+          [IO.File]::WriteAllBytes((Join-Path $dir 'release.keystore.properties'), [Convert]::FromBase64String($env:PROPERTIES))
+          $text = Get-Content -Raw (Join-Path $dir 'release.keystore.properties')
+          if ($text -notmatch '(?m)^storeFile=release\.keystore\s*$') { throw 'Unexpected signing file reference' }
+      - name: Android SDK prerequisites
+        shell: pwsh
+        run: |
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0' 'ndk;27.1.12297006' 'cmake;3.22.1'
+          if ($LASTEXITCODE) { throw 'SDK provisioning failed' }
+      - name: Install locked product dependencies
+        shell: pwsh
+        run: |
+          Push-Location jm
+          npm ci
+          if ($LASTEXITCODE) { throw 'npm ci failed' }
+          Pop-Location
+      - name: Build and verify Android package
+        # Backstop against hung children so always() diagnostics still upload.
+        timeout-minutes: 35
+        shell: pwsh
+        run: |
+          node deploy/skills/android-build-deploy/tools/clients/build-clients.cjs --target android --env-file "$env:GITHUB_WORKSPACE/batch-client.env" --origin-contract "$env:GITHUB_WORKSPACE/batch-origin.json" --version-record version-assignment.json
+          if ($LASTEXITCODE) { throw 'Android build or package verification failed; inspect the preceding error' }
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: client-android-${{ github.run_id }}-${{ github.run_attempt }}
+          path: deploy/release/clients/
+          if-no-files-found: error
+          retention-days: 14
+      - name: Retain audit and sanitized build diagnostics even on failure
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: client-network-android-${{ github.run_id }}-${{ github.run_attempt }}
+          path: client-network-audit/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Remove ephemeral signing files
+        if: always()
+        shell: pwsh
+        run: |
+          Remove-Item -ErrorAction SilentlyContinue jm/android/keystores/release.keystore, jm/android/keystores/release.keystore.properties
+  publish:
+    needs: [version, build]
+    if: inputs.publish_images
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      ALLOCATION_JSON: ${{ needs.version.outputs.assignment }}
+      CLIENT_VERSION: ${{ fromJSON(needs.version.outputs.assignment).versions.client_version }}
+      REVISION: ${{ fromJSON(needs.version.outputs.assignment).versions.revision }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          name: client-android-${{ github.run_id }}-${{ github.run_attempt }}
+          path: downloads
+      - name: Verify bundle and publish Android Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          directory=$(find downloads -type d -name "$CLIENT_VERSION-*" | head -1)
+          test -n "$directory" || { echo 'Delivery bundle not found'; exit 1; }
+          test -f "$directory/build-evidence.json" || { echo 'Build evidence missing'; exit 1; }
+          (cd "$directory" && sha256sum -c SHA256SUMS)
+          apk=$(find "$directory" -maxdepth 1 -name '*.apk' | head -1)
+          test -n "$apk" || { echo 'APK missing from bundle'; exit 1; }
+          tag="cloudmeet-android-r${REVISION}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          notes=$(printf 'CloudMeet Android APK %s; approved release signing verified at build time.\nOrigin: %s\nRun: %s attempt %s; material_commit: %s\nNOT_DEPLOYED: installation, endpoint TLS and meeting media acceptance not performed.' \
+            "$CLIENT_VERSION" "${{ inputs.expected_origin }}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "${{ inputs.material_commit }}")
+          gh release create "$tag" --draft --title "cloudmeet-android-r${REVISION}" --latest=false \
+            --notes "$notes" \
+            "$apk" "$directory/build-evidence.json" "$directory/SHA256SUMS"
+          assets=$(gh release view "$tag" --json assets --jq 'length')
+          test "$assets" -eq 3 || { echo "Unexpected asset count $assets"; exit 1; }
+          gh release edit "$tag" --draft=false

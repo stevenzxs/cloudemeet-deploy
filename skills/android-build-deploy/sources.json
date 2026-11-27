@@ -1,0 +1,5 @@
+{
+  "clients": {
+    "android": {"repository": "https://github.com/stevenzxs/jm.git", "commit": "b68b79e14ef290bd85873eb87056aade1375a706"}
+  }
+}

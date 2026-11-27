@@ -1,0 +1,5 @@
+{
+  "clients": {
+    "electron": {"repository": "https://github.com/stevenzxs/jitsi-meet-electron.git", "commit": "e0274a69aafb76fc0999c887339951ea5ee6dc93"}
+  }
+}

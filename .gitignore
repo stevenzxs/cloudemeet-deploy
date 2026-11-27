@@ -49,6 +49,8 @@
 client.env
 !/config/client.env
 !/skills/full-build-deploy/config/client.env
+!/skills/android-build-deploy/config/client.env
+!/skills/msi-build-deploy/config/client.env
 !/config/client-ca.crt
 !/config/client-ca.json
 .client-build.lock
