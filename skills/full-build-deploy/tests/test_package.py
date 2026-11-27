@@ -9,6 +9,18 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 class PackageTests(unittest.TestCase):
+    def test_package_reads_jitsi_manager_config_from_repository_config(self):
+        script = (ROOT / 'scripts' / 'package.sh').read_text(encoding='utf-8')
+        self.assertIn("repo_config=skill_root.parent.parent/'config'", script)
+        self.assertIn("if not (repo_config/'jitsi-mgr.env').is_file()", script)
+        self.assertIn("repo_config/'jitsi-mgr.env'", script)
+        self.assertNotIn("skill_root/'config/jitsi-mgr.env'", script)
+
+    def test_package_reads_caddyfile_from_repository_config(self):
+        script = (ROOT / 'scripts' / 'package.sh').read_text(encoding='utf-8')
+        self.assertIn("(repo_config/'Caddyfile').read_text(encoding='utf-8')", script)
+        self.assertNotIn("(skill_root/'config/Caddyfile').read_text", script)
+
     def test_assemble_config_references_resolve(self):
         # Regression guard: r46-r51 assemble runs failed because config files were
         # referenced from the skill but never copied into it.
@@ -270,6 +282,7 @@ def write_report(report, output):
             (repo / 'config').mkdir()
             (repo/'config/jitsi.env').write_text('CONFIG=./data/jitsi\nJVB_AUTH_USER=jvb\nJICOFO_AUTH_USER=focus\nENABLE_AUTH=1\nAUTH_TYPE=jwt\nJWT_APP_ID=zhsz\nJWT_ALLOW_EMPTY=1\nENABLE_AUTO_OWNER=0\nXMPP_MUC_MODULES=muc_jwt_owner\nENABLE_XMPP_WEBSOCKET=1\nBOSH_RELATIVE=1\nENABLE_P2P=0\nTZ=Asia/Shanghai\n',encoding='utf-8')
             (repo/'config/jitsi-mgr.env').write_text('JITSI_MGR_PROFILE=prod\nJITSI_MGR_DB_URL=jdbc:h2:file:/app/data/test\nJITSI_MGR_DB_USER=sa\n',encoding='utf-8')
+            shutil.copyfile(REPO/'config/Caddyfile',repo/'config/Caddyfile')
             (repo/'skill').mkdir(exist_ok=True)
             shutil.copyfile(ROOT/'sources.json',repo/'skill/sources.json')
             shutil.copytree(ROOT/'config',repo/'skill/config',ignore=shutil.ignore_patterns('jitsi-mgr.env'))
@@ -280,7 +293,6 @@ def write_report(report, output):
             # under skills/full-build-deploy/config. Do not let a duplicate mask path bugs.
             (repo/'skill/config/jitsi.env').unlink()
             shutil.copyfile(ROOT/'config/target.py',repo/'skill/config/target.py')
-            (repo/'skill/config/Caddyfile').write_text('https://:443 {\n tls internal\n}\n',encoding='utf-8')
             shutil.copyfile(ROOT/'tools/init-jitsi-mgr.py',tools/'init-jitsi-mgr.py')
             out = repo / 'fixture'
             out.mkdir()

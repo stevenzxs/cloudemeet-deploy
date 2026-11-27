@@ -459,7 +459,7 @@ if origin_contract.get('tls_mode') not in ('private-ca','caddy-public-acme'):
     raise ValueError('Approved TLS mode missing from origin contract')
 (out/'provenance/origin-contract.json').write_text(json.dumps(origin_contract,sort_keys=True,indent=2)+'\n',encoding='utf-8')
 (out/'server.env.example').write_text('# Public target parameters are in target.env; .env contains generated secrets only.\n')
-caddy=(skill_root/'config/Caddyfile').read_text(encoding='utf-8')
+caddy=(repo_config/'Caddyfile').read_text(encoding='utf-8')
 if origin_contract['tls_mode']=='caddy-public-acme':
     cert_spec=importlib.util.spec_from_file_location('certificate_contract',skill_root/'runtime/certificate.py')
     certificate=importlib.util.module_from_spec(cert_spec);cert_spec.loader.exec_module(certificate)
