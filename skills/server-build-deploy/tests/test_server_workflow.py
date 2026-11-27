@@ -79,6 +79,12 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         self.assertNotIn('build-tools/', self.text)
         self.assertNotIn('skills/full-build-deploy/scripts/package.sh', self.text)
 
+    def test_material_identity_check_expands_github_sha(self):
+        # Run 45988672971: single-quoted '$GITHUB_SHA' compared literally and
+        # always failed; the variable must be expanded (double quotes).
+        self.assertNotIn("'$GITHUB_SHA'", self.text)
+        self.assertIn('"$GITHUB_SHA"', self.text)
+
 
 if __name__ == '__main__':
     unittest.main()

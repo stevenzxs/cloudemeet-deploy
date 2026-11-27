@@ -49,6 +49,7 @@ description: Use when the user requests a standalone CloudMeet server-side (eigh
 - **publish job 不 checkout 仓库**：`gh release *` 需要 `GH_REPO` 环境变量（r55 失败点）。
 - **GitHub 资产列表可见性延迟 2–6+ 分钟**：禁止资产计数轮询；`gh release upload` 同步退出码才是权威判据（r56–r58 失败点，r59 实证修复）。
 - **失败即消耗 rN，不回收**：修复材料后必须新 Run/新编号。
+- **bash 单引号不展开变量**：`'$GITHUB_SHA'` 是字面字符串，材料一致性断言恒失败（r61 失败点）；shell 变量引用必须双引号（测试已钉住）。
 
 ## 必须停止并报告的情形
 

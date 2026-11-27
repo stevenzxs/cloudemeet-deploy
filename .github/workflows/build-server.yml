@@ -62,7 +62,7 @@ jobs:
       - name: Validate material identity
         run: |
           test '${{ inputs.material_commit }}' = "$(git -C deploy rev-parse HEAD)"
-          test '${{ inputs.material_commit }}' = '$GITHUB_SHA'
+          test '${{ inputs.material_commit }}' = "$GITHUB_SHA"
       - name: Resolve pinned source identity
         id: src
         run: |
