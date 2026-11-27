@@ -122,8 +122,8 @@ jobs:
       - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
         with:
           repository: stevenzxs/jm
-          # Reviewed jm/main permission fix; keep the checkout immutable.
-          ref: a4012af4a20c257b327af1c9bd34d654ec6642e9
+          # Reviewed arm64-only Android client; keep the checkout immutable.
+          ref: b68b79e14ef290bd85873eb87056aade1375a706
           path: jm
           persist-credentials: false
       - name: Set up Java and restore Gradle dependency cache
