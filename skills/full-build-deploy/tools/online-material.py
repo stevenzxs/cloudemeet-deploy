@@ -9,6 +9,11 @@ import shutil
 import tarfile
 import re
 import ssl
+import sys
+
+# The source package is checksum-verified before importing its modules. Prevent
+# those imports from adding unlisted __pycache__ files to that verified tree.
+sys.dont_write_bytecode = True
 
 
 def require_public_source(root):

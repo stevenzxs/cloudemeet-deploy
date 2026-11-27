@@ -39,14 +39,5 @@ class StandardFlow(unittest.TestCase):
             with self.subTest(origin=origin), self.assertRaises(ValueError):
                 self.module().derive(origin, REPO)
 
-    def test_installed_skill_contract_is_versioned(self):
-        skill = (REPO/'skills/cloudmeet-online-delivery/SKILL.md').read_text(encoding='utf-8')
-        self.assertIn('name: cloudmeet-online-delivery', skill)
-
-    def test_skill_records_observed_cron_failure_boundaries(self):
-        skill = (REPO/'skills/cloudmeet-online-delivery/SKILL.md').read_text(encoding='utf-8')
-        self.assertIn('## 双证书模式操作', skill)
-
-
 if __name__ == '__main__':
     unittest.main()

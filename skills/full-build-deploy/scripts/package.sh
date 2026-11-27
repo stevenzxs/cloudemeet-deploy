@@ -322,6 +322,10 @@ spec=importlib.util.spec_from_file_location('verifier',out/'install.py')
 verifier=importlib.util.module_from_spec(spec); spec.loader.exec_module(verifier)
 services=('gateway','app-web','api','web','prosody','jicofo','jvb')
 skill_root=pathlib.Path(os.environ['SKILL_ROOT']).resolve()
+repo_config=skill_root.parent.parent/'config'
+if not (repo_config/'jitsi-mgr.env').is_file(): repo_config=repo/'config'
+if not (repo_config/'jitsi-mgr.env').is_file():
+    raise FileNotFoundError('Repository jitsi-mgr.env config is missing')
 sources=json.loads((skill_root/'sources.json').read_text(encoding='utf-8'))
 def digest(p):
     h=hashlib.sha256()
@@ -377,7 +381,7 @@ if not actual or actual!=mgr.get('files') or any(p.is_symlink() for p in payload
 shutil.copytree(payload,out/'artifacts')
 shutil.copyfile(repo/'incoming/jitsi-mgr/build-evidence.json',out/'provenance/jitsi-mgr.json')
 shutil.copyfile(skill_root/'tools/init-jitsi-mgr.py',out/'init-jitsi-mgr.py')
-shutil.copyfile(skill_root/'config/jitsi-mgr.env',out/'jitsi-mgr.env')
+shutil.copyfile(repo_config/'jitsi-mgr.env',out/'jitsi-mgr.env')
 common={'PUBLIC_URL':'${PUBLIC_URL:?required}','XMPP_DOMAIN':'meet.jitsi','XMPP_AUTH_DOMAIN':'auth.meet.jitsi',
  'XMPP_MUC_DOMAIN':'muc.meet.jitsi','XMPP_INTERNAL_MUC_DOMAIN':'internal-muc.meet.jitsi',
  'XMPP_SERVER':'xmpp.meet.jitsi','XMPP_PORT':'5222','JVB_BREWERY_MUC':'jvbbrewery',
@@ -417,7 +421,7 @@ configs['api'].update(mem_limit='384m',environment={'JITSI_TOKEN_APP_ID':'zhsz',
  'JITSI_MEET_DB_URL':'jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db','BANNER_LOGO_DIRECTORY':'/data/banner-logos'},
  volumes=['./data/api:/app/data','./data/logos:/data/banner-logos'])
 configs['app-web'].update(depends_on=['api'],volumes=['./data/logos:/data/banner-logos:ro'])
-mgr_settings=target_module.read_env(skill_root/'config/jitsi-mgr.env')
+mgr_settings=target_module.read_env(repo_config/'jitsi-mgr.env')
 mgr_postgres=mgr_settings['JITSI_MGR_DB_URL'].startswith('jdbc:postgresql:')
 if not mgr_postgres and not mgr_settings['JITSI_MGR_DB_URL'].startswith('jdbc:h2:file:/app/data/'):
     raise ValueError('Unsupported jitsi-mgr persistent database configuration')

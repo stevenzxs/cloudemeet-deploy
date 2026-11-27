@@ -8,7 +8,12 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tarfile
+
+# The source package is checksum-verified before importing its modules. Prevent
+# those imports from adding unlisted __pycache__ files to that verified tree.
+sys.dont_write_bytecode = True
 
 
 def load(name,path):
