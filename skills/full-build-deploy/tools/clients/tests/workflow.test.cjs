@@ -44,7 +44,7 @@ test('client checkouts match source locks and Android pins the reviewed main fix
   const text = fs.readFileSync(path.join(root, '.github/workflows/build-clients.yml'), 'utf8');
   const sources = JSON.parse(fs.readFileSync(path.join(root, 'skills/full-build-deploy/sources.json'), 'utf8'));
   assert.equal(sources.clients.android.repository, 'https://github.com/stevenzxs/jm.git');
-  assert.equal(sources.clients.android.commit, 'a4012af4a20c257b327af1c9bd34d654ec6642e9');
+  assert.equal(sources.clients.android.commit, 'b68b79e14ef290bd85873eb87056aade1375a706');
   for (const source of Object.values(sources.clients)) {
     const repository = source.repository.replace('https://github.com/', '').replace(/\.git$/, '');
     const checkout = text.split('\n').filter(line => !line.trimStart().startsWith('#')).join('\n')
