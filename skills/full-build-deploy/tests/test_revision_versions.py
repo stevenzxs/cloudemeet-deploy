@@ -26,10 +26,24 @@ class RevisionTests(unittest.TestCase):
                     configuration_sha='a' * 40, task='task-1', scope=['server', 'electron', 'android'],
                     sources={'web': 'b' * 40})
 
+    def test_derive_reserves_patch_band(self):
+        v, _ = self.modules()
+        out = v.derive(self.policy(), 46)
+        self.assertEqual(out['android_code'], 1021460)
+        self.assertEqual(out['msi_version'], '1.0.670')
+        self.assertEqual(out['pe_version'], '1.0.670.0')
+        self.assertEqual(out['client_version'], '1.0.21+r46')
+        self.assertEqual(out['version_formula'], 2)
+
+    def test_derive_rejects_msi_range_exhaustion(self):
+        v, _ = self.modules()
+        with self.assertRaises(ValueError):
+            v.derive(self.policy(), 6551)  # (21+6551)*10+9 = 65729 > 65535
+
     def test_mappings(self):
         v, _ = self.modules()
-        for n, code, msi in [(1, 10211, '1.0.22'), (2, 10212, '1.0.23'),
-                             (10, 102110, '1.0.31'), (100, 1021100, '1.0.121')]:
+        for n, code, msi in [(1, 1021010, '1.0.220'), (2, 1021020, '1.0.230'),
+                             (10, 1021100, '1.0.310'), (100, 1022000, '1.0.1210')]:
             out = v.derive(self.policy(), n)
             self.assertEqual(out['android_code'], code)
             self.assertEqual(out['msi_version'], msi)
@@ -53,8 +67,8 @@ class RevisionTests(unittest.TestCase):
         out = v.derive(policy, 1)  # Pure preview: does not allocate a revision.
         self.assertEqual(out['server_version'], '11248.0.1+r1')
         self.assertEqual(out['client_version'], '1.0.21+r1')
-        self.assertEqual(out['android_code'], 10211)
-        self.assertEqual(out['msi_version'], '1.0.22')
+        self.assertEqual(out['android_code'], 1021010)
+        self.assertEqual(out['msi_version'], '1.0.220')
 
     def test_refuses_invalid_overflow_and_unverified_history(self):
         v, _ = self.modules()
@@ -63,7 +77,7 @@ class RevisionTests(unittest.TestCase):
                 v.derive(self.policy(), n)
         for changes in [dict(previous_android_code=None), dict(approved=False),
                         dict(server_baseline=None), dict(previous_msi_version=None),
-                        dict(previous_android_code=10211), dict(previous_msi_version='1.0.22'),
+                        dict(previous_android_code=1021010), dict(previous_msi_version='1.0.220'),
                         dict(android_base_code=3049)]:
             with self.assertRaises(ValueError):
                 v.derive(dict(self.policy(), **changes), 1)

@@ -32,21 +32,21 @@ def derive(policy, revision):
         raise ValueError('Approved server baseline required')
     client = policy['client_baseline']
     major, minor, patch = numeric_version(client)
-    if major > 255 or minor > 255 or patch + revision > 65535:
+    if major > 255 or minor > 255 or (patch + revision) * 10 + 9 > 65535:
         raise ValueError('MSI/PE version range exhausted')
     base = policy['android_base_code']
     if type(base) is not int or base < 1 or minor > 9 or patch > 99 or base != major * 1000 + minor * 100 + patch:
         raise ValueError('Registered Android base code required')
-    code = int(str(base) + str(revision))
+    code = base * 1000 + revision * 10
     previous = policy.get('previous_android_code')
     if type(previous) is not int or not 0 < previous < code <= 2100000000:
         raise ValueError('Android historical upgrade floor unknown or not exceeded')
-    msi = f'{major}.{minor}.{patch + revision}'
+    msi = f'{major}.{minor}.{(patch + revision) * 10}'
     if numeric_version(msi) <= numeric_version(policy.get('previous_msi_version')):
         raise ValueError('MSI historical upgrade floor not exceeded')
     return dict(revision=revision, server_version=f'{server}+r{revision}',
                  server_tag=f'{server}-r{revision}', client_version=f'{client}+r{revision}',
-                 android_code=code, msi_version=msi, pe_version=msi + '.0')
+                 android_code=code, msi_version=msi, pe_version=msi + '.0', version_formula=2)
 
 
 def validate_request(request):
