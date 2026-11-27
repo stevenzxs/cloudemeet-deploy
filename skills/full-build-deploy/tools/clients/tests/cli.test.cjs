@@ -5,6 +5,12 @@ const os = require('node:os');
 const path = require('node:path');
 const { spawnSync } = require('node:child_process');
 const { argumentsFor, collect, androidTasks } = require('../build-clients.cjs');
+test('client toolchain root resolves to the workspace above deploy checkout', () => {
+  const root = path.resolve(__dirname, '../../../../../..');
+  assert.equal(path.basename(path.join(root, 'deploy')), 'deploy');
+  assert.ok(fs.existsSync(path.join(root, 'jm/android/gradlew')));
+  assert.ok(fs.existsSync(path.join(root, 'jitsi-meet-electron/package.json')));
+});
 test('Android always repackages APK while retaining dependency compilation cache', () => {
   assert.deepEqual(androidTasks(), [':app:packageRelease', '--rerun', ':app:assembleRelease']);
 });
