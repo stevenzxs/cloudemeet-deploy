@@ -72,11 +72,11 @@ CloudMeet 联合交付（`build-joint.yml`）每次分配新 rN、构建全部�
 | 测试 | `core.test.cjs`、`revision.test.cjs`、`cli.test.cjs`、`test_revision_versions.py` 等钉死旧公式数值的断言更新；新增 patch 公式用例 |
 | `tools/clients/README.md` | "Android versionCode自动转换" 一节同步新公式 |
 | `SKILL.md` | 补一句版本规则说明（公式细节指向本设计） |
-| `deploy/README.md` | 客户端构建入口指向从 `build-tools/` 改为 `skills/full-build-deploy/`（builder check Q3，设计者定） |
+| `deploy/README.md` | 客户端构建入口指向改为 `skills/full-build-deploy/`（已于 `5880852` 随删除一并完成） |
 
-**`build-tools/` 的处置（builder check Q3，设计者定）**：冻结为 legacy，公式**不**镜像过去。依据：`.githooks/pre-commit` 已不再强制维护其 `inputs.sha256`；`test_workflow_isolation.py` 断言所有 workflow 不得引用 `build-tools/`；迁移 STATUS 文档表明技能目录是继承者。唯一风险是 `deploy/README.md` 仍把 build-tools 写成客户端构建入口——按上表改指向消除分歧。
+**`build-tools/` 的处置（builder check Q3，设计者定，已执行）**：**已整体删除**（`5880852`，含 94 个文件），同时删除失效的 `.githooks/`（pre-commit 已是 no-op）。用户明确要求删除而非冻结，避免旧公式副本造成干扰；历史可从 git 检索。随删已修：`tools/check-deployment-layout.py` 的 offline-runtime 路由改指 `skills/full-build-deploy/runtime/` 及 `scripts/package.sh`、`.gitignore` 白名单项、README 全部活指针。
 
-**完整性门禁（builder check Q5，设计者定）**：`build-tools/inputs.sha256` 已停止维护（pre-commit 注明），新增 workflow/技能目录无需更新任何哈希清单；`test_workflow_isolation.py` 只断言既有四个 workflow 的性质，新增 `build-single.yml` 不破坏它们，但要在 `single-build-deploy/tests/` 为新 workflow 补等价结构测试。实施时以全量仓库测试通过为准。
+**完整性门禁（builder check Q5，设计者定）**：`build-tools/inputs.sha256` 已随目录删除，新增 workflow/技能目录无需更新任何哈希清单；`test_workflow_isolation.py` 只断言既有四个 workflow 的性质，新增 `build-single.yml` 不破坏它们，但要在 `single-build-deploy/tests/` 为新 workflow 补等价结构测试。实施时以全量仓库测试通过为准。
 
 不动：`docker/`、`runtime/`、四个既有 workflow 结构、`joint-release.py` 发布机制、`config/` 下 CA/签名材料。
 
