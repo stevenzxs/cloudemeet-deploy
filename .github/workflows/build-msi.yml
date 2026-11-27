@@ -148,10 +148,10 @@ jobs:
             --notes "$notes" \
             "$msi" "$directory/build-evidence.json" "$directory/SHA256SUMS"
           assets=0
-          for attempt in 1 2 3 4 5 6; do
+          for attempt in $(seq 1 20); do
             assets=$(gh release view "$tag" --json assets --jq 'length')
             test "$assets" -eq 3 && break
-            sleep 10
+            sleep 15
           done
           test "$assets" -eq 3 || { echo "Unexpected asset count $assets"; exit 1; }
           gh release edit "$tag" --draft=false
