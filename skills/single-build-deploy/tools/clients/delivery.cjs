@@ -20,7 +20,7 @@ function deliver(manifest, root) {
     if (hash(path.join(manifest.candidate, artifact.file)) !== artifact.sha256) throw Error('Candidate digest changed');
     if (!['windows', 'android'].includes(artifact.platform)
         || !(artifact.platform === 'windows' ? ['x64', 'arm64']
-          : ['armeabi-v7a', 'arm64-v8a', 'x86_64', 'universal']).includes(artifact.architecture)) {
+          : ['arm64-v8a']).includes(artifact.architecture)) {
       throw Error('Invalid client delivery platform/architecture');
     }
   }

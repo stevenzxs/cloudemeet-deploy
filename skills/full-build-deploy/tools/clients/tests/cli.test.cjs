@@ -138,12 +138,11 @@ test('candidate creation tolerates a missing temporary parent directory', () => 
     assert.ok(fs.statSync(candidate).isDirectory());
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });
-test('Android directories reflect actual ABI sets and exclude x86', () => {
+test('Android packages support only arm64-v8a and reject removed ABIs', () => {
   const { androidLayout } = require('../build-clients.cjs');
   assert.equal(androidLayout(['arm64-v8a']).architecture, 'arm64-v8a');
-  assert.deepEqual(androidLayout(['x86_64', 'arm64-v8a', 'arm64-v8a']).architectures, ['arm64-v8a', 'x86_64']);
-  assert.equal(androidLayout(['armeabi-v7a', 'arm64-v8a']).architecture, 'universal');
-  assert.throws(() => androidLayout(['x86']));
+  for (const abi of ['armeabi-v7a', 'x86', 'x86_64']) assert.throws(() => androidLayout([abi]));
+  assert.throws(() => androidLayout(['arm64-v8a', 'x86_64']));
   assert.throws(() => androidLayout([]));
 });
 test('platform layout creates only the architecture actually collected', () => {

@@ -188,9 +188,8 @@ function elapsedMs(started) {
 
 function androidLayout(abis) {
   const actual = [...new Set(abis)].sort();
-  const supported = ['armeabi-v7a', 'arm64-v8a', 'x86_64'];
-  if (!actual.length || actual.some(abi => !supported.includes(abi))) throw Error('Unsupported or missing APK ABI (x86 is excluded)');
-  return { platform: 'android', architectures: actual, architecture: actual.length === 1 ? actual[0] : 'universal' };
+  if (actual.length !== 1 || actual[0] !== 'arm64-v8a') throw Error('Unsupported or missing APK ABI (only arm64-v8a is supported)');
+  return { platform: 'android', architectures: actual, architecture: actual[0] };
 }
 
 function inspectApk(file) {
@@ -314,9 +313,9 @@ async function build(options, config, report) {
           [restrictions, xml.replace('android:key="SERVER_URL"', `android:key="SERVER_URL" android:defaultValue="${config.origin}"`)]];
         const gradle = path.join(project, 'android/app/build.gradle');
         const gradleText = fs.readFileSync(gradle, 'utf8');
-        const filters = "abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86', 'x86_64'";
+        const filters = "abiFilters 'arm64-v8a'";
         if (!gradleText.includes(filters)) throw Error('Unexpected Android ABI filters; refusing implicit architecture change');
-        changes.push([gradle, gradleText.replace(filters, "abiFilters 'armeabi-v7a', 'arm64-v8a', 'x86_64'")]);
+        changes.push([gradle, gradleText]);
         if (ca || config.tlsMode === 'caddy-public-acme') {
           const trust = path.join(project, 'android/app/src/main/res/xml/network_security_config.xml');
           changes.push([trust, androidTrust(fs.readFileSync(trust, 'utf8'), config.values.SITE_DOMAIN, config.tlsMode)]);
