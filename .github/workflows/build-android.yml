@@ -181,13 +181,6 @@ jobs:
           notes=$(printf 'CloudMeet Android APK %s; approved release signing verified at build time.\nOrigin: %s\nRun: %s attempt %s; material_commit: %s\nNOT_DEPLOYED: installation, endpoint TLS and meeting media acceptance not performed.' \
             "$CLIENT_VERSION" "${{ inputs.expected_origin }}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "${{ inputs.material_commit }}")
           gh release create "$tag" --draft --title "cloudmeet-android-r${REVISION}" --latest=false \
-            --notes "$notes" \
-            "$apk" "$directory/build-evidence.json" "$directory/SHA256SUMS"
-          assets=0
-          for attempt in $(seq 1 20); do
-            assets=$(gh release view "$tag" --json assets --jq 'length')
-            test "$assets" -eq 3 && break
-            sleep 15
-          done
-          test "$assets" -eq 3 || { echo "Unexpected asset count $assets"; exit 1; }
+            --notes "$notes"
+          gh release upload "$tag" "$apk" "$directory/build-evidence.json" "$directory/SHA256SUMS"
           gh release edit "$tag" --draft=false

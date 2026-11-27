@@ -63,7 +63,10 @@ class MsiWorkflowStructureTests(unittest.TestCase):
         self.assertIn('NOT_DEPLOYED', publish)
         self.assertIn('GH_REPO', publish, 'publish job runs without checkout; gh needs GH_REPO to resolve the repository')
         self.assertIn('cloudmeet-msi-r${REVISION}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}', publish)
-        self.assertLess(publish.index('gh release create'), publish.index('gh release edit'))
+        self.assertIn('gh release upload', publish, 'synchronous upload is authoritative; no asset visibility polling')
+        self.assertNotIn('assets=$(gh release view', publish)
+        self.assertLess(publish.index('gh release create'), publish.index('gh release upload'))
+        self.assertLess(publish.index('gh release upload'), publish.index('gh release edit'))
 
     def test_no_legacy_closure_references(self):
         self.assertNotIn('build-tools/', self.text)
