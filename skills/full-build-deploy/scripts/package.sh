@@ -575,11 +575,6 @@ rendered=json.loads(subprocess.check_output([str(out/'bin/docker-compose'),'-f',
  for p in sorted(out.rglob('*')) if p.is_file() and p.name!='SHA256SUMS'))
 verifier.verify_checksums(out)
 PY
-    # Rendering only: no daemon operation or application startup.
-    # target.py already exported validated public settings; example files are not inputs.
-    JWT_APP_SECRET=RENDER_ONLY JICOFO_AUTH_PASSWORD=RENDER_ONLY JVB_AUTH_PASSWORD=RENDER_ONLY \
-    JITSI_ROLE_CHECK_SECRET=RENDER_ONLY JITSI_MGR_DB_PASSWORD=RENDER_ONLY \
-        "$output/bin/docker-compose" -f "$output/jitsi-base.yaml" config --quiet
     python3 -B "$output/install.py" --verify-only
     python3 -B "$repo/tools/online-material.py" --source "$output" --destination "$output-online"
     tar -czf "$output.tar.gz" -C "$(dirname "$output")" "$(basename "$output")"

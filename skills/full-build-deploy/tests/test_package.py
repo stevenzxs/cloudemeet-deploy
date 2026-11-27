@@ -417,6 +417,11 @@ print(json.dumps(data))
         self.assertIn("'build_overrides':{'VITE_JITSI_SERVER':'same-origin'}", script)
         self.assertNotIn('sed -i', script)
 
+    def test_compose_validation_uses_the_validated_target_environment(self):
+        script = (ROOT / 'scripts/package.sh').read_text()
+        self.assertIn('render_env.update(target)', script)
+        self.assertNotIn('config --quiet', script)
+
 
 if __name__ == '__main__':
     unittest.main()
