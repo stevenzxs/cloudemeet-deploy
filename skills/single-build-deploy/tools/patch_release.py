@@ -278,7 +278,8 @@ def publish(target, input_dir, record, policy, runner=subprocess.run, env=None, 
                     tar.add(path, arcname=path.relative_to(input_dir).as_posix())
         assets = [bundle, input_dir / 'build-evidence.json']
     else:
-        manifest = json.loads((input_dir / 'build.json').read_text(encoding='utf-8'))
+        # Client input is the delivery bundle written by tools/clients/delivery.cjs.
+        manifest = json.loads((input_dir / 'build-evidence.json').read_text(encoding='utf-8'))
         if manifest.get('status') != 'packaged-delivered':
             raise ValueError('Client build did not complete package verification')
         if manifest.get('version') != versions['client_version']:
@@ -295,7 +296,7 @@ def publish(target, input_dir, record, policy, runner=subprocess.run, env=None, 
             assets.append(file)
         if not assets:
             raise ValueError('No client artifacts to publish')
-        assets.append(input_dir / 'build.json')
+        assets.append(input_dir / 'build-evidence.json')
     sums = input_dir / 'SHA256SUMS'
     sums.write_text(''.join(file_digest(p) + '  ' + p.name + '\n' for p in assets), encoding='utf-8')
     _create_release(tag, assets + [sums], env, runner, repository)

@@ -191,6 +191,25 @@ class PublishTests(unittest.TestCase):
             self.assertIn('ghcr.io/stevenzxs/cloudmeet-api:11248.0.2-r45-patch.1', calls[push])
             self.assertTrue(any('create' in c for c in calls if c[:2] == ['gh', 'release']))
 
+    def test_client_publish_uses_delivery_evidence_bundle(self):
+        import hashlib
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / 'app.msi').write_bytes(b'msi-bytes')
+            sha = hashlib.sha256(b'msi-bytes').hexdigest()
+            record = self.record('electron')
+            evidence = {'status': 'packaged-delivered', 'version': '1.0.21+r45-patch.1',
+                        'versionAssignment': record,
+                        'artifacts': [{'file': 'app.msi', 'sha256': sha, 'platform': 'windows'}]}
+            (root / 'build-evidence.json').write_text(json.dumps(evidence))
+            runner, calls = fake_runner([(lambda argv: argv[:2] == ['gh', 'release'], ok([], '{}'))])
+            patch_release.publish('electron', root, record, policy(), runner, self.env())
+            created = [c for c in calls if c[:2] == ['gh', 'release'] and 'create' in c]
+            self.assertTrue(created and 'cloudmeet-11248.0.2-r45-patch.1' in created[0])
+            self.assertEqual([c for c in calls if c[0] == 'docker'], [])
+            upload = next(c for c in calls if 'upload' in c)
+            self.assertIn('app.msi', [Path(a).name for a in upload])
+
     def test_existing_registry_tag_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
