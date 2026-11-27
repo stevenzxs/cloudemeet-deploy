@@ -267,6 +267,9 @@ def write_report(report, output):
             shutil.copytree(ROOT/'patches',repo/'skill/patches')
             shutil.copytree(ROOT/'runtime',repo/'skill/runtime')
             (repo/'skill/config/jitsi.env').write_text('CONFIG=./data/jitsi\nJVB_AUTH_USER=jvb\nJICOFO_AUTH_USER=focus\nENABLE_AUTH=1\nAUTH_TYPE=jwt\nJWT_APP_ID=zhsz\nJWT_ALLOW_EMPTY=1\nENABLE_AUTO_OWNER=0\nXMPP_MUC_MODULES=muc_jwt_owner\nENABLE_XMPP_WEBSOCKET=1\nBOSH_RELATIVE=1\nENABLE_P2P=0\nTZ=Asia/Shanghai\n',encoding='utf-8')
+            # Public runtime configuration is owned by the repository, not bundled
+            # under skills/full-build-deploy/config. Do not let a duplicate mask path bugs.
+            (repo/'skill/config/jitsi.env').unlink()
             shutil.copyfile(ROOT/'config/target.py',repo/'skill/config/target.py')
             (repo/'skill/config/Caddyfile').write_text('https://:443 {\n tls internal\n}\n',encoding='utf-8')
             shutil.copyfile(ROOT/'tools/init-jitsi-mgr.py',tools/'init-jitsi-mgr.py')
@@ -354,6 +357,8 @@ print(json.dumps(data))
             self.assertEqual(manifest['status'], 'PACKAGED')
             self.assertEqual(manifest['version_assignment'], assignment)
             self.assertEqual(manifest['architecture'], architecture)
+            self.assertEqual((out/'jitsi.env').read_text(encoding='utf-8'),
+                             (repo/'config/jitsi.env').read_text(encoding='utf-8'))
             self.assertEqual(manifest['target_profile'], 'linux-'+env['PACKAGE_ARCH']+'-existing-engine')
             target_spec = __import__('importlib.util', fromlist=['util']).spec_from_file_location('fixture_target', repo/'skill/config/target.py')
             target_module = __import__('importlib.util', fromlist=['util']).module_from_spec(target_spec)
