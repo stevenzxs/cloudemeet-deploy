@@ -8,14 +8,14 @@ Android保持现有keystore、Actions Secrets安全注入和最终唯一批准DE
 
 2026-11-23中文快捷方式回归修复：当前maker-wix显式使用`shortcutName: '云会议'`，并设置MSI中文代码页；不改变CloudMeet产品/安装身份或`cloudmeet.exe`。最终验包读取MSI `Shortcut`表，核对桌面、开始菜单两项的中文长名称及主程序目标，英文/缺项/重复项/错误目标立即失败。旧统一MSI脚本及旧测试不改；此修复没有重新构建或修改历史安装包，旧快捷方式残留和真实升级行为仍需另行实装核验。
 
-规范见`../../AGENTS.md`。工具位于deploy/build-tools/clients，业务源码仍在deploy的同级目录。在工作区根执行时使用deploy/build-tools/clients/build-clients.cjs，Node无需新增依赖：
+规范见`../../AGENTS.md`。工具位于`deploy/skills/full-build-deploy/tools/clients`，业务源码仍在deploy的同级目录。在工作区根执行时使用`deploy/skills/full-build-deploy/tools/clients/build-clients.cjs`，Node无需新增依赖：
 
 ```powershell
-node --test build-tools/clients/tests/*.test.cjs
-node build-tools/clients/build-clients.cjs --target all --env-file deploy/config/client.env --check
+node --test deploy/skills/full-build-deploy/tools/clients/tests/*.test.cjs
+node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target all --env-file "$PWD/deploy/skills/full-build-deploy/config/client.env" --check
 ```
 
-唯一配置为`deploy/config/client.env`，四项必填：SITE_DOMAIN、SITE_SCHEME、
+唯一配置为`deploy/skills/full-build-deploy/config/client.env`，四项必填：SITE_DOMAIN、SITE_SCHEME、
 SITE_PORT、CLIENT_VERSION。命令不接受其他配置路径或进程环境覆盖这四项。
 可选CLIENT_CA_FILE指定公开CA，路径相对client.env；配置后必须存在且为有效CA，
 不得包含私钥。预检查记录CA指纹/到期日，构建前复核未变化。
@@ -28,12 +28,11 @@ android可在Linux构建（2026-11-20用户批准Actions android目标改跑ubun
 
 ## Android versionCode自动转换
 
-基线1.0.21与数字基线1021绑定：显示1.0.21+rN，Android数字字段为十进制1021拼接N；
-r1=10211、r2=10212、r10=102110、r100=1021100。MSI=1.0.(21+N)，PE增加第四段0。
+基线1.0.21与数字基线1021绑定：显示1.0.21+rN，Android数字字段为 1021×1000 + N×10（每个修订号预留末位 patch 档）；r1=1021010、r10=1021100、r45=1021450。MSI=1.0.((21+N)×10)，PE增加第四段0。patch 发布（single-build-deploy 技能）占用末位1..9：显示1.0.21+r45-patch.1 → 1021451，MSI 1.0.661。
 旧三段数字转换只用于诊断基线，不允许无分配记录正式打包。超过平台上限、历史最高版本
 未核验或不满足升级单调性均阻断，不卸载/清数据绕过。
 Actions提供`--version-record version-assignment.json`，校验配置SHA、Run、scope及源码SHA；
-`--check`不分配修订号，无记录时报告诊断基线及缺项。配置策略已获用户批准启用，兼容基线限现存正式包；控制Runner/正式台账及真实包验收仍未就绪，详见../VERSION-ACTIVATION.md。
+`--check`不分配修订号，无记录时报告诊断基线及缺项。配置策略已获用户批准启用，兼容基线限现存正式包；版本策略见`../config/version-policy.json`。
 
 ## 构建行为和限制
 

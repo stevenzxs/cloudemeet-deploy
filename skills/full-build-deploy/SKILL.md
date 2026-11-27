@@ -33,7 +33,7 @@ description: Use when the user explicitly requests a complete CloudMeet GitHub d
 
 1. 使用 `build-joint.yml` 的 `workflow_dispatch`，输入本次批准的 `expected_tls_mode`、`expected_origin`、完整 `material_commit`、`architecture`。该入口一次构建服务端与两个客户端；客户端目标固定为 `electron` 和 `android`。
 2. 仅在用户明确授权本批发布时设置 `publish_images=true`；否则为 `false`。该参数会请求联合 GHCR 与 GitHub Release 发布，不是“仅构建”开关。它不授权部署。
-3. 由仓库内版本配置为新的顶层 Run/attempt 分配共同 `rN`；分配来源是 `skills/full-build-deploy/config/version-policy.json` 中的 `current_revision`，不手填、猜测、回收或重建编号。已分配后失败或取消也消耗编号；同一 Run 的新 attempt 视为新的构建尝试并消耗新编号。修复材料后需新 Run/新编号。不得只重跑失败子 job 后与旧 attempt 混包；重跑必须重跑完整父工作流。
+3. 由仓库内版本配置为新的顶层 Run/attempt 分配共同 `rN`；分配来源是 `skills/full-build-deploy/config/version-policy.json` 中的 `current_revision`，不手填、猜测、回收或重建编号。已分配后失败或取消也消耗编号；同一 Run 的新 attempt 视为新的构建尝试并消耗新编号。修复材料后需新 Run/新编号。不得只重跑失败子 job 后与旧 attempt 混包；重跑必须重跑完整父工作流。客户端数字版本自 2026-11-27 起采用预留 patch 位公式：`android_code = android_base_code×1000 + rN×10`，MSI 第三段 `(client 基线 patch + rN)×10`；末位 1..9 预留给 single-build-deploy 的 patch 发布（见 `docs/superpowers/specs/2026-11-27-single-build-deploy-design.md`）。
 4. 跟踪父 Run 及全部必需 job 到终态。核对同一 Run/attempt、版本分配记录、配置 SHA、固定源码 SHA、TLS 模式、origin、架构和服务端/双客户端证据。任何必需项失败、缺失或彼此不一致，停止，不发布、不拼接旧产物、不报告为完整构建。
 5. 构建成功仅表示自动化产物/材料检查成功。保存 Run URL/ID、attempt、分配版本、artifact ID/名称、摘要及证据位置；不把它表述为发布、安装或会议媒体验收通过。
 
