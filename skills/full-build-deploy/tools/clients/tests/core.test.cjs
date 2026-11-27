@@ -70,6 +70,14 @@ test('Android code is derived only from configured version using fixed decimal s
     assert.throws(() => versionCode(version));
   }
 });
+test('Android code reserves a patch band per revision', () => {
+  const { versionCode } = load();
+  assert.equal(versionCode('1.0.21+r45'), 1021450);
+  assert.equal(versionCode('1.0.21+r45-patch.1'), 1021451);
+  assert.equal(versionCode('1.0.21+r45-patch.9'), 1021459);
+  for (const s of ['1.0.21+r45-patch.0', '1.0.21+r45-patch.10', '1.0.21+r45-patch.01', '1.0.21+r0', '1.0.21+r01'])
+    assert.throws(() => versionCode(s));
+});
 test('lock is exclusive and temporary source bytes restored after failure', async () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-builder-test-'));
   const file = path.join(dir, 'source'); fs.writeFileSync(file, 'original\r\n');

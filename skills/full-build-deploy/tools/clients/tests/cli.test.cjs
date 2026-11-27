@@ -223,7 +223,7 @@ test('workflow accepts an explicit default HTTPS port when normalized origin omi
   const childEnv = { ...process.env, GITHUB_SHA: 'a'.repeat(40), GITHUB_RUN_ID: '1', GITHUB_RUN_ATTEMPT: '1' };
   fs.writeFileSync(envFile, 'SITE_DOMAIN=cloudmeet.example.com\nSITE_SCHEME=https\nSITE_PORT=443\nCLIENT_VERSION=1.0.21\nTLS_MODE=caddy-public-acme\n');
   fs.writeFileSync(originFile, JSON.stringify({ origin: 'https://cloudmeet.example.com:443', scheme: 'https', host: 'cloudmeet.example.com', port: 443, tls_mode: 'caddy-public-acme', addresses: ['192.0.2.10'] }));
-  fs.writeFileSync(record, JSON.stringify({ request: { scope: ['electron'], sources: { electron: 'b'.repeat(40), android: 'c'.repeat(40) } }, versions: { revision: 1, client_version: '1.0.21+r1', android_code: 10211, msi_version: '1.0.22', pe_version: '1.0.22.0' } }));
+  fs.writeFileSync(record, JSON.stringify({ request: { scope: ['electron'], sources: { electron: 'b'.repeat(40), android: 'c'.repeat(40) } }, versions: { revision: 1, client_version: '1.0.21+r1', android_code: 1021010, msi_version: '1.0.220', pe_version: '1.0.220.0', version_formula: 2 } }));
   try {
     const result = spawnSync(process.execPath, [cli, '--target', 'electron', '--env-file', envFile,
       '--origin-contract', originFile, '--version-record', record], { encoding: 'utf8', env: childEnv });

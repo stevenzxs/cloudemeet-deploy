@@ -3,20 +3,32 @@ const assert = require('node:assert/strict');
 const { parseConfig, versionCode } = require('../core.cjs');
 const config = 'SITE_DOMAIN=example.com\nSITE_SCHEME=https\nSITE_PORT=8443\nCLIENT_VERSION=1.0.21\n';
 test('allocated display version is distinct from all platform fields', () => {
-  const versions = { revision: 100, client_version: '1.0.21+r100', android_code: 1021100,
-    msi_version: '1.0.121', pe_version: '1.0.121.0' };
+  const versions = { revision: 100, client_version: '1.0.21+r100', android_code: 1022000,
+    msi_version: '1.0.1210', pe_version: '1.0.1210.0', version_formula: 2 };
   const parsed = parseConfig(config, { versions });
   assert.equal(parsed.version, '1.0.21+r100');
-  assert.equal(parsed.msiVersion, '1.0.121');
-  assert.equal(parsed.peVersion, '1.0.121.0');
-  assert.equal(versionCode(parsed.version), 1021100);
+  assert.equal(parsed.msiVersion, '1.0.1210');
+  assert.equal(parsed.peVersion, '1.0.1210.0');
+  assert.equal(versionCode(parsed.version), 1022000);
   assert.throws(() => parseConfig(config, { versions: { ...versions, android_code: 1021 } }));
   assert.throws(() => parseConfig(config.replace('1.0.21', '1.0.22'), { versions }));
 });
+test('patch assignment occupies the band between joint revisions', () => {
+  const versions = { revision: 45, patch: 1, client_version: '1.0.21+r45-patch.1',
+    android_code: 1021451, msi_version: '1.0.661', pe_version: '1.0.661.0', version_formula: 2 };
+  const parsed = parseConfig(config, { versions });
+  assert.equal(parsed.version, '1.0.21+r45-patch.1');
+  assert.equal(parsed.msiVersion, '1.0.661');
+  assert.equal(versionCode(parsed.version), 1021451);
+  assert.throws(() => parseConfig(config, { versions: { ...versions, android_code: 102145 } }));
+  assert.throws(() => parseConfig(config, { versions: { ...versions, patch: 0 } }));
+  assert.throws(() => parseConfig(config, { versions: { ...versions, patch: 10 } }));
+  assert.throws(() => parseConfig(config, { versions: { ...versions, msi_version: '1.0.660' } }));
+});
 test('revision client code refuses zero, leading zeros and overflow', () => {
-  assert.equal(versionCode('1.0.21+r1'), 10211);
-  assert.equal(versionCode('1.0.21+r10'), 102110);
-  for (const s of ['1.0.21+r0', '1.0.21+r01', '1.0.21+r1000000']) assert.throws(() => versionCode(s));
+  assert.equal(versionCode('1.0.21+r1'), 1021010);
+  assert.equal(versionCode('1.0.21+r10'), 1021100);
+  for (const s of ['1.0.21+r0', '1.0.21+r01', '1.0.21+r300000000']) assert.throws(() => versionCode(s));
 });
 test('Forge adapter retires vendor payload verification and excludes build adapter from the shipped app', () => {
   const vm = require('node:vm');
