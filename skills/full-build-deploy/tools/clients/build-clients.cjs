@@ -7,7 +7,7 @@ const { spawn, spawnSync } = require('node:child_process');
 const { parseConfig, versionCode, withLock, withFiles, findWix } = require('./core.cjs');
 const { readCa, androidTrust } = require('./ca-config.cjs');
 const { auditGenerated, auditPackages, writeAudit, inventorySources } = require('./network-audit.cjs');
-const root = path.resolve(__dirname, '../../../..');
+const root = path.resolve(__dirname, '../../../../..');
 const canonical = path.join(__dirname, '../../config/client.env');
 const lock = path.join(__dirname, '.client-build.lock');
 
@@ -167,7 +167,7 @@ function preflight(options, config) {
     if (!findWix()) blockers.push('Missing WiX v3 candle.exe/light.exe: configure WIX or PATH');
   }
   return { origin: config.origin, desktopUrl: config.desktopUrl, version: config.version,
-    target: options.target, deliveryRoot: path.join(root, 'release/clients'),
+    target: options.target, deliveryRoot: path.join(root, 'deploy/release/clients'),
     ca: ca ? { file: ca.file, sha256: ca.sha256, validTo: ca.validTo } : null,
     ...(androidCode === undefined ? {} : { versionCode: androidCode }), blockers, warnings: [
       'Version-derived Android code may be lower than old time-based APK codes; in-place upgrade is NOT guaranteed.',

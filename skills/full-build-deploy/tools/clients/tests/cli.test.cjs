@@ -251,7 +251,7 @@ test('check ignores endpoint/version environment overrides and never creates bui
   const config = parseConfig(fs.readFileSync(configPath, 'utf8'));
   assert.equal(report.version, config.version); assert.equal(report.origin, config.origin);
   assert.equal(report.versionCode, require('../core.cjs').versionCode(config.version));
-  assert.equal(report.deliveryRoot, path.resolve(__dirname, '../../../../../release/clients'));
+  assert.equal(report.deliveryRoot, path.resolve(__dirname, '../../../../../../deploy/release/clients'));
   assert.ok(!report.blockers.some(text => text.includes('lastVersionCode')));
   assert.ok(report.warnings.some(text => text.includes('NOT verified')));
   assert.deepEqual(fs.existsSync(state) ? fs.readFileSync(state) : null, before);
