@@ -1,0 +1,181 @@
+name: CloudMeet eight services build and publish
+on:
+  workflow_dispatch:
+    inputs:
+      expected_tls_mode:
+        description: Approved TLS mode for this batch's user-supplied origin
+        type: choice
+        options: [private-ca, caddy-public-acme]
+        default: private-ca
+      expected_origin:
+        description: User-supplied HTTP(S) origin for this batch (DNS name or IP)
+        type: string
+        required: true
+      material_commit:
+        description: Reviewed full configuration commit SHA (must equal workflow commit)
+        type: string
+        required: true
+      architecture:
+        description: Native target architecture
+        type: choice
+        options: [amd64, arm64]
+        default: amd64
+      publish_images:
+        description: Approved GHCR and Release publication (no deployment)
+        type: boolean
+        default: false
+permissions:
+  contents: read
+concurrency:
+  group: cloudmeet-server-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  version:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/revision-allocation.yml
+    with:
+      material_commit: ${{ inputs.material_commit }}
+      scope: '["server"]'
+      expected_tls_mode: ${{ inputs.expected_tls_mode }}
+      expected_origin: ${{ inputs.expected_origin }}
+  build:
+    needs: version
+    permissions:
+      contents: read
+    runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        service: [gateway, app-web, api, jitsi-mgr, web, prosody, jicofo, jvb]
+    env:
+      VERSION: ${{ fromJSON(needs.version.outputs.assignment).versions.server_version }}
+      BATCH: ${{ fromJSON(needs.version.outputs.assignment).versions.server_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+      TARGET_ARCH: ${{ inputs.architecture }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.material_commit }}
+          path: deploy
+          persist-credentials: false
+      - name: Validate material identity
+        run: |
+          test '${{ inputs.material_commit }}' = "$(git -C deploy rev-parse HEAD)"
+          test '${{ inputs.material_commit }}' = '$GITHUB_SHA'
+      - name: Resolve pinned source identity
+        id: src
+        run: |
+          entry=$(jq -r '.services["${{ matrix.service }}"]' deploy/skills/server-build-deploy/sources.json)
+          test "$entry" != null
+          repo=$(jq -r '.repository' <<<"$entry" | sed 's#https://github.com/##; s#\.git$##')
+          commit=$(jq -r '.commit' <<<"$entry")
+          [[ $commit =~ ^[0-9a-f]{40}$ ]]
+          echo "repo=$repo" >> "$GITHUB_OUTPUT"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: ${{ steps.src.outputs.repo }}
+          ref: ${{ steps.src.outputs.commit }}
+          path: source
+          persist-credentials: false
+      - name: Assert checkout matches source lock
+        run: test '${{ steps.src.outputs.commit }}' = "$(git -C source rev-parse HEAD)"
+      - name: Check out lifecycle rootfs sources
+        if: contains(fromJSON('["web","jicofo","jvb"]'), matrix.service)
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          repository: jitsi/docker-jitsi-meet
+          ref: ${{ fromJSON('276801c7fd4233f7288ba95bd132c219852c7ac7') }}
+          path: lifecycle
+          persist-credentials: false
+      - name: Set up JDK 17
+        if: contains(fromJSON('["api","jicofo","jvb","jitsi-mgr"]'), matrix.service)
+        uses: actions/setup-java@cf277c60eb25467037889841efdb72551f06f6c3
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: maven
+      - name: Build service
+        env:
+          SERVICE: ${{ matrix.service }}
+          SOURCE_COMMIT: ${{ steps.src.outputs.commit }}
+          SKILL_DIR: ${{ github.workspace }}/deploy/skills/server-build-deploy
+          WORK_DIR: ${{ github.workspace }}
+          SOURCE_DIR: ${{ github.workspace }}/source
+          LIFECYCLE_DIR: ${{ github.workspace }}/lifecycle
+        run: bash deploy/skills/server-build-deploy/tools/build-service.sh "$SERVICE"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: image-${{ matrix.service }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: output/${{ matrix.service }}/
+          compression-level: 0
+          if-no-files-found: error
+          retention-days: 14
+  publish:
+    needs: [version, build]
+    if: inputs.publish_images
+    permissions:
+      contents: write
+      packages: write
+    runs-on: ${{ inputs.architecture == 'amd64' && 'ubuntu-24.04' || 'ubuntu-24.04-arm' }}
+    timeout-minutes: 60
+    env:
+      VERSION: ${{ fromJSON(needs.version.outputs.assignment).versions.server_version }}
+      BATCH: ${{ fromJSON(needs.version.outputs.assignment).versions.server_tag }}-${{ github.run_id }}-${{ github.run_attempt }}
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093
+        with:
+          pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
+          path: downloads
+      - name: Authenticate to GHCR
+        env:
+          REGISTRY_TOKEN: ${{ github.token }}
+        run: printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+      - name: Push images and publish Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: stevenzxs/cloudemeet-deploy
+        run: |
+          set -euo pipefail
+          release_dir=release-assets
+          mkdir -p "$release_dir"
+          declare -A images
+          for service in gateway app-web api web prosody jicofo jvb; do
+            archive="downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${service}.tar.gz"
+            test -f "$archive" || { echo "Missing image archive: $service"; exit 1; }
+            expected=$(python3 -c "import json;print(json.load(open('downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/build-evidence.json'))['sha256'])")
+            actual=$(sha256sum "$archive" | cut -d' ' -f1)
+            test "$actual" = "$expected" || { echo "Archive digest mismatch: $service"; exit 1; }
+            docker load --input "$archive" > /dev/null
+            remote="ghcr.io/stevenzxs/cloudmeet-${service}:${BATCH}"
+            docker tag "cloudmeet/${service}:${BATCH}" "$remote"
+            docker push "$remote"
+            digest=$(docker buildx imagetools inspect "$remote" --format '{{.Manifest.Digest}}')
+            images[$service]="${remote%:*}@${digest}"
+            cp "downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/build-evidence.json" "$release_dir/${service}-build-evidence.json"
+          done
+          IMAGE_REFS="$(for k in "${!images[@]}"; do printf '%s=%s ' "$k" "${images[$k]}"; done)"
+          export IMAGE_REFS
+          python3 - "$release_dir/images.json" <<'PY'
+          import json, os, sys
+          images = dict(pair.split('=', 1) for pair in os.environ['IMAGE_REFS'].split())
+          json.dump({'batch': os.environ['BATCH'], 'version': os.environ['VERSION'],
+                     'run_id': os.environ['GITHUB_RUN_ID'], 'attempt': os.environ['GITHUB_RUN_ATTEMPT'],
+                     'deployment_commit': os.environ['GITHUB_SHA'],
+                     'status': 'PUBLISHED_NOT_DEPLOYED', 'images': images},
+                    open(sys.argv[1], 'w'), indent=2)
+          PY
+          mgr="downloads/image-jitsi-mgr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/artifacts"
+          cp "$mgr/jitsi-mgr.jar" "$mgr/jitsi-mgr-ui.tar.gz" "$release_dir/"
+          cp "downloads/image-jitsi-mgr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/build-evidence.json" "$release_dir/jitsi-mgr-build-evidence.json"
+          (cd "$release_dir" && sha256sum * > SHA256SUMS)
+          tag="cloudmeet-${BATCH}"
+          notes=$(printf 'CloudMeet eight services %s (seven GHCR images + jitsi-mgr JAR/UI).\nOrigin: %s\nRun: %s attempt %s; material_commit: %s\nNOT_DEPLOYED: installation, TLS and meeting media acceptance not performed. Images are pinned by digest in images.json.' \
+            "$VERSION" "${{ inputs.expected_origin }}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "${{ inputs.material_commit }}")
+          gh release create "$tag" --draft --title "$tag" --latest=false --notes "$notes"
+          gh release upload "$tag" "$release_dir"/*
+          gh release edit "$tag" --draft=false
+      - name: Remove runner registry session
+        if: always()
+        run: docker logout ghcr.io
