@@ -50,14 +50,9 @@ function parseConfig(text, assignment = null) {
   const result = { values, origin, desktopUrl: `${origin}/cm/desktop`, version, tlsMode };
   if (assignment) {
     const v = assignment.versions;
-    const patch = v && v.patch;
-    const isPatch = patch !== undefined;
-    if (isPatch && (!Number.isSafeInteger(patch) || patch < 1 || patch > 9)) throw Error('Client version assignment mismatch');
-    const expectedVersion = isPatch ? `${version}+r${v.revision}-patch.${patch}` : `${version}+r${v.revision}`;
-    const msiBuild = isPatch ? (parts[2] + v.revision) * 10 + patch : (parts[2] + v.revision) * 10;
-    if (!v || v.client_version !== expectedVersion || !Number.isSafeInteger(v.revision) || v.revision < 1
+    if (!v || v.client_version !== `${version}+r${v.revision}` || !Number.isSafeInteger(v.revision) || v.revision < 1
         || v.android_code !== versionCode(v.client_version)
-        || v.msi_version !== `${parts[0]}.${parts[1]}.${msiBuild}`
+        || v.msi_version !== `${parts[0]}.${parts[1]}.${(parts[2] + v.revision) * 10}`
         || v.pe_version !== `${v.msi_version}.0` || (parts[2] + v.revision) * 10 + 9 > 65535) throw Error('Client version assignment mismatch');
     Object.assign(result, { version: v.client_version, msiVersion: v.msi_version, peVersion: v.pe_version, assignment });
   }
@@ -65,15 +60,9 @@ function parseConfig(text, assignment = null) {
 }
 
 function versionCode(version) {
-  // Each revision reserves a patch band: code = base*1000 + revision*10 + patch,
-  // where joint builds use patch slot 0 and patch releases use 1..9.
-  const patchRelease = /^(.*)\+r([1-9]\d*)-patch\.([1-9])$/.exec(version);
+  // Each revision reserves a patch band: code = base*1000 + revision*10. Patch
+  // slots 1..9 are parsed only by the single-build-deploy toolchain copy.
   const revision = /^(.*)\+r([1-9]\d*)$/.exec(version);
-  if (patchRelease) {
-    const value = versionCode(patchRelease[1]) * 1000 + Number(patchRelease[2]) * 10 + Number(patchRelease[3]);
-    if (!Number.isSafeInteger(value) || value < 1 || value > 2100000000) throw Error('Android patch versionCode overflow');
-    return value;
-  }
   if (revision) {
     const value = versionCode(revision[1]) * 1000 + Number(revision[2]) * 10;
     if (!Number.isSafeInteger(value) || value < 1 || value > 2100000000) throw Error('Android revision versionCode overflow');

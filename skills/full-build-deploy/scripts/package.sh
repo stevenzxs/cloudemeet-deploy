@@ -11,7 +11,7 @@ case "${1:-}" in
 esac
 : "${VERSION:?Set VERSION}"
 : "${BATCH:?Set BATCH to version/run/attempt identity}"
-[[ $VERSION =~ ^[0-9]+(\.[0-9]+){2,3}\+r[1-9][0-9]*(-patch\.[1-9])?$ ]] || die 'Allocated display version required'
+[[ $VERSION =~ ^[0-9]+(\.[0-9]+){2,3}\+r[1-9][0-9]*$ ]] || die 'Allocated display version required'
 [[ $BATCH =~ ^[a-zA-Z0-9][a-zA-Z0-9_.-]{0,110}$ ]] || die 'Invalid batch'
 TARGET_ARCH=${TARGET_ARCH:-arm64}
 case "$TARGET_ARCH" in

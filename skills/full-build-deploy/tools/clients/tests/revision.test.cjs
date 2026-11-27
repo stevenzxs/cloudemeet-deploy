@@ -13,18 +13,6 @@ test('allocated display version is distinct from all platform fields', () => {
   assert.throws(() => parseConfig(config, { versions: { ...versions, android_code: 1021 } }));
   assert.throws(() => parseConfig(config.replace('1.0.21', '1.0.22'), { versions }));
 });
-test('patch assignment occupies the band between joint revisions', () => {
-  const versions = { revision: 45, patch: 1, client_version: '1.0.21+r45-patch.1',
-    android_code: 1021451, msi_version: '1.0.661', pe_version: '1.0.661.0', version_formula: 2 };
-  const parsed = parseConfig(config, { versions });
-  assert.equal(parsed.version, '1.0.21+r45-patch.1');
-  assert.equal(parsed.msiVersion, '1.0.661');
-  assert.equal(versionCode(parsed.version), 1021451);
-  assert.throws(() => parseConfig(config, { versions: { ...versions, android_code: 102145 } }));
-  assert.throws(() => parseConfig(config, { versions: { ...versions, patch: 0 } }));
-  assert.throws(() => parseConfig(config, { versions: { ...versions, patch: 10 } }));
-  assert.throws(() => parseConfig(config, { versions: { ...versions, msi_version: '1.0.660' } }));
-});
 test('revision client code refuses zero, leading zeros and overflow', () => {
   assert.equal(versionCode('1.0.21+r1'), 1021010);
   assert.equal(versionCode('1.0.21+r10'), 1021100);

@@ -10,11 +10,6 @@ function loadAssignment(file, root, target, env = process.env) {
     throw Error('Version assignment does not match this run');
   }
   if (target === 'all' && !record.request.scope.includes('android')) throw Error('Client scope mismatch');
-  if (record.kind === 'patch') {
-    const patch = record.versions.patch;
-    if (!Number.isSafeInteger(patch) || patch < 1 || patch > 9) throw Error('Invalid patch assignment');
-    if (record.request.target !== target) throw Error('Patch assignment targets a different client');
-  }
   return record;
 }
 
