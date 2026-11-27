@@ -231,6 +231,34 @@ test('workflow accepts an explicit default HTTPS port when normalized origin omi
     assert.doesNotMatch(result.stderr, /Batch client configuration differs from normalized origin contract/);
   } finally { for (const file of [envFile, originFile, record]) fs.rmSync(file, { force: true }); }
 });
+test('check accepts a patch assignment bound to its own target only', () => {
+  const cli = path.resolve(__dirname, '../build-clients.cjs');
+  const envFile = path.join(os.tmpdir(), `client-patch-${process.pid}.env`);
+  const record = path.join(os.tmpdir(), `version-patch-${process.pid}.json`);
+  const childEnv = { ...process.env, GITHUB_SHA: 'a'.repeat(40), GITHUB_RUN_ID: '1', GITHUB_RUN_ATTEMPT: '1' };
+  fs.writeFileSync(envFile, 'SITE_DOMAIN=47.96.221.94\nSITE_SCHEME=https\nSITE_PORT=8443\nCLIENT_VERSION=1.0.21\nTLS_MODE=private-ca\nCLIENT_CA_FILE=client-ca.crt\n');
+  const patchRecord = { kind: 'patch',
+    request: { repository: 'stevenzxs/cloudemeet-deploy', workflow: 'single', run_id: '1', configuration_sha: 'a'.repeat(40),
+      sources: { electron: 'b'.repeat(40) }, target: 'electron', base_revision: 45, patch: 1, task: 'actions-1', scope: ['electron'] },
+    versions: { revision: 45, patch: 1, client_version: '1.0.21+r45-patch.1', android_code: 1021451,
+      msi_version: '1.0.661', pe_version: '1.0.661.0', version_formula: 2 } };
+  fs.writeFileSync(record, JSON.stringify(patchRecord));
+  try {
+    const ok = spawnSync(process.execPath, [cli, '--target', 'electron', '--check', '--env-file', envFile, '--version-record', record], { encoding: 'utf8', env: childEnv });
+    assert.doesNotMatch(ok.stderr, /Invalid version assignment|Version assignment does not match|Client version assignment mismatch|Patch assignment/);
+    const mismatch = JSON.parse(JSON.stringify(patchRecord));
+    mismatch.request.target = 'android';
+    fs.writeFileSync(record, JSON.stringify(mismatch));
+    const bad = spawnSync(process.execPath, [cli, '--target', 'electron', '--check', '--env-file', envFile, '--version-record', record], { encoding: 'utf8', env: childEnv });
+    assert.notEqual(bad.status, 0);
+    assert.match(bad.stderr, /[Pp]atch assignment/);
+    const invalidPatch = JSON.parse(JSON.stringify(patchRecord));
+    invalidPatch.versions.patch = 0;
+    fs.writeFileSync(record, JSON.stringify(invalidPatch));
+    const zero = spawnSync(process.execPath, [cli, '--target', 'electron', '--check', '--env-file', envFile, '--version-record', record], { encoding: 'utf8', env: childEnv });
+    assert.notEqual(zero.status, 0);
+  } finally { for (const f of [envFile, record]) fs.rmSync(f, { force: true }); }
+});
 test('artifact collection rejects stale outputs and keeps separate subdirectories', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'cm-artifacts-test-'));
   try {
