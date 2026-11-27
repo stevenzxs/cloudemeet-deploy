@@ -395,7 +395,7 @@ common={'PUBLIC_URL':'${PUBLIC_URL:?required}','XMPP_DOMAIN':'meet.jitsi','XMPP_
 common['BOSH_RELATIVE']='1'
 configs={s:{'image':records[s]['tag'],'pull_policy':'never','restart':'unless-stopped',
             'mem_limit':'640m','pids_limit':512,'networks':{'meeting':{}}} for s in services}
-public_settings=target_module.read_env(skill_root/'config/jitsi.env')
+public_settings=target_module.read_env(repo_config/'jitsi.env')
 # Runtime contracts remain required, but their maintained public values come from jitsi.env.
 for key in set(common) & set(public_settings):
     common[key]=public_settings[key]
@@ -451,7 +451,7 @@ compose={'name':'cloudmeet-'+os.environ['BATCH'].lower().replace('_','-'),
  'services':configs,'networks':{'meeting':{}},'volumes':{'caddy_data':{},'caddy_config':{}}}
 (out/'jitsi-base.yaml').write_text(json.dumps(compose,indent=2)+'\n')
 for name in ('docker-compose.yml','source-images.yaml'): (out/name).write_text('services: {}\n')
-shutil.copyfile(skill_root/'config/jitsi.env',out/'jitsi.env')
+shutil.copyfile(repo_config/'jitsi.env',out/'jitsi.env')
 target_file=out/'target.env'
 target_file.write_text('SITE_SCHEME=https\nHTTPS_PORT='+target['HTTPS_PORT']+'\nHTTP_PORT='+target['HTTP_PORT']+'\nMEDIA_PORT='+target['MEDIA_PORT']+'\nMEDIA_HOST='+target['MEDIA_HOST']+'\n',encoding='utf-8')
 shutil.copyfile(skill_root/'config/target.py',out/'target.py')
