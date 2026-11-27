@@ -32,7 +32,7 @@ description: Use when the user requests a standalone CloudMeet Android client (A
 2. `workflow_dispatch` 输入：`expected_tls_mode`（默认 `private-ca`）、`expected_origin`（本批用户入口 origin）、`material_commit`、`publish_images`。
 3. `version` job：复用共享分配器，输出 assignment 与 origin 契约（含 DNS 证据）。
 4. `build` job（ubuntu-24.04）：检出 deploy@material_commit 与 jm@固定 commit → 写批次 env/origin 契约 → Java 17 + Gradle 缓存 → 注入签名 secrets → SDK 35/NDK 27.1.12297006 → `npm ci` → `node deploy/skills/android-build-deploy/tools/clients/build-clients.cjs --target android --env-file batch-client.env --origin-contract batch-origin.json --version-record version-assignment.json`。构建器完成验包（版本、唯一 ABI arm64-v8a、批准签名、入口/CA）后交付 `deploy/release/clients/android/arm64-v8a/<批次>/`，artifact 保留 14 天。
-5. `publish` job（仅授权）：下载同一 Run/attempt artifact → 定位 `<client_version>-cloudmeet-clients-*` 交付目录 → `sha256sum -c SHA256SUMS` → draft Release `cloudmeet-android-r<N>-<run_id>-<attempt>`（APK + build-evidence.json + SHA256SUMS，`--latest=false`，notes 标 `NOT_DEPLOYED`）→ 核验资产数 → 公开。
+5. `publish` job（仅授权）：下载同一 Run/attempt artifact → 定位 `<client_version>-cloudmeet-clients-*` 交付目录 → `sha256sum -c SHA256SUMS` → `gh release create --draft`（`--latest=false`，notes 标 `NOT_DEPLOYED`，**不带资产**）→ `gh release upload` 同步上传 APK + build-evidence.json + SHA256SUMS（同步退出码即权威校验）→ `gh release edit --draft=false` 公开。
 
 ## 本地构建（可选，Windows 工作区根）
 
@@ -46,6 +46,13 @@ node deploy/skills/android-build-deploy/tools/clients/build-clients.cjs --target
 ## 防漂移约定
 
 `tools/clients/` 与 `config/` 是 `full-build-deploy` 同名内容的自包含副本（2026-11-27 拆分）。副本必须与维护源保持一致；`tests/test_tool_parity.py` 钉死逐文件一致，改任一侧须同步另一侧并重跑测试。唯一允许的跨技能依赖是活数据 `version-policy.json`（不拷贝）。
+
+## 已知陷阱（MSI 链路 r55–r59 实测教训，publish 三连失败的根因）
+
+- **publish job 不 checkout 仓库**：`gh release *` 需要 `GH_REPO` 环境变量解析目标仓库，否则报 `fatal: not a git repository`（r55 失败点，`31b0f12` 修复并钉测试）。
+- **GitHub 资产列表可见性延迟 2–6+ 分钟且不稳定**：资产在 create 时即已上传，但 `gh release view` 计数迟迟只见 1 个；任何固定窗口的计数轮询都不可靠（r56–r58 连续失败点）。禁止用资产计数/列表查询作为上传成功判据——`gh release upload` 的同步退出码才是权威判据（`8b1c789` 结构性修复，r59 一次跑通实证）。
+- **`/releases/latest` 徽章不可控**：本仓库所有 release 的 `make_latest` 均为 null，徽章按创建时间自动归属最新非 draft release；最新客户端 release 会暂时占据徽章，下次 joint 发布自动夺回，不做额外治理。
+- **失败即消耗 rN，不回收**：修复材料后必须新 Run/新编号（r55–r58 已按此规则消耗）。
 
 ## 必须停止并报告的情形
 
