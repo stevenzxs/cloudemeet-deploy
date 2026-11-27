@@ -9,6 +9,15 @@ REPO = Path(__file__).resolve().parents[3]
 
 
 class PackageTests(unittest.TestCase):
+    def test_assemble_config_references_resolve(self):
+        # Regression guard: r46-r51 assemble runs failed because config files were
+        # referenced from the skill but never copied into it.
+        script = (ROOT / 'scripts/package.sh').read_text(encoding='utf-8')
+        refs = set(re.findall(r"skill_root/'config/([A-Za-z0-9_.-]+)'", script))
+        refs |= set(re.findall(r"skill_root/'config'/([A-Za-z0-9_-]+\.[A-Za-z0-9]+)(?![\w\[])", script))
+        missing = sorted(name for name in refs if not (ROOT / 'config' / name).is_file())
+        self.assertEqual(missing, [])
+
     def test_mgr_delivery_is_not_discarded(self):
         script = (ROOT/'scripts/package.sh').read_text(encoding='utf-8')
         self.assertIn("repo/'incoming/jitsi-mgr/build-evidence.json'", script)
