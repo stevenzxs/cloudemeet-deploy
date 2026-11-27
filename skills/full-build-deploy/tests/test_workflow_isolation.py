@@ -66,6 +66,13 @@ class WorkflowContractTests(unittest.TestCase):
         self.assertIn('skills/full-build-deploy/scripts/package.sh assemble',workflow)
         self.assertNotIn('build-tools/',workflow)
 
+    def test_package_workflow_arranges_service_artifacts_under_package_script_repo_root(self):
+        workflow=(WORKFLOWS/'build-package.yml').read_text(encoding='utf-8')
+        script=(ROOT/'scripts/package.sh').read_text(encoding='utf-8')
+        self.assertIn('repo=$(cd "$tools/.." && pwd)',script)
+        self.assertIn('mkdir skills/full-build-deploy/incoming',workflow)
+        self.assertIn('"downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" "skills/full-build-deploy/incoming/$service"',workflow)
+
     def test_release_workflow_uses_skill_owned_tools(self):
         workflow=(WORKFLOWS/'publish-release.yml').read_text(encoding='utf-8')
         self.assertNotIn('build-tools/',workflow)

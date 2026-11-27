@@ -211,9 +211,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir incoming
+          mkdir skills/full-build-deploy/incoming
           for service in gateway app-web api jitsi-mgr web prosody jicofo jvb; do
-            mv "downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" "incoming/$service"
+            mv "downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" "skills/full-build-deploy/incoming/$service"
           done
           python3 -B - <<'PY'
           import json, os, pathlib, urllib.request
@@ -228,7 +228,7 @@ jobs:
               if len(matches) != 1: raise ValueError('Missing or duplicate artifact: ' + name)
               artifact = matches[0]
               records.append({key: artifact.get(key) for key in ('id','name','digest','size_in_bytes','created_at')})
-          pathlib.Path('incoming/artifacts.json').write_text(json.dumps(records, indent=2) + '\n')
+          pathlib.Path('skills/full-build-deploy/incoming/artifacts.json').write_text(json.dumps(records, indent=2) + '\n')
           PY
       - name: Read immutable H5 source identity
         id: h5
