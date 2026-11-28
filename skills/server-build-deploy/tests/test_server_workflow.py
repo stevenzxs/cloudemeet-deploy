@@ -138,6 +138,7 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         self.assertEqual(postgres['environment']['POSTGRES_USER'], 'jitsi_mgr')
         self.assertEqual(postgres['environment']['POSTGRES_PASSWORD'], '${JITSI_MGR_DB_PASSWORD:?generate a unique secret}')
         self.assertTrue(any(v.startswith('jitsi-mgr-postgres-data:') for v in postgres['volumes']))
+        self.assertIn('jitsi-mgr-postgres-data', compose['volumes'])
         self.assertIn('healthcheck', postgres)
         manager = compose['services']['jitsi-mgr']
         self.assertEqual(manager['environment']['SPRING_DATASOURCE_URL'], 'jdbc:postgresql://postgres:5432/jitsi_mgr')
@@ -164,7 +165,7 @@ class ServerWorkflowStructureTests(unittest.TestCase):
 
         config = env_path.read_text(encoding='utf-8')
         self.assertNotRegex(config, r'(?im)^(?:\w*(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY)\w*)=(?!REPLACE_WITH_RANDOM_SECRET$).+\S')
-        self.assertIn('JITSI_MGR_DB_PASSWORD=REPLACE_WITH_RANDOM_SECRET', config)
+        self.assertRegex(config, r'(?m)^JITSI_MGR_DB_PASSWORD=\s*$')
         docs = install_path.read_text(encoding='utf-8')
         self.assertIn('origin', docs.lower())
         self.assertIn('TLS', docs)
