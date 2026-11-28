@@ -1,3 +1,8 @@
+---
+name: cloudmeet-full-clean
+description: Use when completely wiping a running CloudMeet instance from a Linux server (all service containers, compose volumes, cloudmeet images, instance data, secrets and certificates) to prepare for a clean reinstall. Triggers on "完整清除实例/清除云会议实例/卸载 CloudMeet/清理服务器实例/full clean/删除实例重装". Every run requires explicit host, instance root and read-only inventory confirmation before any deletion. Not for backup, reinstall, upgrades, or build/release.
+---
+
 # Skill: full-clean
 
 # CloudMeet 实例完整清除（为重装做准备）
