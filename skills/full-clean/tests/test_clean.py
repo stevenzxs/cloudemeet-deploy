@@ -188,6 +188,17 @@ class FlowTests(unittest.TestCase):
         self.assertEqual(report['postgres'], ['db', 5432, 'jitsi_mgr'])
         self.assertNotIn('apply', report)
 
+    def test_local_mode_skips_ssh_and_keyscan(self):
+        runner, calls = self.dispatch()
+        import io, contextlib
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            clean.main(['--local', '--instance-root', '/srv/cm/prod'], runner=runner)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['project'], 'cloudmeet-a')
+        self.assertFalse(any('ssh-keyscan' in c or c.startswith('ssh ') for c in calls))
+        self.assertTrue(all(c.startswith('bash -c') for c in calls))
+
     def test_apply_executes_wipe_and_verifies_zero_residue(self):
         runner, calls = self.dispatch()
         import io, contextlib

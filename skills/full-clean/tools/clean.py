@@ -150,6 +150,14 @@ def verify_commands(project, root):
     ]
 
 
+def _local(command, runner):
+    """Execute the probe locally (--local mode: the script runs on the target itself)."""
+    result = runner(['bash', '-c', command], capture_output=True, text=True)
+    if result.returncode != 0:
+        raise RuntimeError('Local command failed: ' + command[:120] + '\n' + (result.stderr or '')[:2000])
+    return result
+
+
 def _ssh(args, command, runner):
     argv = ['ssh', '-o', 'BatchMode=yes', '-o', 'ConnectTimeout=15',
             '-o', 'StrictHostKeyChecking=no', '-p', str(args.port)]
@@ -174,12 +182,16 @@ def _env_values(probe, file, keys):
 
 
 def collect_inventory(args, runner):
-    scan = runner(['ssh-keyscan', '-T', '10', '-p', str(args.port), '-t', 'rsa,ed25519', args.host],
-                  capture_output=True, text=True)
-    if scan.returncode != 0 or not scan.stdout.strip():
-        raise ValueError('Host key scan failed: ' + (scan.stderr or '')[:1000])
-    fingerprint = check_fingerprint(args.host, args.port, args.accept_fingerprint, scan.stdout)
-    probe = lambda command: _ssh(args, command, runner)
+    local = getattr(args, 'local', False)
+    probe = lambda command: _local(command, runner) if local else _ssh(args, command, runner)
+    if local:
+        fingerprint = 'local-exec'
+    else:
+        scan = runner(['ssh-keyscan', '-T', '10', '-p', str(args.port), '-t', 'rsa,ed25519', args.host],
+                      capture_output=True, text=True)
+        if scan.returncode != 0 or not scan.stdout.strip():
+            raise ValueError('Host key scan failed: ' + (scan.stderr or '')[:1000])
+        fingerprint = check_fingerprint(args.host, args.port, args.accept_fingerprint, scan.stdout)
     root = validate_instance_root(args.instance_root)
     require_instance_markers(root, probe)
     hostname = probe('hostname').stdout.strip()
@@ -199,7 +211,7 @@ def collect_inventory(args, runner):
 
 
 def execute_wipe(args, inventory, runner):
-    probe = lambda command: _ssh(args, command, runner)
+    probe = lambda command: _local(command, runner) if getattr(args, 'local', False) else _ssh(args, command, runner)
     postgres = tuple(inventory['postgres']) if inventory['postgres'] else None
     for command in apply_commands(inventory['project'], inventory['root'], postgres,
                                   inventory['db_user'], inventory['db_password']):
@@ -213,12 +225,14 @@ def execute_wipe(args, inventory, runner):
 
 def main(argv=None, runner=subprocess.run):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--host', required=True)
+    parser.add_argument('--host', default='localhost')
     parser.add_argument('--user', default='root')
     parser.add_argument('--port', type=int, default=22)
     parser.add_argument('--identity-file')
     parser.add_argument('--instance-root', required=True)
     parser.add_argument('--accept-fingerprint')
+    parser.add_argument('--local', action='store_true',
+                        help='Run on the target machine itself; no SSH, no host key check')
     parser.add_argument('--apply', action='store_true', help='Execute the wipe; without it only inventory is printed')
     args = parser.parse_args(argv)
     inventory = collect_inventory(args, runner)
