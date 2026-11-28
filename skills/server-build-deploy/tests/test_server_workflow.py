@@ -169,7 +169,8 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         self.assertIn('jitsi-mgr-ui.tar.gz', publish)
         self.assertIn("images[$service]=", publish)
         dockerfile = (SKILL / 'docker' / 'jitsi-mgr.Dockerfile').read_text(encoding='utf-8')
-        self.assertIn('COPY jitsi-mgr.jar', dockerfile)
+        self.assertIn('cp "${filtered[0]}" "$context/backend/jitsi-mgr.jar"', script)
+        self.assertIn('COPY backend/jitsi-mgr.jar', dockerfile)
         self.assertNotIn('frontend', dockerfile)
 
     def test_release_stages_install_assets_before_checksums(self):
