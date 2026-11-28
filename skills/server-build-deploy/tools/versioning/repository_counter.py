@@ -35,7 +35,9 @@ def _validate_request(request):
     if not request.get('workflow') or not request.get('task'):
         raise ValueError('Workflow and task identity required')
     sources = request.get('sources')
-    if not isinstance(sources, dict) or not sources or any(not re.fullmatch(r'[0-9a-f]{40}', s) for s in sources.values()):
+    if not isinstance(sources, dict) or not sources or any(
+            not re.fullmatch(r'[0-9a-f]{64}' if name == 'server' else r'[0-9a-f]{40}', value)
+            for name, value in sources.items()):
         raise ValueError('Pinned source commits required')
     if 'server' not in sources:
         raise ValueError('Server source pin required')
