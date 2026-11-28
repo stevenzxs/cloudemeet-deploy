@@ -92,23 +92,36 @@ def select_project(ps_json_lines, root):
     return next(iter(cloudmeet))
 
 
-def host_fingerprint(scan_output):
-    """SHA256 fingerprint of the first host key line, in the ssh-keygen display format."""
+def host_fingerprints(scan_output):
+    """SHA256 fingerprints of every host key line, in scan order.
+
+    ssh-keyscan ordering across rsa/ed25519 lines is unstable between runs;
+    matching only the first line caused spurious mismatch rejections against
+    the very same host (observed on 118.193.36.35).
+    """
+    fingerprints = []
     for line in scan_output.splitlines():
         parts = line.split()
         if len(parts) >= 3 and parts[1].startswith('ssh-'):
             digest = hashlib.sha256(base64.b64decode(parts[2])).digest()
-            return 'SHA256:' + base64.b64encode(digest).decode().rstrip('=')
-    raise ValueError('No host key found in scan output')
+            fingerprints.append('SHA256:' + base64.b64encode(digest).decode().rstrip('='))
+    if not fingerprints:
+        raise ValueError('No host key found in scan output')
+    return fingerprints
+
+
+def host_fingerprint(scan_output):
+    """SHA256 fingerprint of the first host key line, in the ssh-keygen display format."""
+    return host_fingerprints(scan_output)[0]
 
 
 def check_fingerprint(host, port, accepted, scan_output):
-    actual = host_fingerprint(scan_output)
+    fingerprints = host_fingerprints(scan_output)
     if accepted is None:
-        raise ValueError(f'First contact with {host}:{port}: rerun with --accept-fingerprint {actual}')
-    if accepted != actual:
-        raise ValueError(f'Host fingerprint mismatch for {host}:{port}: expected {accepted}, actual {actual}')
-    return actual
+        raise ValueError(f'First contact with {host}:{port}: rerun with --accept-fingerprint {fingerprints[0]}')
+    if accepted not in fingerprints:
+        raise ValueError(f'Host fingerprint mismatch for {host}:{port}: expected {accepted}, actual one of {fingerprints}')
+    return accepted
 
 
 def apply_commands(project, root, postgres, db_user, db_password):

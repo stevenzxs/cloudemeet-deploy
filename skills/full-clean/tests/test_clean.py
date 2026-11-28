@@ -125,6 +125,15 @@ class FingerprintTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             clean.check_fingerprint('10.0.0.1', 22, 'SHA256:wrongwrong', scan)
 
+    def test_accepted_may_match_any_scanned_key(self):
+        # ssh-keyscan line ordering is unstable; accepting the rsa key must not
+        # be rejected just because ed25519 sorts first (118.193.36.35).
+        rsa_key = 'AAAA'
+        scan = '10.0.0.1 ssh-ed25519 ' + FAKE_KEY + '\n10.0.0.1 ssh-rsa ' + rsa_key + '\n'
+        import base64, hashlib
+        rsa_fp = 'SHA256:' + base64.b64encode(hashlib.sha256(base64.b64decode(rsa_key)).digest()).decode().rstrip('=')
+        self.assertEqual(clean.check_fingerprint('10.0.0.1', 22, rsa_fp, scan), rsa_fp)
+
 
 class FlowTests(unittest.TestCase):
     def dispatch(self):
