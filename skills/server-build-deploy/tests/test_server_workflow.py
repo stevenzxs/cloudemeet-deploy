@@ -122,14 +122,29 @@ class ServerWorkflowStructureTests(unittest.TestCase):
             self.assertTrue(path.is_file(), f'missing release input: {path}')
 
         compose = yaml.safe_load(compose_path.read_text(encoding='utf-8'))
-        self.assertEqual(sorted(compose['services']), sorted(SERVICES))
+        self.assertEqual(sorted(compose['services']), sorted((*SERVICES, 'postgres')))
         image_services = set()
         for name, service in compose['services'].items():
             self.assertNotIn('build', service)
             if 'image' in service:
-                image_services.add(name)
-                self.assertRegex(service['image'], r'\$\{IMAGE_[A-Z_]+:\?required\}')
+                if name in SERVICES:
+                    image_services.add(name)
+                    self.assertRegex(service['image'], r'\$\{IMAGE_[A-Z_]+:\?required\}')
+                else:
+                    self.assertRegex(service['image'], r'^postgres:\d+\.\d+(?:\.\d+)?@sha256:[0-9a-f]{64}$')
         self.assertEqual(image_services, set(SERVICES))
+        postgres = compose['services']['postgres']
+        self.assertEqual(postgres['environment']['POSTGRES_DB'], 'jitsi_mgr')
+        self.assertEqual(postgres['environment']['POSTGRES_USER'], 'jitsi_mgr')
+        self.assertEqual(postgres['environment']['POSTGRES_PASSWORD'], '${JITSI_MGR_DB_PASSWORD:?generate a unique secret}')
+        self.assertTrue(any(v.startswith('jitsi-mgr-postgres-data:') for v in postgres['volumes']))
+        self.assertIn('jitsi-mgr-postgres-data', compose['volumes'])
+        self.assertIn('healthcheck', postgres)
+        manager = compose['services']['jitsi-mgr']
+        self.assertEqual(manager['environment']['SPRING_DATASOURCE_URL'], 'jdbc:postgresql://postgres:5432/jitsi_mgr')
+        self.assertEqual(manager['environment']['SPRING_DATASOURCE_DRIVER_CLASS_NAME'], 'org.postgresql.Driver')
+        self.assertEqual(manager['environment']['SPRING_JPA_DATABASE_PLATFORM'], 'org.hibernate.dialect.PostgreSQLDialect')
+        self.assertEqual(manager['depends_on']['postgres']['condition'], 'service_healthy')
         self.assertIn('./artifacts/jitsi-mgr-ui:/jitsi-mgr-ui:ro', compose['services']['gateway']['volumes'])
         for path in caddy_paths:
             caddy = path.read_text(encoding='utf-8')
@@ -150,6 +165,7 @@ class ServerWorkflowStructureTests(unittest.TestCase):
 
         config = env_path.read_text(encoding='utf-8')
         self.assertNotRegex(config, r'(?im)^(?:\w*(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY)\w*)=(?!REPLACE_WITH_RANDOM_SECRET$).+\S')
+        self.assertRegex(config, r'(?m)^JITSI_MGR_DB_PASSWORD=\s*$')
         docs = install_path.read_text(encoding='utf-8')
         self.assertIn('origin', docs.lower())
         self.assertIn('TLS', docs)
@@ -157,6 +173,7 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         self.assertIn('docker cp', docs)
         self.assertIn('root.crt', docs)
         self.assertIn('chmod 0644', docs)
+        self.assertIn('JITSI_MGR_DB_PASSWORD', docs)
         self.assertLess(docs.index('docker compose -f compose.yaml up -d gateway'), docs.index('docker cp'))
         self.assertLess(docs.index('docker cp'), docs.index('up -d prosody'))
 
