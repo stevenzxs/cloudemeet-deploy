@@ -160,6 +160,19 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         self.assertLess(docs.index('docker compose -f compose.yaml up -d gateway'), docs.index('docker cp'))
         self.assertLess(docs.index('docker cp'), docs.index('up -d prosody'))
 
+    def test_caddy_handle_blocks_open_on_their_own_line(self):
+        for path in (
+            SKILL / 'templates' / 'Caddyfile.public-acme',
+            SKILL / 'templates' / 'Caddyfile.private-ca',
+        ):
+            with self.subTest(path=path.name):
+                for number, line in enumerate(path.read_text(encoding='utf-8').splitlines(), start=1):
+                    self.assertNotRegex(
+                        line,
+                        r'^\s*handle\s+\{\s+\S',
+                        f'{path.name}:{number} has a directive on the handle opening line',
+                    )
+
     def test_jitsi_mgr_backend_is_eighth_image_and_ui_remains_static(self):
         script = (SKILL / 'tools' / 'build-service.sh').read_text(encoding='utf-8')
         publish = self.text[self.text.index('  publish:'):]
