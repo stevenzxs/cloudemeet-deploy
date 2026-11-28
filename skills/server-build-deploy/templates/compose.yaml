@@ -1,0 +1,112 @@
+name: cloudmeet
+services:
+  gateway:
+    image: ${IMAGE_GATEWAY:?required}
+    restart: unless-stopped
+    ports: ["80:80/tcp", "443:443/tcp", "443:443/udp"]
+    environment:
+      PUBLIC_URL: ${PUBLIC_URL:?required}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./artifacts/jitsi-mgr-ui:/jitsi-mgr-ui:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    networks: [meet]
+  app-web:
+    image: ${IMAGE_APP_WEB:?required}
+    restart: unless-stopped
+    networks: [meet]
+  api:
+    image: ${IMAGE_API:?required}
+    restart: unless-stopped
+    environment:
+      SERVER_PORT: "9000"
+      API_CONTEXT_PATH: /mapi
+      JITSI_MEET_DB_URL: jdbc:sqlite:/app/data/jitsi-meet-api.sqlite.db
+      JITSI_ROLE_CHECK_SECRET: ${JITSI_ROLE_CHECK_SECRET:?generate a unique secret}
+    volumes: ["./data/api:/app/data"]
+    networks: [meet]
+  jitsi-mgr:
+    image: ${IMAGE_JITSI_MGR:?required}
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      SERVER_PORT: "8080"
+      SPRING_DATASOURCE_URL: jdbc:h2:file:/app/data/jitsi-mgr
+      SPRING_DATASOURCE_USERNAME: sa
+      JWT_PRIVATE_KEY: file:/run/secrets/jwt-private.pem
+      JWT_PUBLIC_KEY: file:/run/secrets/jwt-public.pem
+      CORS_ALLOWED_ORIGINS: ${PUBLIC_URL:?required}
+    volumes: ["./data/jitsi-mgr:/app/data", "./data/jitsi-mgr/keys:/run/secrets:ro"]
+    networks: [meet]
+  web:
+    image: ${IMAGE_WEB:?required}
+    restart: unless-stopped
+    environment:
+      DISABLE_HTTPS: "1"
+      ENABLE_LETSENCRYPT: "0"
+      ENABLE_AUTH: "1"
+      AUTH_TYPE: jwt
+      JWT_APP_ID: ${JWT_APP_ID:-cloudmeet}
+      JWT_APP_SECRET: ${JWT_APP_SECRET:?generate a unique secret}
+      XMPP_SERVER: prosody
+    volumes: ["./data/jitsi/web:/config", "./data/jitsi/storage/web:/storage"]
+    networks: [meet]
+  prosody:
+    image: ${IMAGE_PROSODY:?required}
+    restart: unless-stopped
+    environment:
+      ENABLE_AUTH: "1"
+      AUTH_TYPE: jwt
+      JWT_APP_ID: ${JWT_APP_ID:-cloudmeet}
+      JWT_APP_SECRET: ${JWT_APP_SECRET:?generate a unique secret}
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD:?generate a unique secret}
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD:?generate a unique secret}
+      CLOUDMEET_HOST_CONTROL_CA: /host-control/caddy-root.crt
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_MUC_DOMAIN: muc.meet.jitsi
+    volumes:
+      - ./data/jitsi/prosody/config:/config
+      - ./data/jitsi/storage/prosody:/var/lib/prosody
+      - type: bind
+        source: ./data/host-control/caddy-root.crt
+        target: /host-control/caddy-root.crt
+        read_only: true
+        bind:
+          create_host_path: false
+    networks: [meet]
+  jicofo:
+    image: ${IMAGE_JICOFO:?required}
+    restart: unless-stopped
+    environment:
+      XMPP_SERVER: prosody
+      XMPP_DOMAIN: meet.jitsi
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      JICOFO_AUTH_USER: focus
+      JICOFO_AUTH_PASSWORD: ${JICOFO_AUTH_PASSWORD:?generate a unique secret}
+      JVB_BREWERY_MUC: jvbbrewery
+    volumes: ["./data/jitsi/jicofo:/config"]
+    networks: [meet]
+  jvb:
+    image: ${IMAGE_JVB:?required}
+    restart: unless-stopped
+    ports: ["${MEDIA_PORT:-10000}:10000/udp"]
+    environment:
+      XMPP_SERVER: prosody
+      XMPP_AUTH_DOMAIN: auth.meet.jitsi
+      XMPP_INTERNAL_MUC_DOMAIN: internal-muc.meet.jitsi
+      JVB_AUTH_USER: jvb
+      JVB_AUTH_PASSWORD: ${JVB_AUTH_PASSWORD:?generate a unique secret}
+      JVB_BREWERY_MUC: jvbbrewery
+      JVB_PORT: "10000"
+      JVB_ADVERTISE_IPS: ${MEDIA_HOST:?set reachable public media IPv4}
+    volumes: ["./data/jitsi/jvb:/config"]
+    networks: [meet]
+networks:
+  meet:
+    driver: bridge
+volumes:
+  caddy-data:
+  caddy-config:

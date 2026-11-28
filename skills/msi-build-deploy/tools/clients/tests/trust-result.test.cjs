@@ -35,7 +35,7 @@ test('Windows final inspection keeps content gates without loading any signing t
     version: '1.0.21+r12', origin: 'https://example.test:8443' };
   const pe = Buffer.alloc(256); pe.writeUInt32LE(64, 0x3c); pe.writeUInt16LE(0x8664, 68);
   let originValid = true;
-  let shortcutName = '云会议';
+  let shortcutName = '?????;
   const sandbox = { module: { exports: {} }, process: { platform: 'win32', env: {} }, require(name) {
     if (name === 'node:path') return path;
     if (name === 'node:fs') return { readdirSync: () => ['app.asar','cloudmeet.exe'].map(name => ({name,isDirectory:()=>false})), readFileSync: () => pe };
@@ -68,7 +68,7 @@ test('Windows final inspection keeps content gates without loading any signing t
   assert.equal(checks.signing.status,'unsigned');
   shortcutName = 'CloudMeet';
   assert.throws(verify,/shortcut/i);
-  shortcutName = '云会议';
+  shortcutName = '?????;
   originValid = false;
   assert.throws(verify,/origin mismatch/);
 });

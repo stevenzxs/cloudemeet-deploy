@@ -8,14 +8,14 @@ Android保持现有keystore、Actions Secrets安全注入和最终唯一批准DE
 
 2026-11-23中文快捷方式回归修复：当前maker-wix显式使用`shortcutName: '云会议'`，并设置MSI中文代码页；不改变CloudMeet产品/安装身份或`cloudmeet.exe`。最终验包读取MSI `Shortcut`表，核对桌面、开始菜单两项的中文长名称及主程序目标，英文/缺项/重复项/错误目标立即失败。旧统一MSI脚本及旧测试不改；此修复没有重新构建或修改历史安装包，旧快捷方式残留和真实升级行为仍需另行实装核验。
 
-规范见`../../AGENTS.md`。工具位于`deploy/skills/full-build-deploy/tools/clients`，业务源码仍在deploy的同级目录。在工作区根执行时使用`deploy/skills/full-build-deploy/tools/clients/build-clients.cjs`，Node无需新增依赖：
+规范见`../../AGENTS.md`。工具位于`deploy/skills/android-build-deploy/tools/clients`，业务源码仍在deploy的同级目录。在工作区根执行时使用`deploy/skills/android-build-deploy/tools/clients/build-clients.cjs`，Node无需新增依赖：
 
 ```powershell
-node --test deploy/skills/full-build-deploy/tools/clients/tests/*.test.cjs
-node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target all --env-file "$PWD/deploy/skills/full-build-deploy/config/client.env" --check
+node --test deploy/skills/android-build-deploy/tools/clients/tests/*.test.cjs
+node deploy/skills/android-build-deploy/tools/clients/build-clients.cjs --target all --env-file "$PWD/deploy/skills/android-build-deploy/config/client.env" --check
 ```
 
-唯一配置为`deploy/skills/full-build-deploy/config/client.env`，四项必填：SITE_DOMAIN、SITE_SCHEME、
+唯一配置为`deploy/skills/android-build-deploy/config/client.env`，四项必填：SITE_DOMAIN、SITE_SCHEME、
 SITE_PORT、CLIENT_VERSION。命令不接受其他配置路径或进程环境覆盖这四项。
 可选CLIENT_CA_FILE指定公开CA，路径相对client.env；配置后必须存在且为有效CA，
 不得包含私钥。预检查记录CA指纹/到期日，构建前复核未变化。

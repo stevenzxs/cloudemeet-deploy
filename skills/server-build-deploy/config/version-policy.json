@@ -2,6 +2,10 @@
   "schema": 1,
   "namespace": "cloudmeet-server-v1",
   "server_baseline": "11248.0.1",
+  "client_baseline": "1.0.21",
+  "android_base_code": 1021,
+  "previous_android_code": 1021000,
+  "previous_msi_version": "1.0.21",
   "approved": true,
   "current_revision": 63
 }

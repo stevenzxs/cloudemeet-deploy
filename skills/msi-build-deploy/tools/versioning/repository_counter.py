@@ -37,6 +37,17 @@ def _validate_request(request):
     sources = request.get('sources')
     if not isinstance(sources, dict) or not sources or any(not re.fullmatch(r'[0-9a-f]{40}', s) for s in sources.values()):
         raise ValueError('Pinned source commits required')
+    if 'electron' not in sources:
+        raise ValueError('Electron source pin required')
+
+
+def _canonical_policy_path(policy_path):
+    resolved = Path(policy_path).resolve(strict=True)
+    repo_root = Path(_git(resolved.parent, 'rev-parse', '--show-toplevel').stdout.strip())
+    rel = resolved.relative_to(repo_root)
+    if rel != POLICY_REL:
+        raise ValueError('MSI allocator may only update its own version policy')
+    return resolved, repo_root, rel
 
 
 def _find_existing(root, policy_rel, run_id, attempt):
@@ -49,15 +60,17 @@ def _find_existing(root, policy_rel, run_id, attempt):
     return None
 
 
+def _policy_digest(policy):
+    normalized = dict(policy)
+    normalized.pop('last_allocation', None)
+    return digest(normalized)
+
+
 def allocate(policy_path, request, *, attempt=1, remote=None, retries=8):
     _validate_request(request)
     if type(attempt) is not int or attempt < 1:
         raise ValueError('Positive attempt required')
-    policy_path = Path(policy_path).resolve(strict=True)
-    repo_root = Path(_git(policy_path.parent, 'rev-parse', '--show-toplevel').stdout.strip())
-    policy_rel = policy_path.relative_to(repo_root)
-    if policy_rel != POLICY_REL:
-        raise ValueError('MSI allocator may only update its own version policy')
+    policy_path, repo_root, policy_rel = _canonical_policy_path(policy_path)
     remote = remote or _git(repo_root, 'remote', 'get-url', 'origin').stdout.strip()
     with tempfile.TemporaryDirectory(prefix='cloudmeet-msi-counter-') as directory:
         root = Path(directory)
@@ -73,6 +86,13 @@ def allocate(policy_path, request, *, attempt=1, remote=None, retries=8):
             if existing:
                 if existing.get('request') != request:
                     raise ValueError('Run/attempt already allocated with a different request')
+                expected = dict(existing)
+                expected.pop('allocation_sha256', None)
+                policy = json.loads((root / policy_rel).read_text(encoding='utf-8'))
+                revision = existing.get('versions', {}).get('revision')
+                original_policy = dict(policy, current_revision=revision - 1)
+                if existing.get('policy_sha256') != _policy_digest(original_policy) or existing.get('allocation_sha256') != digest(expected) or existing.get('versions') != derive(policy, revision):
+                    raise ValueError('Existing MSI assignment integrity/policy mismatch')
                 return existing
             checked = root / policy_rel
             policy = json.loads(checked.read_text(encoding='utf-8'))
@@ -81,10 +101,11 @@ def allocate(policy_path, request, *, attempt=1, remote=None, retries=8):
             revision = policy.get('current_revision')
             if type(revision) is not int or revision < 63:
                 raise ValueError('Valid MSI current_revision required')
-            policy['current_revision'] = revision + 1
-            record = {'namespace': policy['namespace'], 'request': request,
-                      'versions': derive(policy, policy['current_revision'])}
+            allocation_policy = dict(policy, current_revision=revision + 1)
+            record = {'namespace': policy['namespace'], 'policy_sha256': _policy_digest(policy), 'request': request,
+                      'versions': derive(allocation_policy, revision + 1)}
             record['allocation_sha256'] = digest(record)
+            policy['current_revision'] = revision + 1
             policy['last_allocation'] = {'run_id': request['run_id'], 'attempt': attempt, 'record': record}
             checked.write_text(json.dumps(policy, indent=2) + '\n', encoding='utf-8')
             _git(root, 'add', policy_rel.as_posix())

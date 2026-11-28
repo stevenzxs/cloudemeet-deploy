@@ -7,7 +7,7 @@ const { forgeWrapper } = require('../revision-config.cjs');
 test('active Forge adapter retains Chinese shortcut label and stable identity', async () => {
   const native = { hooks: {}, packagerConfig: { ignore: [] }, makers: [
     { name: '@electron-forge/maker-wix', config: {
-      name: 'CloudMeet', exe: 'cloudmeet', manufacturer: 'CloudMeet', shortcutName: '云会议',
+      name: 'CloudMeet', exe: 'cloudmeet', manufacturer: 'CloudMeet', shortcutName: '?????,
       beforeCreate: async creator => { creator.wixTemplate = '<Product Codepage="936"><Package SummaryCodepage="936"/>'; },
     } },
   ] };
@@ -16,7 +16,7 @@ test('active Forge adapter retains Chinese shortcut label and stable identity', 
     msi_version: '1.0.36', pe_version: '1.0.36.0',
   } }), sandbox);
   const config = sandbox.module.exports.makers[0].config;
-  assert.equal(config.shortcutName, '云会议');
+  assert.equal(config.shortcutName, '?????);
   assert.equal(config.name, 'CloudMeet');
   assert.equal(config.exe, 'cloudmeet');
   assert.equal(config.manufacturer, 'CloudMeet');
@@ -27,8 +27,8 @@ test('active Forge adapter retains Chinese shortcut label and stable identity', 
 });
 
 const shortcuts = () => [
-  { id: 'MyDesktopShortcut', directory: 'DesktopFolder', name: 'CLOUDM~1|云会议', target: '[APPLICATIONROOTDIRECTORY]cloudmeet.exe' },
-  { id: 'ApplicationStartMenuShortcut', directory: 'ApplicationProgramsFolder', name: '云会议', target: '[APPLICATIONROOTDIRECTORY]cloudmeet.exe' },
+  { id: 'MyDesktopShortcut', directory: 'DesktopFolder', name: 'CLOUDM~1|?????, target: '[APPLICATIONROOTDIRECTORY]cloudmeet.exe' },
+  { id: 'ApplicationStartMenuShortcut', directory: 'ApplicationProgramsFolder', name: '?????, target: '[APPLICATIONROOTDIRECTORY]cloudmeet.exe' },
 ];
 
 test('final MSI inspection reads Shortcut table and accepts Chinese desktop/start menu labels', () => {
@@ -77,6 +77,6 @@ $d.Commit()`;
     const result = spawnSync('powershell.exe', ['-NoProfile', '-EncodedCommand', Buffer.from(script, 'utf16le').toString('base64')], { encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr || result.error?.message);
     const rows = inspectWindowsShortcuts(file);
-    assert.deepEqual(rows.map(row => row.name.split('|').at(-1)), ['云会议', '云会议']);
+    assert.deepEqual(rows.map(row => row.name.split('|').at(-1)), ['?????, '?????]);
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

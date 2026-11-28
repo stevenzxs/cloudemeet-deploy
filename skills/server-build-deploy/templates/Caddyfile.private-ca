@@ -1,0 +1,57 @@
+{
+	auto_https disable_redirects
+	skip_install_trust
+	default_sni cloudmeet.internal
+	fallback_sni cloudmeet.internal
+}
+
+http://:80 {
+	respond "Use HTTPS on the configured external port." 426
+}
+
+(meeting_routes) {
+	@internal path /internal /internal/* /mapi/internal /mapi/internal/*
+	handle @internal {
+		respond "Not Found" 404
+	}
+	@mgr_ui path /api/mgr/ui /api/mgr/ui/*
+	handle @mgr_ui {
+		uri strip_prefix /api/mgr/ui
+		root * /jitsi-mgr-ui
+		try_files {path} /index.html
+		file_server
+	}
+	@mgr_api path /api/mgr /api/mgr/*
+	handle @mgr_api {
+		reverse_proxy jitsi-mgr:8080
+	}
+	@business path /cm /cm/* /mapi /mapi/* /healthz
+	handle @business {
+		reverse_proxy app-web:80
+	}
+	handle { reverse_proxy web:8000 }
+}
+
+https://cloudmeet.internal {
+	tls internal
+	import meeting_routes
+}
+https://:443 {
+	tls internal
+	import meeting_routes
+}
+
+https://gateway:9443 {
+	tls internal
+	@allowed {
+		method POST
+		path /internal/host-role/v1/check /internal/host-role/v1/rotate /internal/host-role/v1/complete /internal/host-role/v1/status /internal/host-role/v1/rebind /internal/host-role/v1/claim /internal/host-role/v1/reclaim
+	}
+	handle @allowed {
+		rewrite * /mapi{uri}
+		reverse_proxy api:9000
+	}
+	handle {
+		respond "Not Found" 404
+	}
+}

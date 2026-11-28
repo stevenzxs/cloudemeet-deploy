@@ -31,7 +31,7 @@ class AndroidWorkflowStructureTests(unittest.TestCase):
 
     def test_version_job_allocates_android_scope_and_propagates_approval(self):
         jobs = self.text.split('\njobs:\n')[1]
-        self.assertRegex(jobs, r'version:\n    permissions:\n      contents: write\n    uses: \./\.github/workflows/revision-allocation\.yml')
+        self.assertRegex(jobs, r'version:\n    permissions:\n      contents: write\n    uses: \./\.github/workflows/allocate-android-revision\.yml')
         self.assertIn("scope: '[\"android\"]'", jobs)
         self.assertIn('expected_tls_mode: ${{ inputs.expected_tls_mode }}', jobs)
         self.assertIn('expected_origin: ${{ inputs.expected_origin }}', jobs)

@@ -26,5 +26,16 @@ def derive(policy, revision):
     previous = policy.get('previous_msi_version')
     if not isinstance(previous, str) or tuple(map(int, version.split('.'))) <= tuple(map(int, previous.split('.'))):
         raise ValueError('MSI historical upgrade floor not exceeded')
-    return {'revision': revision, 'client_version': f'{baseline}+r{revision}',
-            'msi_version': version, 'pe_version': version + '.0', 'version_formula': 2}
+    code = major * 1000 + minor * 100 + patch
+    android_code = code * 1000 + revision * 10
+    if type(policy.get('android_base_code', code)) is not int or policy.get('android_base_code', code) != code:
+        raise ValueError('Registered Android base code required')
+    if type(policy.get('previous_android_code', code)) is not int or android_code <= policy.get('previous_android_code', code):
+        raise ValueError('Android historical upgrade floor not exceeded')
+    server = policy.get('server_baseline', '11248.0.1')
+    if not isinstance(server, str) or not re.fullmatch(r'\d+(?:\.\d+){2,3}', server):
+        raise ValueError('Approved server baseline required')
+    return {'revision': revision, 'server_version': f'{server}+r{revision}',
+            'server_tag': f'{server}-r{revision}', 'client_version': f'{baseline}+r{revision}',
+            'android_code': android_code, 'msi_version': version, 'pe_version': version + '.0',
+            'version_formula': 2}

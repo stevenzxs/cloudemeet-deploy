@@ -1,13 +1,13 @@
 ---
 name: cloudmeet-server-build-deploy
-description: Use when the user requests a standalone CloudMeet server-side (eight services) container build and/or GHCR+Release publication, without the joint workflow. Triggers on "构建服务端/构建八个服务/构建镜像/发布服务端/服务器打包发布/单独构建服务端". Covers the minimal workflow build-server.yml (version → build → publish). Not for joint full delivery (full-build-deploy), patch hotfix (single-build-deploy), client builds (android/msi-build-deploy), or any server deployment.
+description: Use when the user requests a standalone CloudMeet server-side container build and GHCR+Release publication. Triggers on "构建服务端/构建八个服务/构建镜像/发布服务端/服务器打包发布/单独构建服务端". Covers build-server.yml. Not for client builds or deployment.
 ---
 
 # CloudMeet 八个服务端服务独立构建与发布
 
 本技能只覆盖服务端八个服务的独立构建与发布，使用最小工作流 `.github/workflows/build-server.yml`（version → build → publish 三个 job，结构与 msi/android 技能一致）。它是操作步骤，不构成额外授权；只执行用户明确要求的终点。
 
-范围：七个容器镜像 `gateway`、`app-web`、`api`、`web`、`prosody`、`jicofo`、`jvb`（GHCR）+ `jitsi-mgr` 后端 JAR 与管理前端静态产物（由网关托管，非容器）。**不在范围**：H5 资产、安装包组装（compose 渲染/在线安装材料）、客户端、部署与升级。联合批次走 `skills/full-build-deploy`，patch 热修复走 `skills/single-build-deploy`。
+范围：八个 GHCR 容器镜像 `gateway`、`app-web`、`api`、`jitsi-mgr`、`web`、`prosody`、`jicofo`、`jvb`。`jitsi-mgr` 后端在镜像内，管理前端仍作为独立静态产物由 Caddy 托管。**不在范围**：H5 资产、目标服务器部署与升级。服务端独立修订策略和分配器由本技能维护。
 
 ## 任务终点与授权
 
@@ -17,7 +17,7 @@ description: Use when the user requests a standalone CloudMeet server-side (eigh
 
 ## 版本规则
 
-- 修订号 `rN` 由共享分配器 `.github/workflows/revision-allocation.yml`（scope `["server"]`）分配并写入主分支台账；台账活数据为 `full-build-deploy/config/version-policy.json`，只读引用、不拷贝、不手填、不回收编号。失败或取消同样消耗编号。
+- 修订号 `rN` 由服务端专属分配器 `.github/workflows/allocate-server-revision.yml` 写入 `skills/server-build-deploy/config/version-policy.json`；计数从 r63 起步，首次分配为 r64。失败或取消同样消耗编号，不回收编号。
 - 服务端版本：`server_version = 11248.0.1+rN`，`server_tag = 11248.0.1-rN`；镜像 tag 与 Release tag 为 `<server_tag>-<run_id>-<attempt>`。
 
 ## 固定契约（不得在本任务中更换）
@@ -31,18 +31,19 @@ description: Use when the user requests a standalone CloudMeet server-side (eigh
 
 1. 核对配置仓库分支与工作区干净后同步 `origin/main`；记录实际 `material_commit`（完整 SHA，必须等于 workflow 提交）。
 2. `workflow_dispatch` 输入：`expected_tls_mode`（默认 `private-ca`）、`expected_origin`、`material_commit`、`architecture`（默认 `amd64`）、`publish_images`。
-3. `version` job：复用共享分配器，输出 assignment 与 origin 契约。
-4. `build` job（按架构原生 runner，八服务矩阵）：检出 deploy@material_commit 与对应源码@固定 commit → `tools/build-service.sh <service>` 完成编译、`docker build`（web/app-web/api/gateway/prosody/jicofo/jvb）或 jitsi-mgr 产物（JAR + 前端）→ `docker save` tar.gz + `build-evidence.json` → artifact 保留 14 天。
-5. `publish` job（仅授权）：下载同一 Run/attempt 全部 artifact → 逐服务校验 tar.gz 摘要 == 证据 → `docker load` → tag/push GHCR → 记录 digest 生成 `images.json` → 组 release 目录（images.json、jitsi-mgr.jar、jitsi-mgr-ui.tar.gz、各服务 build-evidence.json、SHA256SUMS）→ `gh release create --draft`（**不带资产**）→ `gh release upload` 同步上传（退出码即权威校验）→ `gh release edit --draft=false` 公开。
+3. `version` job：调用服务端专属分配器，输出 assignment 与 origin 契约。
+4. `build` job（按架构原生 runner，八服务矩阵）：检出 deploy@material_commit 与对应源码@固定 commit → `tools/build-service.sh <service>` 完成八镜像构建；`jitsi-mgr` 同时生成 Caddy 托管的前端静态归档 → `docker save` tar.gz + `build-evidence.json` → artifact 保留 14 天。
+5. `publish` job（仅授权）：下载同一 Run/attempt 全部 artifact → 逐服务校验 tar.gz 摘要 == 证据 → `docker load` → tag/push GHCR → 记录 digest 生成 `images.json` → 组 release 目录（images.json、jitsi-mgr-ui.tar.gz、各服务 build-evidence.json、安装配置模板、SHA256SUMS）→ `gh release create --draft`（**不带资产**）→ `gh release upload` 同步上传（退出码即权威校验）→ `gh release edit --draft=false` 公开。
 
 ## Release 资产（v1 最小集）
 
-- `images.json`：七服务 GHCR digest 固定引用、批次、Run/attempt、部署提交，状态 `PUBLISHED_NOT_DEPLOYED`。
-- `jitsi-mgr.jar`、`jitsi-mgr-ui.tar.gz`：jitsi-mgr 后端与前端产物。
+- `images.json`：八服务 GHCR digest 固定引用、批次、Run/attempt、部署提交，状态 `PUBLISHED_NOT_DEPLOYED`。
+- `jitsi-mgr-ui.tar.gz`：由同批 gateway/Caddy 静态托管的前端资产。
+- Compose、非秘密环境模板、TLS 模式对应 Caddyfile 与安装说明：与同批镜像清单一起校验和发布。
 - `<service>-build-evidence.json` × 8：各服务构建证据（源码 commit、镜像 ID/产物摘要、架构）。
 - `SHA256SUMS`：上述全部资产摘要。
 
-部署/升级如何消费本 Release 由部署侧另行适配；本技能不产出 compose 安装包。
+本 Release 附带首次安装所需静态材料；安装、TLS 和会议媒体验收仍由部署侧授权并执行，本技能不操作目标服务器。
 
 ## 已知陷阱（与 MSI 链路共享的实测教训）
 

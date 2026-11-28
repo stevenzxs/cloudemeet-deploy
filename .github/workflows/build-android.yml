@@ -30,7 +30,7 @@ jobs:
   version:
     permissions:
       contents: write
-    uses: ./.github/workflows/revision-allocation.yml
+    uses: ./.github/workflows/allocate-android-revision.yml
     with:
       material_commit: ${{ inputs.material_commit }}
       scope: '["android"]'

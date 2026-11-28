@@ -192,8 +192,8 @@ test('skill signing adapter reads its skill-owned signing policy', () => {
   assert.match(source, /config\/signing-policy\.json/);
   assert.doesNotMatch(source, /deploy\/config/);
 });
-test('workflow client contract keeps canonical DNS evidence and batch env in provenance', () => {
-  const workflow = fs.readFileSync(path.resolve(__dirname, '../../../../../.github/workflows/build-clients.yml'), 'utf8');
+test('standalone MSI workflow keeps canonical DNS evidence and batch env in provenance', () => {
+  const workflow = fs.readFileSync(path.resolve(__dirname, '../../../../../.github/workflows/build-msi.yml'), 'utf8');
   assert.match(workflow, /needs\.version\.outputs\.origin_contract/);
   assert.match(workflow, /--origin-contract/);
   assert.match(workflow, /--env-file/);
