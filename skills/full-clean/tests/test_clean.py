@@ -90,6 +90,14 @@ class InventoryTests(unittest.TestCase):
         ]) + '\n'
         self.assertEqual(clean.select_project(lines, '/srv/cm/a'), 'cloudmeet-a')
 
+    def test_plain_cloudmeet_project_matches(self):
+        # Live instance on 118.193.36.35 uses the plain project name "cloudmeet".
+        lines = '\n'.join([
+            container('cloudmeet', 'prosody', '/opt/cloudmeet'),
+            container('cloudmeet', 'api', '/opt/cloudmeet'),
+        ]) + '\n'
+        self.assertEqual(clean.select_project(lines, '/opt/cloudmeet'), 'cloudmeet')
+
 
 class ApplySafetyTests(unittest.TestCase):
     def test_no_global_prune_or_unguarded_rm(self):

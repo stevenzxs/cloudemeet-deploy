@@ -15,7 +15,7 @@ import sys
 
 DANGEROUS_ROOTS = {'/', '/root', '/home', '/etc', '/var', '/usr', '/opt', '/srv', '/tmp', '/boot'}
 PRODUCT_IMAGE_RE = re.compile(r'^cloudmeet/[a-z-]+:')
-PROJECT_RE = re.compile(r'^cloudmeet-[a-z0-9][a-z0-9-]{0,60}$')
+PROJECT_RE = re.compile(r'^cloudmeet(?:-[a-z0-9][a-z0-9-]{0,60})?$')
 COMPOSE_LABEL = 'com.docker.compose.project'
 ROOT_MARKERS = ('candidate.json', 'jitsi-base.yaml', 'compose.yaml', 'images.json')
 
