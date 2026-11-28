@@ -1,8 +1,0 @@
-{
-  "repository": "https://github.com/stevenzxs/cloudmeet-certificates",
-  "commit": "959de73d7a245b348d5ca2e41a081c0c3d9c7533",
-  "ca_version": "ca-v1",
-  "der_sha256": "fab880721274fa86d6a23d8f00fb93be471af863bec0fced6b7e99780b5e6fde",
-  "purpose": "Public certificate distribution copy for endpoint-scoped clients; authority remains certificate repository",
-  "origin": null
-}
