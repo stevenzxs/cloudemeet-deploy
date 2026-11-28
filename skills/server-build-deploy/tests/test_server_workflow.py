@@ -1,4 +1,5 @@
 import json
+import sys
 from pathlib import Path
 import re
 import unittest
@@ -31,6 +32,21 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         self.assertEqual(sorted(inputs['architecture']['options']), ['amd64', 'arm64'])
         self.assertEqual(inputs['publish_images']['type'], 'boolean')
         self.assertIs(inputs['publish_images']['default'], False)
+
+    def test_tls_contract_has_server_owned_client_config(self):
+        sys.path.insert(0, str(SKILL / 'tools'))
+        try:
+            from tls_contract import parse, validate
+        finally:
+            sys.path.pop(0)
+
+        config_path = SKILL / 'config' / 'client.env'
+        self.assertTrue(config_path.is_file(), 'missing server-owned TLS contract config')
+        config = parse(config_path.read_text(encoding='utf-8'))
+        public = validate(config, 'caddy-public-acme', 'https://cloudmeet.example.com')
+        private = validate(config, 'private-ca', 'https://cloudmeet.example.com')
+        self.assertIsNone(public['client_ca_file'])
+        self.assertEqual(private['client_ca_file'], 'client-ca.crt')
 
     def test_version_job_allocates_server_scope_and_propagates_approval(self):
         jobs = self.text.split('\njobs:\n')[1]
