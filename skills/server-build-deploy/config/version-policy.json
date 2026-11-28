@@ -7,5 +7,46 @@
   "previous_android_code": 1021000,
   "previous_msi_version": "1.0.21",
   "approved": true,
-  "current_revision": 63
+  "current_revision": 64,
+  "last_allocation": {
+    "run_id": "46130449145",
+    "attempt": 1,
+    "record": {
+      "namespace": "cloudmeet-server-v1",
+      "policy_sha256": "a23c73269764b5c4fb19052132db6219dc2367cfa1f5aa5134babda55bab3aac",
+      "request": {
+        "repository": "stevenzxs/cloudemeet-deploy",
+        "workflow": "stevenzxs/cloudemeet-deploy/.github/workflows/build-server.yml@refs/heads/main",
+        "run_id": "46130449145",
+        "configuration_sha": "cee33e0dc6e045687f378bc6c57cc8426d097373",
+        "task": "actions-46130449145",
+        "scope": [
+          "server"
+        ],
+        "sources": {
+          "web": "f765042bf280cbd7dcd4a9bbdb63b09e9e4d3259",
+          "app-web": "784c1d004cfcea32f5316314f5979cb74aba88b0",
+          "api": "632c247064b14fe5cd9b8806ed42cb8fb45adcba",
+          "jitsi-mgr": "174c03cad23ab87c7ca2c1b999edc799dfd2c50a",
+          "gateway": "0d98caea58f794f88e709b1bef2880996a471bca",
+          "prosody": "278180e6a72b6c5c33093b842ec6dfb1a6849487",
+          "jicofo": "48874dc526573016ca6512ebbb697911802e4c53",
+          "jvb": "bf271b11f795d6546f8d78dee441c67d9ba2bf6b",
+          "lifecycle": "276801c7fd4233f7288ba95bd132c219852c7ac7",
+          "server": "da04e68644264d45c20e39446515f65a8d283aaa2aa1e3854f049bb135f5614b"
+        }
+      },
+      "versions": {
+        "revision": 64,
+        "server_version": "11248.0.1+r64",
+        "server_tag": "11248.0.1-r64",
+        "client_version": "1.0.21+r64",
+        "android_code": 1021640,
+        "msi_version": "1.0.850",
+        "pe_version": "1.0.850.0",
+        "version_formula": 2
+      },
+      "allocation_sha256": "91bafed8fd132a015f155e457d98ef3ae00a6fe65355cbdd2acdc0f05c826961"
+    }
+  }
 }
