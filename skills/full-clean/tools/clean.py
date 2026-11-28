@@ -72,6 +72,7 @@ def group_containers(ps_json_lines):
             continue
         projects.setdefault(project, []).append({
             'id': item.get('ID'), 'service': labels.get('com.docker.compose.service'),
+            'image': item.get('Image'),
             'working_dir': labels.get('com.docker.compose.project.working_dir')})
     return projects
 
@@ -124,15 +125,19 @@ def check_fingerprint(host, port, accepted, scan_output):
     return accepted
 
 
-def apply_commands(project, root, postgres, db_user, db_password):
+def apply_commands(project, root, postgres, db_user, db_password, image_ids=()):
     """Ordered destructive commands for one validated wipe; runner executes them remotely."""
     commands = [
         f'docker rm -f $(docker ps -aq --filter label={COMPOSE_LABEL}={project})',
         f'docker volume rm $(docker volume ls -q --filter label={COMPOSE_LABEL}={project})',
         f'docker network rm $(docker network ls -q --filter label={COMPOSE_LABEL}={project})',
         'docker rmi $(docker images -q --filter "reference=cloudmeet/*")',
-        f'rm -rf -- "{root}"',
     ]
+    if image_ids:
+        # Untagged images referenced only by ID (e.g. freshly loaded r67 images)
+        # do not match the reference filter above and would survive as residue.
+        commands.append('docker rmi ' + ' '.join(sorted(set(image_ids))))
+    commands.append(f'rm -rf -- "{root}"')
     if postgres:
         host, port, database = postgres
         sql = 'DROP SCHEMA public CASCADE; CREATE SCHEMA public;'
@@ -141,13 +146,15 @@ def apply_commands(project, root, postgres, db_user, db_password):
     return commands
 
 
-def verify_commands(project, root):
-    return [
+def verify_commands(project, root, image_ids=()):
+    commands = [
         f'test -z "$(docker ps -aq --filter label={COMPOSE_LABEL}={project})"',
         f'test -z "$(docker volume ls -q --filter label={COMPOSE_LABEL}={project})"',
         'test -z "$(docker images -q --filter reference=cloudmeet/*)"',
         f'test ! -e "{root}"',
     ]
+    commands += [f'test -z "$(docker images -q {image})"' for image in sorted(set(image_ids))]
+    return commands
 
 
 def _local(command, runner):
@@ -197,6 +204,7 @@ def collect_inventory(args, runner):
     hostname = probe('hostname').stdout.strip()
     containers = probe('docker ps -a --format "{{json .}}"').stdout
     project = select_project(containers, root)
+    project_containers = group_containers(containers)[project]
     volumes = sorted(probe(f'docker volume ls -q --filter label={COMPOSE_LABEL}={project}').stdout.split())
     images = [json.loads(line) for line in probe('docker images --format "{{json .}}"').stdout.splitlines() if line.strip()]
     product_images = [item for item in images if PRODUCT_IMAGE_RE.match(item.get('Repository', '') + ':')]
@@ -204,8 +212,9 @@ def collect_inventory(args, runner):
     secrets = _env_values(probe, f'{root}/.env', ['JITSI_MGR_DB_PASSWORD'])
     postgres = parse_jdbc(mgr['JITSI_MGR_DB_URL']) if mgr.get('JITSI_MGR_DB_URL') else None
     return {'host': args.host, 'hostname': hostname, 'fingerprint': fingerprint, 'root': root,
-            'project': project, 'containers': group_containers(containers)[project],
+            'project': project, 'containers': project_containers,
             'volumes': volumes, 'images': product_images,
+            'container_image_ids': sorted({c['image'] for c in project_containers if c.get('image')}),
             'postgres': list(postgres) if postgres else None,
             'db_user': mgr.get('JITSI_MGR_DB_USER', ''), 'db_password': secrets.get('JITSI_MGR_DB_PASSWORD', '')}
 
@@ -213,10 +222,11 @@ def collect_inventory(args, runner):
 def execute_wipe(args, inventory, runner):
     probe = lambda command: _local(command, runner) if getattr(args, 'local', False) else _ssh(args, command, runner)
     postgres = tuple(inventory['postgres']) if inventory['postgres'] else None
+    image_ids = inventory.get('container_image_ids') or ()
     for command in apply_commands(inventory['project'], inventory['root'], postgres,
-                                  inventory['db_user'], inventory['db_password']):
+                                  inventory['db_user'], inventory['db_password'], image_ids):
         probe(command)
-    for command in verify_commands(inventory['project'], inventory['root']):
+    for command in verify_commands(inventory['project'], inventory['root'], image_ids):
         if probe(command).returncode != 0:
             raise ValueError('Residue detected after wipe: ' + command)
     print('READY_FOR_REINSTALL: zero containers/volumes/images/instance-data remain. '

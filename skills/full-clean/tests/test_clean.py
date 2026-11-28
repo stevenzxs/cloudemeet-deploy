@@ -120,6 +120,17 @@ class ApplySafetyTests(unittest.TestCase):
                                         postgres=None, db_user='', db_password='')
         self.assertNotIn('DROP SCHEMA', '\n'.join(commands))
 
+    def test_untagged_container_images_removed_and_verified(self):
+        commands = clean.apply_commands(project='cloudmeet', root='/opt/cloudmeet',
+                                        postgres=None, db_user='', db_password='',
+                                        image_ids=('1555e62283d1', '587f052853ff'))
+        joined = '\n'.join(commands)
+        self.assertIn('docker rmi 1555e62283d1 587f052853ff', joined)
+        verify = '\n'.join(clean.verify_commands('cloudmeet', '/opt/cloudmeet',
+                                                 ('1555e62283d1', '587f052853ff')))
+        self.assertIn('docker images -q 1555e62283d1', verify)
+        self.assertIn('docker images -q 587f052853ff', verify)
+
 
 class FingerprintTests(unittest.TestCase):
     def test_first_contact_requires_explicit_acceptance(self):
