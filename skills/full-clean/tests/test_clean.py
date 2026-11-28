@@ -126,6 +126,8 @@ class ApplySafetyTests(unittest.TestCase):
                                         image_ids=('1555e62283d1', '587f052853ff'))
         joined = '\n'.join(commands)
         self.assertIn('docker rmi 1555e62283d1 587f052853ff', joined)
+        self.assertIn('xargs -r docker rmi', joined)
+        self.assertNotIn('docker rmi $(docker images -q', joined)
         verify = '\n'.join(clean.verify_commands('cloudmeet', '/opt/cloudmeet',
                                                  ('1555e62283d1', '587f052853ff')))
         self.assertIn('docker images -q 1555e62283d1', verify)

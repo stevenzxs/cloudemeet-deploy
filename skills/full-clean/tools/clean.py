@@ -131,7 +131,9 @@ def apply_commands(project, root, postgres, db_user, db_password, image_ids=()):
         f'docker rm -f $(docker ps -aq --filter label={COMPOSE_LABEL}={project})',
         f'docker volume rm $(docker volume ls -q --filter label={COMPOSE_LABEL}={project})',
         f'docker network rm $(docker network ls -q --filter label={COMPOSE_LABEL}={project})',
-        'docker rmi $(docker images -q --filter "reference=cloudmeet/*")',
+        # Remove tags one by one: an image ID referenced by multiple tags refuses
+        # plain `docker rmi <id>` (observed on 118.193.36.35 with r19/r22).
+        'docker images --format "{{.Repository}}:{{.Tag}}" --filter "reference=cloudmeet/*" | xargs -r docker rmi',
     ]
     if image_ids:
         # Untagged images referenced only by ID (e.g. freshly loaded r67 images)
