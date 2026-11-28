@@ -6,6 +6,14 @@ from pathlib import Path
 import subprocess
 
 from repository_counter import allocate
+from revision_versions import digest
+
+
+def source_identities(sources):
+    identities = {name: item['commit'] for name, item in sources['services'].items()}
+    identities['lifecycle'] = sources['lifecycle']['commit']
+    identities['server'] = digest(identities)
+    return identities
 
 
 def main():
@@ -19,8 +27,7 @@ def main():
         raise ValueError('Server-only scope required')
     root = Path(__file__).resolve().parents[2]
     sources = json.loads((root / 'sources.json').read_text(encoding='utf-8'))
-    identities = {name: item['commit'] for name, item in sources['services'].items()}
-    identities['lifecycle'] = sources['lifecycle']['commit']
+    identities = source_identities(sources)
     request = dict(repository=env['GITHUB_REPOSITORY'], workflow=env['GITHUB_WORKFLOW_REF'],
                    run_id=env['GITHUB_RUN_ID'], configuration_sha=sha,
                    task='actions-' + env['GITHUB_RUN_ID'], scope=['server'], sources=identities)
