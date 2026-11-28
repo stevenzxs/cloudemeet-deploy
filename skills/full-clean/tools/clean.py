@@ -205,8 +205,8 @@ def collect_inventory(args, runner):
     require_instance_markers(root, probe)
     hostname = probe('hostname').stdout.strip()
     containers = probe('docker ps -a --format "{{json .}}"').stdout
-    project = select_project(containers, root)
-    project_containers = group_containers(containers)[project]
+    project = args.project if getattr(args, 'project', None) else select_project(containers, root)
+    project_containers = group_containers(containers).get(project, [])
     volumes = sorted(probe(f'docker volume ls -q --filter label={COMPOSE_LABEL}={project}').stdout.split())
     images = [json.loads(line) for line in probe('docker images --format "{{json .}}"').stdout.splitlines() if line.strip()]
     product_images = [item for item in images if PRODUCT_IMAGE_RE.match(item.get('Repository', '') + ':')]
@@ -242,6 +242,9 @@ def main(argv=None, runner=subprocess.run):
     parser.add_argument('--port', type=int, default=22)
     parser.add_argument('--identity-file')
     parser.add_argument('--instance-root', required=True)
+    parser.add_argument('--project',
+                        help='Explicit compose project name (re-run after a partial wipe, '
+                             'when containers are already gone)')
     parser.add_argument('--accept-fingerprint')
     parser.add_argument('--local', dest='local', action='store_true', default=True,
                         help='Run on the target machine itself (default); no SSH, no host key check')

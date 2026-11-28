@@ -157,9 +157,9 @@ class FingerprintTests(unittest.TestCase):
 
 
 class FlowTests(unittest.TestCase):
-    def dispatch(self):
+    def dispatch(self, ps=None):
         keyscan = '1.2.3.4 ssh-ed25519 ' + FAKE_KEY + '\n'
-        ps_lines = (container('cloudmeet-a', 'gateway', '/srv/cm/prod') + '\n'
+        ps_lines = ps if ps is not None else (container('cloudmeet-a', 'gateway', '/srv/cm/prod') + '\n'
                     + container('cloudmeet-a', 'jvb', '/srv/cm/prod') + '\n')
         images = json.dumps({'Repository': 'cloudmeet/api', 'Tag': 'b1', 'ID': 'img1'}) + '\n' \
             + json.dumps({'Repository': 'other/img', 'Tag': 'x', 'ID': 'img2'}) + '\n'
@@ -228,6 +228,18 @@ class FlowTests(unittest.TestCase):
             clean.main(self.args('--remote'), runner=runner)
         self.assertTrue(any(c.startswith('ssh-keyscan') for c in calls))
         self.assertTrue(any(c.startswith('ssh ') for c in calls))
+
+    def test_partial_wipe_rerun_accepts_explicit_project(self):
+        # After a partial wipe (containers already gone) the inventory cannot
+        # derive the project from docker ps; --project keeps re-runs possible.
+        runner, _ = self.dispatch(ps='')
+        import io, contextlib
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            clean.main(self.args('--remote', '--project', 'cloudmeet'), runner=runner)
+        report = json.loads(out.getvalue())
+        self.assertEqual(report['project'], 'cloudmeet')
+        self.assertEqual(report['containers'], [])
 
     def test_apply_executes_wipe_and_verifies_zero_residue(self):
         runner, calls = self.dispatch()
