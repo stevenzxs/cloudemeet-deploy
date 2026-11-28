@@ -9,7 +9,7 @@ LABEL org.opencontainers.image.version=${VERSION} \
 USER root
 RUN apt-dpkg-wrap apt-get update && apt-dpkg-wrap apt-get install -y --no-install-recommends openjdk-21-jre-headless curl && apt-cleanup
 WORKDIR /app
-COPY jitsi-mgr.jar /app/jitsi-mgr.jar
+COPY backend/jitsi-mgr.jar /app/jitsi-mgr.jar
 RUN mkdir -p /app/data && chown -R s6:s6 /app
 USER s6
 EXPOSE 8080
