@@ -19,16 +19,16 @@ description: Use when completely wiping a running CloudMeet instance from a Linu
 
 ## 执行（两阶段，缺一不可）
 
-工具：`skills/full-clean/tools/clean.py`（自包含，系统 OpenSSH；需 Python 3）。
+工具：`skills/full-clean/tools/clean.py`（自包含；需 Python 3）。**默认本地模式**：把脚本上传到目标服务器后在该服务器直接运行，无 SSH 客户端、主机指纹与密钥环节；`--remote` 为旧 SSH 远程模式（需 `--host`/`--identity-file`/`--accept-fingerprint`）。
 
 1. **只读盘点**（必做第一步）：
 
    ```bash
-   python3 -B clean.py --host <IP> --user root --port 22 --identity-file <私钥> \
-     --instance-root /绝对/路径/实例根 --accept-fingerprint <SHA256指纹>
+   # 在目标服务器上执行
+   python3 -B clean.py --instance-root /绝对/路径/实例根
    ```
 
-   首次接触不带 `--accept-fingerprint` 时会输出实际指纹并拒绝，人工核实后带上指纹重跑。输出 JSON 清单：主机指纹、compose project、容器、卷、镜像、postgres 目标库。
+   输出 JSON 清单：主机、compose project、容器、卷、镜像、postgres 目标库。实例标记同时兼容旧格式（candidate.json/jitsi-base.yaml）与新格式（compose.yaml/images.json，server-build-deploy 安装的实例）。
 
 2. **人工核对清单**：确认清单里的每一项都属于要清的实例；出现陌生容器/卷/镜像或多实例迹象时停止。
 
@@ -36,8 +36,8 @@ description: Use when completely wiping a running CloudMeet instance from a Linu
 
 ## 必须停止并报告的情形
 
-- SSH 不通、指纹缺失或不匹配。
-- 实例标记缺失（candidate.json/jitsi-base.yaml 与 data 不可同时验证）、多 CloudMeet compose project 并存、实例根为危险路径。
+- `--remote` 模式下 SSH 不通、指纹缺失或不匹配。
+- 实例标记缺失（candidate.json/jitsi-base.yaml/compose.yaml/images.json 与 data 不可同时验证）、多 CloudMeet compose project 并存、实例根为危险路径。
 - jitsi-mgr 为非 postgres 之外的未知 URL 形态、库名不含 `jitsi`（疑似共享库）、目标上 `psql` 不可用。
 - 清除后验证发现任何残留。
 - 请求超出清除范围（安装、备份、客户端操作、其它实例）。

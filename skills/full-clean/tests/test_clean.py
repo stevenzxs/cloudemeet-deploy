@@ -199,6 +199,15 @@ class FlowTests(unittest.TestCase):
         self.assertFalse(any('ssh-keyscan' in c or c.startswith('ssh ') for c in calls))
         self.assertTrue(all(c.startswith('bash -c') for c in calls))
 
+    def test_remote_mode_uses_ssh_and_keyscan(self):
+        runner, calls = self.dispatch()
+        import io, contextlib
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            clean.main(self.args('--remote'), runner=runner)
+        self.assertTrue(any(c.startswith('ssh-keyscan') for c in calls))
+        self.assertTrue(any(c.startswith('ssh ') for c in calls))
+
     def test_apply_executes_wipe_and_verifies_zero_residue(self):
         runner, calls = self.dispatch()
         import io, contextlib

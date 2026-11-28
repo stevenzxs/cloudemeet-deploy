@@ -17,7 +17,7 @@ DANGEROUS_ROOTS = {'/', '/root', '/home', '/etc', '/var', '/usr', '/opt', '/srv'
 PRODUCT_IMAGE_RE = re.compile(r'^cloudmeet/[a-z-]+:')
 PROJECT_RE = re.compile(r'^cloudmeet-[a-z0-9][a-z0-9-]{0,60}$')
 COMPOSE_LABEL = 'com.docker.compose.project'
-ROOT_MARKERS = ('candidate.json', 'jitsi-base.yaml')
+ROOT_MARKERS = ('candidate.json', 'jitsi-base.yaml', 'compose.yaml', 'images.json')
 
 
 def parse_jdbc(url):
@@ -45,7 +45,7 @@ def validate_instance_root(root):
 
 
 def require_instance_markers(root, probe):
-    command = ('for f in candidate.json jitsi-base.yaml .env data; do '
+    command = ('for f in candidate.json jitsi-base.yaml compose.yaml images.json .env data; do '
                f'test -e "{root}/$f" && echo "present:$f"; done')
     result = probe(command)
     present = set()
@@ -231,8 +231,10 @@ def main(argv=None, runner=subprocess.run):
     parser.add_argument('--identity-file')
     parser.add_argument('--instance-root', required=True)
     parser.add_argument('--accept-fingerprint')
-    parser.add_argument('--local', action='store_true',
-                        help='Run on the target machine itself; no SSH, no host key check')
+    parser.add_argument('--local', dest='local', action='store_true', default=True,
+                        help='Run on the target machine itself (default); no SSH, no host key check')
+    parser.add_argument('--remote', dest='local', action='store_false',
+                        help='Probe the target over SSH instead of running locally')
     parser.add_argument('--apply', action='store_true', help='Execute the wipe; without it only inventory is printed')
     args = parser.parse_args(argv)
     inventory = collect_inventory(args, runner)
