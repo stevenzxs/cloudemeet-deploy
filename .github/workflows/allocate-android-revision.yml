@@ -1,4 +1,4 @@
-name: CloudMeet persistent revision allocation
+name: Allocate Android revision
 on:
   workflow_call:
     inputs:
@@ -14,9 +14,6 @@ on:
       scope:
         type: string
         required: true
-      assignment:
-        type: string
-        default: ''
     outputs:
       assignment:
         value: ${{ jobs.allocate.outputs.assignment }}
@@ -38,34 +35,37 @@ jobs:
         with:
           ref: ${{ inputs.material_commit }}
           persist-credentials: false
-      - name: Verify reviewed materials before allocation
+      - name: Verify Android allocation context
         env:
           MATERIAL_SHA: ${{ inputs.material_commit }}
           EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
           EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
+          REQUEST_SCOPE: ${{ inputs.scope }}
         run: |
           test "$MATERIAL_SHA" = "$(git rev-parse HEAD)"
-                    python3 -B skills/full-build-deploy/tools/tls_contract.py
-      - name: Normalize user origin and retain DNS evidence before revision allocation
+          test "$MATERIAL_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REPOSITORY" = stevenzxs/cloudemeet-deploy
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$REQUEST_SCOPE" = '["android"]'
+          python3 -B skills/android-build-deploy/tools/tls_contract.py
+      - name: Normalize approved origin and retain DNS evidence
         id: origin
         env:
-          EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
           EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
+          EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
         run: |
-          python3 -B skills/full-build-deploy/tools/origin_contract.py --output origin-contract.json
-          contract=$(jq -c . origin-contract.json)
-          echo "contract=$contract" >> "$GITHUB_OUTPUT"
-      - name: Allocate revision in version policy on main
+          python3 -B skills/android-build-deploy/tools/origin_contract.py --output origin-contract.json
+          echo "contract=$(jq -c . origin-contract.json)" >> "$GITHUB_OUTPUT"
+      - name: Allocate Android revision on main
         id: record
         env:
+          GH_TOKEN: ${{ github.token }}
           MATERIAL_SHA: ${{ inputs.material_commit }}
           REQUEST_SCOPE: ${{ inputs.scope }}
-          INHERITED_ASSIGNMENT: ${{ inputs.assignment }}
-          GH_TOKEN: ${{ github.token }}
           EXPECTED_ORIGIN_CONTRACT: ${{ steps.origin.outputs.contract }}
-        run: |
-          test "$(python3 -c 'import json;print(json.load(open("origin-contract.json"))["origin"])')" = "$(python3 -c 'import json,os;print(json.loads(os.environ["EXPECTED_ORIGIN_CONTRACT"])["origin"])')"
-          export GH_TOKEN
-          python3 -B skills/full-build-deploy/tools/allocate-workflow.py
-      - name: Verify revision contract after persistent allocation (failure still consumes revision)
-        run: python3 -B -m unittest discover -s skills/full-build-deploy/tests -p 'test_revision*.py'
+        run: python3 -B skills/android-build-deploy/tools/versioning/allocate_workflow.py
+      - name: Verify assignment contract
+        env:
+          ASSIGNMENT: ${{ steps.record.outputs.assignment }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: python3 -B skills/android-build-deploy/tools/versioning/validate_assignment.py

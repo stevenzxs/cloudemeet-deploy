@@ -12,7 +12,7 @@ def digest(value):
 def derive(policy, revision):
     if policy.get('schema') != 1 or policy.get('approved') is not True:
         raise ValueError('Android version policy is not approved')
-    if not re.fullmatch(r'cloudmeet-android-v1', policy.get('namespace', '')):
+    if policy.get('namespace') != 'cloudmeet-android-v1':
         raise ValueError('Android namespace required')
     if type(revision) is not int or revision < 1:
         raise ValueError('Positive Android revision required')
@@ -28,5 +28,13 @@ def derive(policy, revision):
     code = base * 1000 + revision * 10
     if type(previous) is not int or not 0 < previous < code <= 2100000000:
         raise ValueError('Android historical upgrade floor unknown or not exceeded')
-    return {'revision': revision, 'client_version': f'{client}+r{revision}',
-            'android_code': code, 'version_formula': 2}
+    major, minor, patch = map(int, client.split('.'))
+    msi = f'{major}.{minor}.{(patch + revision) * 10}'
+    if previous_msi := policy.get('previous_msi_version'):
+        if tuple(map(int, msi.split('.'))) <= tuple(map(int, previous_msi.split('.'))):
+            raise ValueError('MSI historical upgrade floor not exceeded')
+    server = policy.get('server_baseline', '11248.0.1')
+    return {'revision': revision, 'server_version': f'{server}+r{revision}',
+            'server_tag': f'{server}-r{revision}', 'client_version': f'{client}+r{revision}',
+            'android_code': code, 'msi_version': msi, 'pe_version': msi + '.0',
+            'version_formula': 2}

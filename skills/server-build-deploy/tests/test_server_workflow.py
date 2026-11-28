@@ -34,7 +34,7 @@ class ServerWorkflowStructureTests(unittest.TestCase):
 
     def test_version_job_allocates_server_scope_and_propagates_approval(self):
         jobs = self.text.split('\njobs:\n')[1]
-        self.assertRegex(jobs, r'version:\n    permissions:\n      contents: write\n    uses: \./\.github/workflows/revision-allocation\.yml')
+        self.assertRegex(jobs, r'version:\n    permissions:\n      contents: write\n    uses: \./\.github/workflows/allocate-server-revision\.yml')
         self.assertIn("scope: '[\"server\"]'", jobs)
         self.assertIn('expected_tls_mode: ${{ inputs.expected_tls_mode }}', jobs)
         self.assertIn('expected_origin: ${{ inputs.expected_origin }}', jobs)
@@ -96,6 +96,74 @@ class ServerWorkflowStructureTests(unittest.TestCase):
         # fromJSON('2768…') is parsed as a number and breaks the workflow template.
         self.assertIsNone(re.search(r"fromJSON\('[^']*[0-9a-f]{40}[^']*'\)", self.text))
 
+    def test_installable_release_templates_exist_and_define_eight_services(self):
+        compose_path = SKILL / 'templates' / 'compose.yaml'
+        env_path = SKILL / 'templates' / '.env.example'
+        caddy_paths = [SKILL / 'templates' / 'Caddyfile.public-acme', SKILL / 'templates' / 'Caddyfile.private-ca']
+        install_path = SKILL / 'INSTALL.md'
+        image_dockerfile = SKILL / 'docker' / 'jitsi-mgr.Dockerfile'
+        for path in (compose_path, env_path, *caddy_paths, install_path, image_dockerfile):
+            self.assertTrue(path.is_file(), f'missing release input: {path}')
+
+        compose = yaml.safe_load(compose_path.read_text(encoding='utf-8'))
+        self.assertEqual(sorted(compose['services']), sorted(SERVICES))
+        image_services = set()
+        for name, service in compose['services'].items():
+            self.assertNotIn('build', service)
+            if 'image' in service:
+                image_services.add(name)
+                self.assertRegex(service['image'], r'\$\{IMAGE_[A-Z_]+:\?required\}')
+        self.assertEqual(image_services, set(SERVICES))
+        self.assertIn('./artifacts/jitsi-mgr-ui:/jitsi-mgr-ui:ro', compose['services']['gateway']['volumes'])
+        for path in caddy_paths:
+            caddy = path.read_text(encoding='utf-8')
+            self.assertIn('root * /jitsi-mgr-ui', caddy)
+            self.assertIn('reverse_proxy jitsi-mgr:8080', caddy)
+        self.assertIn('tls internal', caddy_paths[1].read_text(encoding='utf-8'))
+        for path in caddy_paths:
+            caddy = path.read_text(encoding='utf-8')
+            self.assertIn('https://gateway:9443', caddy)
+            self.assertIn('tls internal', caddy)
+            self.assertIn('reverse_proxy api:9000', caddy)
+        prosody = compose['services']['prosody']
+        self.assertEqual(prosody['environment']['CLOUDMEET_HOST_CONTROL_CA'], '/host-control/caddy-root.crt')
+        ca_mount = next(v for v in prosody['volumes'] if isinstance(v, dict) and v.get('target') == '/host-control/caddy-root.crt')
+        self.assertEqual(ca_mount['source'], './data/host-control/caddy-root.crt')
+        self.assertTrue(ca_mount['read_only'])
+        self.assertFalse(ca_mount['bind']['create_host_path'])
+
+        config = env_path.read_text(encoding='utf-8')
+        self.assertNotRegex(config, r'(?im)^(?:\w*(?:PASSWORD|SECRET|TOKEN|PRIVATE_KEY)\w*)=(?!REPLACE_WITH_RANDOM_SECRET$).+\S')
+        docs = install_path.read_text(encoding='utf-8')
+        self.assertIn('origin', docs.lower())
+        self.assertIn('TLS', docs)
+        self.assertIn('secret', docs.lower())
+        self.assertIn('docker cp', docs)
+        self.assertIn('root.crt', docs)
+        self.assertIn('chmod 0644', docs)
+        self.assertLess(docs.index('docker compose -f compose.yaml up -d gateway'), docs.index('docker cp'))
+        self.assertLess(docs.index('docker cp'), docs.index('up -d prosody'))
+
+    def test_jitsi_mgr_backend_is_eighth_image_and_ui_remains_static(self):
+        script = (SKILL / 'tools' / 'build-service.sh').read_text(encoding='utf-8')
+        publish = self.text[self.text.index('  publish:'):]
+        self.assertIn('jitsi-mgr.Dockerfile', script)
+        self.assertIn('jitsi-mgr-ui.tar.gz', script)
+        self.assertIn('for service in gateway app-web api web prosody jicofo jvb jitsi-mgr; do', publish)
+        self.assertIn('jitsi-mgr-ui.tar.gz', publish)
+        self.assertIn("images[$service]=", publish)
+        dockerfile = (SKILL / 'docker' / 'jitsi-mgr.Dockerfile').read_text(encoding='utf-8')
+        self.assertIn('COPY jitsi-mgr.jar', dockerfile)
+        self.assertNotIn('frontend', dockerfile)
+
+    def test_release_stages_install_assets_before_checksums(self):
+        publish = self.text[self.text.index('  publish:'):]
+        for asset in ('compose.yaml', '.env.example', 'Caddyfile.public-acme', 'Caddyfile.private-ca', 'jitsi-mgr-ui.tar.gz', 'INSTALL.md'):
+            self.assertIn(asset, publish)
+        self.assertLess(publish.index('INSTALL.md'), publish.index('sha256sum * > SHA256SUMS'))
+        self.assertIn('images.json', publish)
+        self.assertIn('actions/checkout@', self.text[self.text.index('  publish:'):])
+        self.assertIn("len(images) != 8", publish)
 
 if __name__ == '__main__':
     unittest.main()

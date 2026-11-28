@@ -4,9 +4,9 @@
 
 ## 先选材料身份，不选另一条部署线
 
-2026-11-23流程实现：新联合发布先等待七服务及Electron/Android全部成功，再发布GHCR及持久GitHub Release；同版本线上材料支持setup按digest首装及显式实例image-only升级，离线附加节点从固定digest导出供首装/升级，不重新编译或占号。操作参数见[技能说明](skills/full-build-deploy/SKILL.md)，规范见AGENTS第2节。当前为脚本/辅助回归阶段，不代表真实云端发布、目标安装或媒体验收通过；不自动继续历史r14。
+Android、MSI 与服务端构建发布现由各自独立入口和技能维护；联合构建/发布工作流已退役。部署材料与验收规范仍以 AGENTS.md 为准；不表示真实云端发布、目标安装或媒体验收通过。
 
-2026-11-19版本改造：新任务确认完整入口，客户端保留批准基线并自动分配+rN，不再每批手填版本。七服务与两客户端联合入口为`.github/workflows/build-joint.yml`，独立入口共用持久分配器。平台映射及边界见AGENTS.md第6节；配置已按用户最终确认启用：服务端11248.0.1、客户端1.0.21，兼容基线限现存正式包。核验及范围见`skills/full-build-deploy/config/version-policy.json`；控制Runner和正式台账仍未就绪，不代表实际分配/打包/签名/发布/部署通过。
+版本独立分配：Android、MSI、服务端各有自己的策略与计数器，初始高水位均为 r63，下一次分配为 r64；产品基线和版本公式不变。
 
 编译打包仅含：确认批次 → 编译/复用 → 组包 → 材料完整性校验 → 输出release包。不要求测试环境、麒麟ISO或安装运行测试；包不含宿主操作系统。流程及流程图见AGENTS.md第6节，不表示安装器/工作流已经适配或已有新包。
 
@@ -25,13 +25,13 @@ deploy/
 
 只交付release：server放编译组包及材料完整性校验通过的完整包（不要求安装测试），clients按自身OS/ABI和已验范围交付，dependencies按OS/版本分类。未完成候选保留在Actions；完整包附材料校验及来源证据。config是人工公共配置目标位置。
 
-### 统一Actions入口（2026-11-11脚本优化）
+### 历史统一 Actions 入口（已退役）
 
-- 维护源：`skills/full-build-deploy/scripts/package.sh` 及同技能工具目录；CI入口：`.github/workflows/build-joint.yml`。
+- 曾由 `.github/workflows/build-joint.yml` 调度，联合构建与发布能力已退役，不再作为操作说明。
 - 手动选择架构及受审材料commit；版本由持久台账分配，原生amd64/arm64矩阵完整编译七服务，仅收集同run/attempt镜像组包，不回退旧镜像。
 - 统一版本下分别记录源码commit、真实镜像ID、基础镜像及归档摘要；包内携带Compose和公共首次安装核心，已有Docker为明确前提。
 - 本轮为本地脚本优化，尚未推送或运行新的Actions，没有新部署包；安装/服务/客户端/媒体均未因此验收。旧workflow保留手动诊断，不自动push触发。
-- 业务Web本批使用same-origin构建参数，工作区默认118 `.env`不变；包内记录实际覆盖。用法见`skills/full-build-deploy/SKILL.md`。
+- 业务Web历史构建曾使用same-origin参数；相关联合构建说明已退役。
 
 用户已授权删除debug及全部候选/证据，不迁移到release。原有packages、history、artifacts、releases、clients、offline-packs保留原位，不在本次清理范围。工具输出尚未全面适配；下方旧路径仅导航历史材料。编译、打包、部署要求仅由AGENTS.md负责。
 
@@ -40,7 +40,8 @@ deploy/
 | 已验证服务器包 | `packages/<批次>/INSTALL.md` | 仅按包内限定的系统、架构、origin 与验收状态使用 |
 | 构建/实例证据 | `history/` | 不是默认安装入口，不改历史字节 |
 | 镜像候选 | `releases/` | 不是离线安装包 |
-| 客户端构建 | `skills/full-build-deploy/tools/clients/README.md` | 输出先进入 history，按实际验收状态交付 |
+| Android 客户端构建 | `skills/android-build-deploy/SKILL.md` | 独立入口与版本策略 |
+| MSI 客户端构建 | `skills/msi-build-deploy/SKILL.md` | 独立入口与版本策略 |
 | 补丁和实例增量 | `patches/`、`tools/`、`tests/` | 不替代完整产品部署 |
 | 安装器/组包器维护 | `tools/check-deployment-layout.py` 内的实现清单 | 登记不等于放行，规范仅在 AGENTS.md |
 
@@ -106,9 +107,7 @@ APK SHA256 `e1d8c6882a885fffae0babb3ff2c804a00bceeac1ad855e6e056f0627c5f043f`。
 | `config/start.sh` | 固定deploy项目根，复制持久补丁、校验并启动，不删除数据、不隐式拉镜像 |
 | `patches/` | 品牌、CSS 和主持人角色插件的部署副本 |
 | `artifacts/nginx.conf` | 业务 Web/API 路由配置 |
-| `skills/full-build-deploy/tools/clients/` | MSI/APK 构建工具维护源；不属于服务器交付材料 |
 | `client.env.example` | 客户端专用入口模板，不携带服务端秘密 |
-| `skills/full-build-deploy/tools/clients/tests/` | 客户端构建脚本测试 |
 | `skills/cloudmeet-deploy/` | 交互式部署技能维护源 |
 | `skills/cloudmeet-deploy-offline/` | 离线打包技能维护源，与工作区规范共同读取 |
 
@@ -190,14 +189,12 @@ CA私钥仅留离线签发机，服务器私钥更新包须受限保管；客户
 Windows 下从工作区根目录构建，源码仍在 `jitsi-meet-electron/` 和 `jm/`：
 
 ```powershell
-# 唯一入口配置：deploy/skills/full-build-deploy/config/client.env；--env-file 需绝对路径。
+# Android/MSI 各自维护客户端构建配置；--env-file 需绝对路径。
 # 先执行只读检查；Android versionCode从CLIENT_VERSION自动转换。
-node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target all --env-file "$PWD/deploy/skills/full-build-deploy/config/client.env" --check
-node deploy/skills/full-build-deploy/tools/clients/build-clients.cjs --target all --env-file "$PWD/deploy/skills/full-build-deploy/config/client.env"
-node --test deploy/skills/full-build-deploy/tools/clients/tests/*.test.cjs
+# 独立构建命令见 skills/android-build-deploy/tools/clients/README.md 和 skills/msi-build-deploy/tools/clients/README.md
 ```
 
-唯一客户端入口配置为 `deploy/skills/full-build-deploy/config/client.env`（基线字段），实际批次 origin 由每次批准的原点契约注入。不从服务端配置、旧client.env、环境变量或源码默认值覆盖/回退。详见[工具说明](skills/full-build-deploy/tools/clients/README.md)。候选输出到本机Temp/opencode/cloudmeet-clients-*，不自动晋级交付；新客户端交付放入`deploy/release/clients/<架构>/<批次>/`，clients与amd64、aarch64同级。此前1.0.19-20261112-143033批次仍在原架构目录下的clients中，本轮仅改文档、未移动包。实际签名必须检查产物，不能信任固定文案。
+客户端正式构建分别按 Android 与 MSI 技能指南执行；不提供联合客户端入口。候选输出和交付状态仍需按实际验收记录，不得据固定文案推断签名或安装结果。
 
 发布版本唯一读取`deploy/config/client.env`的`CLIENT_VERSION`，当前填写`1.0.19`；Electron产品版本和Android versionName共用该值。Android versionCode按`major×1000+minor×100+patch`转换，本次为`1019`；minor限定0..9、patch限定0..99。相同版本得到相同code，不自动递增，不读取历史证据、时间计数或release-version.json。旧时间计数APK可能无法覆盖升级，提示但不阻止编译；不自动卸载或清数据。构建记录保留实际版本和versionCode。
 
@@ -232,4 +229,4 @@ WiX已支持从WIX/bin、WIX便携目录、PATH及默认v3.14/v3.11目录自动�
 当前代码仍在集成，完整回归及CI受控输入同步未完成，未生成新包或修改47服务器。材料检查不代表运行验收。历史增量维护步骤见[转让说明](patches/prosody/HOST-TRANSFER.md)，不是新部署入口。
 ## 构建工具入口迁移
 
-`build-tools/` 已随技能化迁移删除（2026-11-27）；维护源为 `skills/full-build-deploy/`（服务端/客户端构建与发布工具）和 `.github/workflows/`。历史版本从 git 历史检索，不再保留冻结副本。
+`build-tools/` 已随技能化迁移删除（2026-11-27）；Android、MSI、服务端构建工具分别由各自技能维护。历史版本从 git 历史检索，不再保留冻结副本。

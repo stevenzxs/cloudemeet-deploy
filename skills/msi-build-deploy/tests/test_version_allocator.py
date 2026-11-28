@@ -12,11 +12,13 @@ import revision_versions
 import repository_counter
 
 
-class AndroidRevisionVersionTests(unittest.TestCase):
+class MsiRevisionVersionTests(unittest.TestCase):
     def policy(self):
         return {
             'schema': 1, 'namespace': 'cloudmeet-msi-v1', 'client_baseline': '1.0.21',
-            'previous_msi_version': '1.0.21', 'approved': True, 'current_revision': 63,
+            'android_base_code': 1021, 'previous_android_code': 1021,
+            'previous_msi_version': '1.0.21', 'server_baseline': '11248.0.1',
+            'approved': True, 'current_revision': 63,
         }
 
     def test_policy_starts_after_existing_shared_high_water_mark(self):
@@ -24,11 +26,12 @@ class AndroidRevisionVersionTests(unittest.TestCase):
         self.assertEqual(policy['current_revision'], 63)
         self.assertEqual(policy['namespace'], 'cloudmeet-msi-v1')
 
-    def test_revision_64_uses_approved_android_formula(self):
+    def test_revision_64_uses_approved_msi_formula(self):
         result = revision_versions.derive(self.policy(), 64)
-        self.assertEqual(result, {'revision': 64, 'client_version': '1.0.21+r64',
-                                  'msi_version': '1.0.850', 'pe_version': '1.0.850.0',
-                                  'version_formula': 2})
+        self.assertEqual(result, {'revision': 64, 'server_version': '11248.0.1+r64',
+                                  'server_tag': '11248.0.1-r64', 'client_version': '1.0.21+r64',
+                                  'android_code': 1021640, 'msi_version': '1.0.850',
+                                  'pe_version': '1.0.850.0', 'version_formula': 2})
 
     def test_rejects_invalid_revision_or_unapproved_policy(self):
         with self.assertRaises(ValueError):
@@ -52,7 +55,7 @@ class AndroidRevisionVersionTests(unittest.TestCase):
             subprocess.run(['git', '-C', str(root), 'push', str(remote), 'HEAD:refs/heads/main'], check=True, capture_output=True)
             request = {'repository': 'stevenzxs/cloudemeet-deploy', 'workflow': 'build-msi.yml',
                        'run_id': '100', 'configuration_sha': 'a' * 40, 'task': 'actions-100',
-                       'scope': ['electron'], 'sources': {'electron': 'b' * 40}}
+                       'scope': ['electron'], 'sources': {'android': 'b' * 40, 'electron': 'c' * 40, 'server': 'd' * 40}}
             first = repository_counter.allocate(policy_path, request, remote=str(remote))
             self.assertEqual(first['versions']['revision'], 64)
             self.assertEqual(repository_counter.allocate(policy_path, request, remote=str(remote)), first)
@@ -73,7 +76,7 @@ class AndroidRevisionVersionTests(unittest.TestCase):
             subprocess.run(['git', '-C', str(root), 'push', str(remote), 'HEAD:refs/heads/main'], check=True, capture_output=True)
             request = {'repository': 'stevenzxs/cloudemeet-deploy', 'workflow': 'build-msi.yml',
                        'run_id': '100', 'configuration_sha': 'a' * 40, 'task': 'actions-100',
-                       'scope': ['electron'], 'sources': {'electron': 'b' * 40}}
+                       'scope': ['electron'], 'sources': {'android': 'b' * 40, 'electron': 'c' * 40, 'server': 'd' * 40}}
             repository_counter.allocate(policy_path, request, remote=str(remote))
             with self.assertRaisesRegex(ValueError, 'different request'):
                 repository_counter.allocate(policy_path, dict(request, configuration_sha='c' * 40), remote=str(remote))
@@ -96,7 +99,7 @@ class AndroidRevisionVersionTests(unittest.TestCase):
             def allocate(run_id):
                 request = {'repository': 'stevenzxs/cloudemeet-deploy', 'workflow': 'build-msi.yml',
                            'run_id': run_id, 'configuration_sha': 'a' * 40, 'task': f'actions-{run_id}',
-                           'scope': ['electron'], 'sources': {'electron': 'b' * 40}}
+                           'scope': ['electron'], 'sources': {'android': 'b' * 40, 'electron': 'c' * 40, 'server': 'd' * 40}}
                 return repository_counter.allocate(policy_path, request, remote=str(remote))
 
             with ThreadPoolExecutor(max_workers=2) as pool:
@@ -119,9 +122,17 @@ class AndroidRevisionVersionTests(unittest.TestCase):
             subprocess.run(['git', '-C', str(root), 'push', str(remote), 'HEAD:refs/heads/main'], check=True, capture_output=True)
             request = {'repository': 'stevenzxs/cloudemeet-deploy', 'workflow': 'build-msi.yml',
                        'run_id': '300', 'configuration_sha': 'a' * 40, 'task': 'actions-300',
-                       'scope': ['electron'], 'sources': {'electron': 'b' * 40}}
+                       'scope': ['electron'], 'sources': {'android': 'b' * 40, 'electron': 'c' * 40, 'server': 'd' * 40}}
             with self.assertRaises(json.JSONDecodeError):
                 repository_counter.allocate(policy_path, request, remote=str(remote))
+
+    def test_revision_path_is_msi_owned(self):
+        self.assertEqual(repository_counter.POLICY_REL.as_posix(), 'skills/msi-build-deploy/config/version-policy.json')
+
+    def test_allocation_identity_uses_only_electron_material_pin(self):
+        repository_counter._validate_request({'repository': 'stevenzxs/cloudemeet-deploy',
+            'workflow': 'build-msi.yml', 'run_id': '1', 'configuration_sha': 'a' * 40,
+            'task': 'actions-1', 'scope': ['electron'], 'sources': {'electron': 'b' * 40}})
 
 
 if __name__ == '__main__':

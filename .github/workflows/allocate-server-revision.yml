@@ -1,0 +1,69 @@
+name: Allocate server revision
+on:
+  workflow_call:
+    inputs:
+      expected_tls_mode:
+        type: string
+        required: true
+      expected_origin:
+        type: string
+        required: true
+      material_commit:
+        type: string
+        required: true
+      scope:
+        type: string
+        required: true
+    outputs:
+      assignment:
+        value: ${{ jobs.allocate.outputs.assignment }}
+      origin_contract:
+        value: ${{ jobs.allocate.outputs.origin_contract }}
+jobs:
+  allocate:
+    permissions:
+      contents: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      assignment: ${{ steps.record.outputs.assignment }}
+      origin_contract: ${{ steps.origin.outputs.contract }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.material_commit }}
+          persist-credentials: false
+      - name: Verify server allocation context
+        env:
+          MATERIAL_SHA: ${{ inputs.material_commit }}
+          EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
+          EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
+          REQUEST_SCOPE: ${{ inputs.scope }}
+        run: |
+          test "$MATERIAL_SHA" = "$(git rev-parse HEAD)"
+          test "$MATERIAL_SHA" = "$GITHUB_SHA"
+          test "$GITHUB_REPOSITORY" = stevenzxs/cloudemeet-deploy
+          test "$GITHUB_EVENT_NAME" = workflow_dispatch
+          test "$REQUEST_SCOPE" = '["server"]'
+          python3 -B skills/server-build-deploy/tools/tls_contract.py
+      - name: Normalize approved origin and retain DNS evidence
+        id: origin
+        env:
+          EXPECTED_TLS_MODE: ${{ inputs.expected_tls_mode }}
+          EXPECTED_ORIGIN: ${{ inputs.expected_origin }}
+        run: |
+          python3 -B skills/server-build-deploy/tools/origin_contract.py --output origin-contract.json
+          echo "contract=$(jq -c . origin-contract.json)" >> "$GITHUB_OUTPUT"
+      - name: Allocate server revision on main
+        id: record
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MATERIAL_SHA: ${{ inputs.material_commit }}
+          REQUEST_SCOPE: ${{ inputs.scope }}
+          EXPECTED_ORIGIN_CONTRACT: ${{ steps.origin.outputs.contract }}
+        run: python3 -B skills/server-build-deploy/tools/versioning/allocate_workflow.py
+      - name: Verify assignment contract
+        env:
+          ASSIGNMENT: ${{ steps.record.outputs.assignment }}
+          ATTEMPT: ${{ github.run_attempt }}
+        run: python3 -B skills/server-build-deploy/tools/versioning/validate_assignment.py

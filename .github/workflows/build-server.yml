@@ -33,7 +33,7 @@ jobs:
   version:
     permissions:
       contents: write
-    uses: ./.github/workflows/revision-allocation.yml
+    uses: ./.github/workflows/allocate-server-revision.yml
     with:
       material_commit: ${{ inputs.material_commit }}
       scope: '["server"]'
@@ -128,6 +128,11 @@ jobs:
         with:
           pattern: image-*-${{ github.run_id }}-${{ github.run_attempt }}
           path: downloads
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ inputs.material_commit }}
+          path: deploy
+          persist-credentials: false
       - name: Authenticate to GHCR
         env:
           REGISTRY_TOKEN: ${{ github.token }}
@@ -141,7 +146,7 @@ jobs:
           release_dir=release-assets
           mkdir -p "$release_dir"
           declare -A images
-          for service in gateway app-web api web prosody jicofo jvb; do
+          for service in gateway app-web api web prosody jicofo jvb jitsi-mgr; do
             archive="downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/${service}.tar.gz"
             test -f "$archive" || { echo "Missing image archive: $service"; exit 1; }
             expected=$(python3 -c "import json;print(json.load(open('downloads/image-${service}-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/build-evidence.json'))['sha256'])")
@@ -160,6 +165,8 @@ jobs:
           python3 - "$release_dir/images.json" <<'PY'
           import json, os, sys
           images = dict(pair.split('=', 1) for pair in os.environ['IMAGE_REFS'].split())
+          if len(images) != 8:
+              raise SystemExit(f'Expected eight service image digests, got {len(images)}')
           json.dump({'batch': os.environ['BATCH'], 'version': os.environ['VERSION'],
                      'run_id': os.environ['GITHUB_RUN_ID'], 'attempt': os.environ['GITHUB_RUN_ATTEMPT'],
                      'deployment_commit': os.environ['GITHUB_SHA'],
@@ -167,11 +174,16 @@ jobs:
                     open(sys.argv[1], 'w'), indent=2)
           PY
           mgr="downloads/image-jitsi-mgr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/artifacts"
-          cp "$mgr/jitsi-mgr.jar" "$mgr/jitsi-mgr-ui.tar.gz" "$release_dir/"
+          cp "$mgr/jitsi-mgr-ui.tar.gz" "$release_dir/"
           cp "downloads/image-jitsi-mgr-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}/build-evidence.json" "$release_dir/jitsi-mgr-build-evidence.json"
+          cp deploy/skills/server-build-deploy/templates/compose.yaml \
+             deploy/skills/server-build-deploy/templates/.env.example \
+             deploy/skills/server-build-deploy/templates/Caddyfile.public-acme \
+             deploy/skills/server-build-deploy/templates/Caddyfile.private-ca \
+             deploy/skills/server-build-deploy/INSTALL.md "$release_dir/"
           (cd "$release_dir" && sha256sum * > SHA256SUMS)
           tag="cloudmeet-${BATCH}"
-          notes=$(printf 'CloudMeet eight services %s (seven GHCR images + jitsi-mgr JAR/UI).\nOrigin: %s\nRun: %s attempt %s; material_commit: %s\nNOT_DEPLOYED: installation, TLS and meeting media acceptance not performed. Images are pinned by digest in images.json.' \
+          notes=$(printf 'CloudMeet eight services %s (eight GHCR images; jitsi-mgr UI is a Caddy-served static asset).\nOrigin: %s\nRun: %s attempt %s; material_commit: %s\nNOT_DEPLOYED: installation, TLS and meeting media acceptance not performed. Images are pinned by digest in images.json.' \
             "$VERSION" "${{ inputs.expected_origin }}" "$GITHUB_RUN_ID" "$GITHUB_RUN_ATTEMPT" "${{ inputs.material_commit }}")
           gh release create "$tag" --draft --title "$tag" --latest=false --notes "$notes"
           gh release upload "$tag" "$release_dir"/*

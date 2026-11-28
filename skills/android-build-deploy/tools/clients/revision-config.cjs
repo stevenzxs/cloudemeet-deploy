@@ -1,4 +1,4 @@
-// Consume the shared parent version assignment.
+// Consume the Android-owned parent version assignment.
 const fs = require('node:fs');
 const path = require('node:path');
 
@@ -6,10 +6,11 @@ function loadAssignment(file, root, target, env = process.env) {
   if (!file || !env.GITHUB_SHA || !env.GITHUB_RUN_ID || !env.GITHUB_RUN_ATTEMPT) throw Error('Bound Actions version assignment required');
   const record = JSON.parse(fs.readFileSync(file, 'utf8'));
   if (!record.request || !record.versions) throw Error('Invalid version assignment');
+  if (record.namespace !== 'cloudmeet-android-v1' || record.policy_sha256 == null) throw Error('Android-owned assignment required');
   if (record.request.configuration_sha !== env.GITHUB_SHA || record.request.run_id !== env.GITHUB_RUN_ID) {
     throw Error('Version assignment does not match this run');
   }
-  if (target === 'all' && !record.request.scope.includes('android')) throw Error('Client scope mismatch');
+  if (record.request.scope.length !== 1 || record.request.scope[0] !== 'android') throw Error('Android-only assignment scope required');
   return record;
 }
 

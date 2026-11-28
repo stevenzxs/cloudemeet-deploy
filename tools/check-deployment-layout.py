@@ -10,10 +10,6 @@ CATALOG = {'schema_version': 1, 'routes': [
     {'id': 'root-template', 'state': 'template', 'product_delivery_allowed': False,
      'paths': ['deploy/config/init.py', 'deploy/config/start.sh', 'deploy/config/docker-compose.yml',
                 'deploy/config/jitsi-base.yaml']},
-    {'id': 'offline-runtime', 'state': 'candidate', 'product_delivery_allowed': False,
-      'paths': ['deploy/skills/full-build-deploy/runtime/install.py', 'deploy/skills/full-build-deploy/runtime/start.py',
-                'deploy/skills/full-build-deploy/runtime/initialize.py', 'deploy/skills/full-build-deploy/runtime/deploy.py',
-                'deploy/skills/full-build-deploy/scripts/package.sh']},
 ]}
 
 

@@ -1,11 +1,11 @@
 ---
 name: cloudmeet-android-build-deploy
-description: Use when the user requests a standalone CloudMeet Android client (APK) build and/or GitHub Release publication, without the joint eight-service delivery. Triggers on "构建安卓/构建 APK/Android 打包发布/单独构建 Android 客户端/发布 APK". Covers the minimal workflow build-android.yml (version → build → publish). Not for joint full delivery (full-build-deploy), patch hotfix (single-build-deploy), or any server deployment.
+description: Use when the user requests a standalone CloudMeet Android client (APK) build and/or GitHub Release publication. Triggers on "构建安卓/构建 APK/Android 打包发布/单独构建 Android 客户端/发布 APK". Covers build-android.yml. Not for MSI/server builds or deployment.
 ---
 
 # CloudMeet Android 客户端独立构建与发布
 
-本技能只覆盖 Android 客户端（APK）的独立构建与发布，使用最小工作流 `.github/workflows/build-android.yml`（version → build → publish 三个 job）。它是操作步骤，不构成额外授权；只执行用户明确要求的终点。联合批次（八服务+双客户端）走 `skills/full-build-deploy`，patch 热修复走 `skills/single-build-deploy`。
+本技能只覆盖 Android 客户端（APK）的独立构建与发布，使用最小工作流 `.github/workflows/build-android.yml`（version → build → publish 三个 job）。它是操作步骤，不构成额外授权；只执行用户明确要求的终点。Android 独立修订策略和分配器由本技能维护。
 
 ## 任务终点与授权
 
@@ -15,7 +15,7 @@ description: Use when the user requests a standalone CloudMeet Android client (A
 
 ## 版本规则
 
-- 修订号 `rN` 由共享分配器 `.github/workflows/revision-allocation.yml`（scope `["android"]`）分配并写入主分支台账；台账活数据为 `full-build-deploy/config/version-policy.json`，只读引用、不拷贝、不手填、不回收编号。失败或取消同样消耗编号。
+- 修订号 `rN` 由 Android 专属分配器 `.github/workflows/allocate-android-revision.yml` 写入 `skills/android-build-deploy/config/version-policy.json`；计数从 r63 起步，首次分配为 r64。失败或取消同样消耗编号，不回收编号。
 - 数字版本（公式 2）：显示 `1.0.21+rN`，`android_code = android_base_code×1000 + rN×10`；末位 1..9 预留给 single-build-deploy 的 patch 发布。
 - 单独构建 Android 会让 Electron/MSI 跳过对应 rN 段，不影响单调性。
 
@@ -30,7 +30,7 @@ description: Use when the user requests a standalone CloudMeet Android client (A
 
 1. 核对配置仓库分支与工作区干净后同步 `origin/main`；记录实际 `material_commit`（完整 SHA，必须等于 workflow 提交）。
 2. `workflow_dispatch` 输入：`expected_tls_mode`（默认 `private-ca`）、`expected_origin`（本批用户入口 origin）、`material_commit`、`publish_images`。
-3. `version` job：复用共享分配器，输出 assignment 与 origin 契约（含 DNS 证据）。
+3. `version` job：调用 Android 专属分配器，输出 assignment 与 origin 契约（含 DNS 证据）。
 4. `build` job（ubuntu-24.04）：检出 deploy@material_commit 与 jm@固定 commit → 写批次 env/origin 契约 → Java 17 + Gradle 缓存 → 注入签名 secrets → SDK 35/NDK 27.1.12297006 → `npm ci` → `node deploy/skills/android-build-deploy/tools/clients/build-clients.cjs --target android --env-file batch-client.env --origin-contract batch-origin.json --version-record version-assignment.json`。构建器完成验包（版本、唯一 ABI arm64-v8a、批准签名、入口/CA）后交付 `deploy/release/clients/android/arm64-v8a/<批次>/`，artifact 保留 14 天。
 5. `publish` job（仅授权）：下载同一 Run/attempt artifact → 定位 `<client_version>-cloudmeet-clients-*` 交付目录 → `sha256sum -c SHA256SUMS` → `gh release create --draft`（`--latest=false`，notes 标 `NOT_DEPLOYED`，**不带资产**）→ `gh release upload` 同步上传 APK + build-evidence.json + SHA256SUMS（同步退出码即权威校验）→ `gh release edit --draft=false` 公开。
 
@@ -43,9 +43,9 @@ node deploy/skills/android-build-deploy/tools/clients/build-clients.cjs --target
 
 正式构建必须携带 `--version-record`（分配记录），不得绕过统一入口直接跑 Gradle 充当正式发布。工具细节见 `tools/clients/README.md`（与 MSI 技能共用同一构建器，README 同时覆盖两端）。
 
-## 防漂移约定
+## 所有权约定
 
-`tools/clients/` 与 `config/` 是 `full-build-deploy` 同名内容的自包含副本（2026-11-27 拆分）。副本必须与维护源保持一致；`tests/test_tool_parity.py` 钉死逐文件一致，改任一侧须同步另一侧并重跑测试。唯一允许的跨技能依赖是活数据 `version-policy.json`（不拷贝）。
+Android 策略、分配器和客户端构建工具均由本技能独立维护；MSI 具有自己的策略和分配器。
 
 ## 已知陷阱（MSI 链路 r55–r59 实测教训，publish 三连失败的根因）
 

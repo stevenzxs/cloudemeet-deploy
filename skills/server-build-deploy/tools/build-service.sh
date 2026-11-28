@@ -140,16 +140,19 @@ case "$service" in
     ;;
 esac
 
-if [[ $service != jitsi-mgr ]]; then
-  case "$service" in
-    web|app-web|api|gateway)
-      docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
-        --build-arg "RUNTIME_BASE=$runtime" --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" \
-        -f "$SKILL_DIR/docker/$service.Dockerfile" -t "cloudmeet/$service:$BATCH" "$context"
-      ;;
-  esac
-  docker save "cloudmeet/$service:$BATCH" | gzip -1 > "$out/$service.tar.gz"
-fi
+case "$service" in
+  web|app-web|api|gateway)
+    docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
+      --build-arg "RUNTIME_BASE=$runtime" --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" \
+      -f "$SKILL_DIR/docker/$service.Dockerfile" -t "cloudmeet/$service:$BATCH" "$context"
+    ;;
+  jitsi-mgr)
+    docker build --platform "linux/$TARGET_ARCH" --progress plain "${labels[@]}" \
+      --build-arg "SOURCE_COMMIT=$SOURCE_COMMIT" --build-arg "VERSION=$VERSION" --build-arg "BATCH=$BATCH" \
+      -f "$SKILL_DIR/docker/jitsi-mgr.Dockerfile" -t "cloudmeet/$service:$BATCH" "$context"
+    ;;
+esac
+docker save "cloudmeet/$service:$BATCH" | gzip -1 > "$out/$service.tar.gz"
 
 python3 - "$out" <<'PY'
 import hashlib, json, os, pathlib, subprocess, sys
