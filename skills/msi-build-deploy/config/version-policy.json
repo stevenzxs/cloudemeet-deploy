@@ -1,0 +1,8 @@
+{
+  "schema": 1,
+  "namespace": "cloudmeet-msi-v1",
+  "client_baseline": "1.0.21",
+  "previous_msi_version": "1.0.21",
+  "approved": true,
+  "current_revision": 63
+}

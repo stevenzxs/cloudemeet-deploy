@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "namespace": "cloudmeet-android-v1",
+  "client_baseline": "1.0.21",
+  "android_base_code": 1021,
+  "previous_android_code": 1021,
+  "approved": true,
+  "current_revision": 63
+}
